@@ -1,0 +1,12 @@
+{
+    "https://rstudio.niehs.nih.gov": {
+        "server_url": "https://rstudio.niehs.nih.gov",
+        "filename": "/Users/svobodadl/Dev/Projects/categorical_analysis/bmdx_bokeh",
+        "app_url": "https://rstudio.niehs.nih.gov/content/7f0db19b-3b20-4c9a-add6-0d9def24bfa1/",
+        "app_id": "7f0db19b-3b20-4c9a-add6-0d9def24bfa1",
+        "app_guid": "7f0db19b-3b20-4c9a-add6-0d9def24bfa1",
+        "title": "bmdx_bokeh",
+        "app_mode": "python-bokeh",
+        "app_store_version": 1
+    }
+}
