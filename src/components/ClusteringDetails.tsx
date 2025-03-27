@@ -1,22 +1,32 @@
 // src/components/ClusteringDetails.tsx
-import React, { useEffect, useState } from 'react';
-import { Table, Spin, Typography } from 'antd';
+import React, { useEffect, useState, useMemo } from 'react'; // Added useMemo
+import { Table, Spin, Typography, Collapse, Alert } from 'antd'; // Added Alert
 import { useRunHierarchicalClusteringQuery } from '../store/api/pyodideClusteringApi';
-import { Collapse } from 'antd';
+import {
+    transformDataForClustering,
+    parseLabelToObject,
+    prepareClusteringDetails, // Import the function to calculate sizes
+    calculateSummaries, // Import the summary calculation function
+    CategoryRow, // Import the type for processed rows
+    SummaryRow, // Import the type for summary rows
+    SourceDataForClustering, // Assuming this is defined in utils for input type
+    ApiClusteringInputItem, // Assuming this is defined in utils for API input type
+} from '../utils/clusteringUtils'; // Adjust path if needed
+// import { defineCategoryColumns, defineSummaryColumns } from './ClusteringTableColumns'; // Optional: Move column definitions out
 
 const { Panel } = Collapse;
+const { Text } = Typography;
 
-const { Title, Text } = Typography;
-
+// Interface for the raw API result structure
 export interface ClusteringResult {
-    orderedLabels?: string[];    // Expected to be strings
-    orderedClusters?: (string | number)[];  // Expected to be strings or numbers converted to strings
+    orderedLabels?: string[];
+    orderedClusters?: (string | number)[];
     displayName?: string;
 }
 
 interface ClusteringDetailsProps {
-    // rowData is the raw data to cluster.
-    rowData: any[];
+    // rowData should match the structure expected by transformDataForClustering
+    rowData: SourceDataForClustering[]; // Use a more specific input type
     method?: string;
     numClusters?: number;
 }
@@ -26,284 +36,327 @@ const ClusteringDetails: React.FC<ClusteringDetailsProps> = ({
     method = 'average',
     numClusters = 0,
 }) => {
-    // Compute the number of clusters if not provided.
-    const computedNumClusters =
-        numClusters && numClusters > 0 ? numClusters : Math.ceil(Math.sqrt(rowData.length) / 2);
+    // --- 1. Compute Cluster Count & Transform Input Data ---
+    const computedNumClusters = useMemo(
+        () =>
+            numClusters > 0
+                ? numClusters
+                : Math.ceil(Math.sqrt(rowData.length) / 2),
+        [numClusters, rowData.length],
+    );
 
-    // Transform each row into the expected format.
-    const transformedRows = rowData.map(row => ({
-        "Category ID": row.categoryIdentifier?.id || "",
-        "Category Title": row.categoryIdentifier?.title || "",
-        "Cluster BMD": row.bmdFifthPercentileTotalGenes || "",
-        "Up Genes": row.genesUp || "",
-        "Down Genes": row.genesDown || "",
-        "All Genes": row.genesIds || "",
-        "Genes Up": row.genesUp || "",
-        "Genes Down": row.genesDown || ""
-    }));
+    // Memoize transformed rows for API call
+    const transformedRowsForApi: ApiClusteringInputItem[] = useMemo(
+        () => transformDataForClustering(rowData),
+        [rowData],
+    );
+    console.log('Transformed rows for clustering API:', transformedRowsForApi);
 
-    console.log("Transformed rows for clustering:", transformedRows);
-
-    // Call the clustering API with the transformed row data.
-    const { data, error, isLoading } = useRunHierarchicalClusteringQuery({
-        rowData: transformedRows,
+    // --- 2. Call Clustering API ---
+    const {
+        data: apiResponseString,
+        error: apiError,
+        isLoading: isApiLoading,
+    } = useRunHierarchicalClusteringQuery({
+        rowData: transformedRowsForApi,
         method,
         numClusters: computedNumClusters,
     });
 
-    const [clusters, setClusters] = useState<ClusteringResult[]>([]);
-
-    useEffect(() => {
-        if (data) {
-            try {
-                const parsed = JSON.parse(data);
-                console.log("Parsed clustering data:", parsed);
-                // Ensure we have an array of clustering results.
-                const clustersArray = Array.isArray(parsed) ? parsed : [parsed];
-                if (clustersArray.length === 1) {
-                    clustersArray[0].displayName = `Clusters (n=${computedNumClusters})`;
-                }
-                setClusters(clustersArray);
-                console.log("Final clustering results:", clustersArray);
-            } catch (e) {
-                console.error('Error parsing clustering result:', e);
+    // --- 3. Parse API Response ---
+    // Memoize the parsed API response to avoid re-parsing on every render
+    const parsedApiResponse = useMemo<{
+        clusters: ClusteringResult[] | null;
+        parsingError: Error | null;
+    }>(() => {
+        if (!apiResponseString) return { clusters: null, parsingError: null };
+        try {
+            const parsed = JSON.parse(apiResponseString);
+            const clustersArray = Array.isArray(parsed) ? parsed : [parsed];
+            // Add display name if needed (can also be done later)
+            if (clustersArray.length === 1 && !clustersArray[0].displayName) {
+                clustersArray[0].displayName = `Clusters (n=${computedNumClusters})`;
             }
+            console.log('Parsed clustering data:', clustersArray);
+            return { clusters: clustersArray, parsingError: null };
+        } catch (e) {
+            console.error('Error parsing clustering API response:', e);
+            return {
+                clusters: null,
+                parsingError: e instanceof Error ? e : new Error(String(e)),
+            };
         }
-    }, [data, computedNumClusters]);
+    }, [apiResponseString, computedNumClusters]);
 
-    if (isLoading) return <Spin tip="Running clustering..." />;
-    if (error)
-        return <Text type="danger">Error running clustering: {JSON.stringify(error)}</Text>;
-    if (!clusters || clusters.length === 0)
-        return <Text>No clustering data available.</Text>;
-
-    // Helper: Parse a label string into an object.
-    // Expected format: 
-    // "Category ID: GO:0034660 | Category Title: ncRNA metabolic process | Cluster BMD: 9.137755 | Up Genes: 308911;303612 | Down Genes: 498934;361184;309673;64896 | All Genes: 498934;361184;308911;309673;303612;64896"
-    const parseLabelToObject = (label: string) => {
-        const obj: { [key: string]: string } = {};
-        label.split(" | ").forEach((part) => {
-            const [key, value] = part.split(": ");
-            if (key && value) {
-                obj[key.trim()] = value.trim();
-            }
-        });
-        return obj;
-    };
-
-    // --- Table 2: Combined Individual Category Table ---
-    // Combine all individual rows from clusters.
-    const allCategoryRows = clusters.flatMap(cluster => {
-        if (
-            Array.isArray(cluster.orderedLabels) &&
-            Array.isArray(cluster.orderedClusters) &&
-            cluster.orderedLabels.length === cluster.orderedClusters.length
-        ) {
-            return cluster.orderedLabels.map((label, i) => {
-                const parsed = parseLabelToObject(label);
-                // Attach the cluster value (as string) from the corresponding orderedClusters.
-                return {
-                    ...parsed,
-                    cluster: (cluster.orderedClusters[i] || "").toString().trim()
-                };
-            });
+    // --- 4. Process Parsed Data into Table Rows ---
+    // Memoize the processed table data derived from the API response
+    const { categoryTableData, summaryTableData, processingError } = useMemo<{
+        categoryTableData: CategoryRow[];
+        summaryTableData: SummaryRow[];
+        processingError: Error | null;
+    }>(() => {
+        // Don't process if API hasn't returned data or if parsing failed
+        if (!parsedApiResponse.clusters) {
+            return {
+                categoryTableData: [],
+                summaryTableData: [],
+                processingError: parsedApiResponse.parsingError, // Pass parsing error along
+            };
         }
-        return [];
-    });
-    console.log("allCategoryRows: ", allCategoryRows);
 
-    // Group by normalized "cluster" (each group represents the cluster’s category IDs).
-    const groupedByCluster = allCategoryRows.reduce((acc: { [key: string]: any[] }, curr) => {
-        // Normalize the cluster key.
-        const clusterKey = (curr["cluster"] || "").trim();
-        if (!clusterKey) {
-            console.log("Skipping row (missing cluster): ", curr);
-            return acc;
+        try {
+            // --- 4a. Flatten API results and create initial CategoryRow objects ---
+            const initialCategoryRows = parsedApiResponse.clusters.flatMap(
+                (clusterResult) => {
+                    if (
+                        !Array.isArray(clusterResult.orderedLabels) ||
+                        !Array.isArray(clusterResult.orderedClusters) ||
+                        clusterResult.orderedLabels.length !==
+                        clusterResult.orderedClusters.length
+                    ) {
+                        console.warn('Skipping malformed cluster result:', clusterResult);
+                        return []; // Skip malformed results
+                    }
+
+                    return clusterResult.orderedLabels.map((label, i) => {
+                        // Use imported parseLabelToObject
+                        const parsedLabelData = parseLabelToObject(label);
+                        const clusterString = (
+                            clusterResult.orderedClusters?.[i] ?? ''
+                        ).toString().trim();
+                        const clusterValue = parseFloat(clusterString);
+
+                        // Create a partial CategoryRow (without sizes yet)
+                        // Use explicit property names from CategoryRow interface
+                        const partialRow: Omit<
+                            CategoryRow,
+                            'allGenesSize' | 'upGenesSize' | 'downGenesSize'
+                        > = {
+                            key: parsedLabelData['Category ID'] || `missing-key-${i}`, // Ensure key exists
+                            categoryId: parsedLabelData['Category ID'] || '',
+                            categoryTitle: parsedLabelData['Category Title'] || '',
+                            clusterBMD: parsedLabelData['Cluster BMD'] || '',
+                            upGenes: parsedLabelData['Up Genes'] || '',
+                            downGenes: parsedLabelData['Down Genes'] || '',
+                            allGenes: parsedLabelData['All Genes'] || '',
+                            cluster: clusterString,
+                            clusterValue: isNaN(clusterValue) ? -1 : clusterValue, // Handle NaN
+                        };
+
+                        // Use prepareClusteringDetails to calculate sizes and complete the row
+                        return prepareClusteringDetails(partialRow);
+                    });
+                },
+            );
+            console.log('Initial Category Rows (with sizes):', initialCategoryRows);
+
+            // --- 4b. Group by cluster ---
+            const groupedByCluster = initialCategoryRows.reduce(
+                (acc: { [key: string]: CategoryRow[] }, curr) => {
+                    const clusterKey = curr.cluster; // Already trimmed and validated during creation
+                    if (!clusterKey) {
+                        // Should ideally not happen if handled during creation, but good fallback
+                        console.warn('Skipping row with missing cluster key:', curr);
+                        return acc;
+                    }
+                    if (!acc[clusterKey]) {
+                        acc[clusterKey] = [];
+                    }
+                    acc[clusterKey].push(curr);
+                    return acc;
+                },
+                {},
+            );
+
+            // --- 4c. Add groupSize to each CategoryRow ---
+            // (groupSize = number of categories in the same cluster)
+            const categoryTableDataWithGroupSize: CategoryRow[] =
+                initialCategoryRows.map((row) => ({
+                    ...row,
+                    groupSize: groupedByCluster[row.cluster]?.length || 0,
+                }));
+            console.log(
+                'Category Rows with Group Size:',
+                categoryTableDataWithGroupSize,
+            );
+
+            // --- 4d. Calculate Summaries using the utility function ---
+            const finalSummaryRows = calculateSummaries(groupedByCluster);
+            console.log('Final Summary Rows:', finalSummaryRows);
+
+            return {
+                categoryTableData: categoryTableDataWithGroupSize,
+                summaryTableData: finalSummaryRows,
+                processingError: null,
+            };
+        } catch (e) {
+            console.error('Error processing clustering data:', e);
+            return {
+                categoryTableData: [],
+                summaryTableData: [],
+                processingError: e instanceof Error ? e : new Error(String(e)),
+            };
         }
-        if (!acc[clusterKey]) {
-            acc[clusterKey] = [];
-        }
-        acc[clusterKey].push(curr);
-        return acc;
-    }, {});
+    }, [parsedApiResponse]); // Recalculate only when parsed API response changes
 
-    // Build final table rows — one row per individual category.
-    const categoryTableRows = Object.values(groupedByCluster).flatMap(group =>
-        group.map(row => ({
-            key: row["Category ID"], // assuming Category IDs are unique
-            categoryId: row["Category ID"],
-            categoryTitle: row["Category Title"],
-            clusterBMD: row["Cluster BMD"],
-            upGenes: row["Up Genes"],
-            downGenes: row["Down Genes"],
-            allGenes: row["All Genes"],
-            cluster: row.cluster, // the individual cluster value
-        }))
-    );
-
-    // Now, add a new field "groupSize" to each row based on the cluster group.
-    const categoryTableRowsWithSize = categoryTableRows.map(row => ({
-        ...row,
-        groupSize: groupedByCluster[row.cluster]?.length || 0,
-    }));
-
-    // Define the columns for the combined category table, including the new "Group Size" column.
-    // Its sorter compares groupSize first, then Cluster BMD if equal.
-    const categoryColumns = [
-        {
-            title: "Group Size",
-            dataIndex: "groupSize",
-            key: "groupSize",
-            sorter: (a, b) => {
-                const groupDiff = a.groupSize - b.groupSize;
-                if (groupDiff !== 0) return groupDiff;
-                // If group sizes are equal, sort by Cluster BMD numerically.
-                const aBMD = typeof a.clusterBMD === 'string' ? parseFloat(a.clusterBMD.trim()) : a.clusterBMD;
-                const bBMD = typeof b.clusterBMD === 'string' ? parseFloat(b.clusterBMD.trim()) : b.clusterBMD;
-                return aBMD - bBMD;
+    // --- 5. Define Table Columns ---
+    // Memoize column definitions to prevent unnecessary re-renders
+    const categoryColumns = useMemo(() => {
+        // Define columns using CategoryRow properties
+        return [
+            {
+                title: 'Group Size',
+                dataIndex: 'groupSize', // Use the added groupSize property
+                key: 'groupSize',
+                sorter: (a: CategoryRow, b: CategoryRow) => {
+                    const groupDiff = (a.allGenesSize ?? 0) - (b.allGenesSize ?? 0); // Handle potential undefined
+                    if (groupDiff !== 0) return groupDiff;
+                    const aBMD = parseFloat(a.clusterBMD);
+                    const bBMD = parseFloat(b.clusterBMD);
+                    return (isNaN(aBMD) ? 0 : aBMD) - (isNaN(bBMD) ? 0 : bBMD);
+                },
+                defaultSortOrder: 'descend' as const, // Use 'as const' for type safety
             },
-            defaultSortOrder: 'descend',
-        },
-        {
-            title: "Category ID",
-            dataIndex: "categoryId",
-            key: "categoryId",
-            sorter: (a, b) => a.categoryId.localeCompare(b.categoryId),
-        },
-        {
-            title: "Category Title",
-            dataIndex: "categoryTitle",
-            key: "categoryTitle",
-            sorter: (a, b) => a.categoryTitle.localeCompare(b.categoryTitle),
-        },
-        {
-            title: "Cluster BMD",
-            dataIndex: "clusterBMD",
-            key: "clusterBMD",
-            sorter: (a, b) => {
-                const aVal = parseFloat(a.clusterBMD) || 0;
-                const bVal = parseFloat(b.clusterBMD) || 0;
-                return aVal - bVal;
+            {
+                title: 'Category ID',
+                dataIndex: 'categoryId',
+                key: 'categoryId',
+                sorter: (a: CategoryRow, b: CategoryRow) =>
+                    a.categoryId.localeCompare(b.categoryId),
             },
-        },
-        {
-            title: "Up Genes",
-            dataIndex: "upGenes",
-            key: "upGenes",
-            sorter: (a, b) => a.upGenes.localeCompare(b.upGenes),
-        },
-        {
-            title: "Down Genes",
-            dataIndex: "downGenes",
-            key: "downGenes",
-            sorter: (a, b) => a.downGenes.localeCompare(b.downGenes),
-        },
-        {
-            title: "All Genes",
-            dataIndex: "allGenes",
-            key: "allGenes",
-            sorter: (a, b) => a.allGenes.localeCompare(b.allGenes),
-        },
-        {
-            title: "Cluster",
-            dataIndex: "cluster",
-            key: "cluster",
-            sorter: (a, b) => {
-                const aVal = parseFloat(a.cluster) || 0;
-                const bVal = parseFloat(b.cluster) || 0;
-                return aVal - bVal;
+            {
+                title: 'Category Title',
+                dataIndex: 'categoryTitle',
+                key: 'categoryTitle',
+                sorter: (a: CategoryRow, b: CategoryRow) =>
+                    a.categoryTitle.localeCompare(b.categoryTitle),
+                ellipsis: true, // Optional: shorten long titles
             },
-        },
-    ];
+            {
+                title: 'Cluster BMD',
+                dataIndex: 'clusterBMD',
+                key: 'clusterBMD',
+                sorter: (a: CategoryRow, b: CategoryRow) => {
+                    const aVal = parseFloat(a.clusterBMD);
+                    const bVal = parseFloat(b.clusterBMD);
+                    return (isNaN(aVal) ? 0 : aVal) - (isNaN(bVal) ? 0 : bVal);
+                },
+                render: (text: string) => parseFloat(text)?.toFixed(4) ?? text, // Format display
+            },
+            // Add columns for upGenesSize, downGenesSize, allGenesSize if needed
+            {
+                title: 'Up Genes (Count)',
+                dataIndex: 'upGenesSize',
+                key: 'upGenesSize',
+                sorter: (a: CategoryRow, b: CategoryRow) => a.upGenesSize - b.upGenesSize,
+            },
+            {
+                title: 'Down Genes (Count)',
+                dataIndex: 'downGenesSize',
+                key: 'downGenesSize',
+                sorter: (a: CategoryRow, b: CategoryRow) => a.downGenesSize - b.downGenesSize,
+            },
+            // { title: "All Genes", dataIndex: "allGenes", key: "allGenes" }, // Displaying long gene lists might be messy
+            {
+                title: 'Cluster',
+                dataIndex: 'cluster', // Display the string representation
+                key: 'cluster',
+                sorter: (a: CategoryRow, b: CategoryRow) =>
+                    a.clusterValue - b.clusterValue, // Sort numerically using clusterValue
+            },
+        ];
+    }, []); // Empty dependency array means columns are defined once
 
-    // -- Compute summary rows ---
-    // Assume groupedByCluster is available from your earlier grouping step.
-    const summaryRows = Object.entries(groupedByCluster).map(([clusterKey, rows]) => {
-        // Compute the minimum Cluster BMD for this cluster group.
-        // Parse each "Cluster BMD" as a float.
-        const minBMD = Math.min(...rows.map(r => parseFloat(r["Cluster BMD"]) || Infinity));
-        const numCategoryIDs = rows.length;
-        return {
-            key: clusterKey,
-            cluster: clusterKey,
-            minClusterBMD: minBMD,
-            numCategoryIDs: numCategoryIDs,
-        };
-    });
+    const summaryColumns = useMemo(() => {
+        // Define columns using SummaryRow properties
+        return [
+            {
+                title: 'Cluster',
+                dataIndex: 'cluster',
+                key: 'cluster',
+                // Add sorter if needed, though data is pre-sorted
+                // sorter: (a: SummaryRow, b: SummaryRow) => parseFloat(a.cluster) - parseFloat(b.cluster),
+            },
+            {
+                title: 'Min Cluster BMD',
+                dataIndex: 'minClusterBMD',
+                key: 'minClusterBMD',
+                render: (value: number) =>
+                    isNaN(value) ? 'N/A' : value.toExponential(4), // Handle NaN
+            },
+            {
+                title: 'Num Categories', // Renamed for clarity
+                dataIndex: 'numCategoryIDs',
+                key: 'numCategoryIDs',
+            },
+            {
+                title: 'Rank', // Display the calculated sort rank
+                dataIndex: 'sort',
+                key: 'sort',
+            },
+        ];
+    }, []); // Empty dependency array
 
-    // Identify the row with the highest number of Category IDs.
-    const maxRow = summaryRows.reduce((max, row) =>
-        row.numCategoryIDs > max.numCategoryIDs ? row : max, summaryRows[0]
-    );
+    // --- 6. Render Logic ---
+    const isLoading = isApiLoading; // Could add || isProcessing if processing was async
+    const error = apiError || parsedApiResponse.parsingError || processingError;
 
-    // Sort the remaining rows in ascending order by minClusterBMD.
-    const sortedRows = summaryRows
-        .filter(row => row.key !== maxRow.key)
-        .sort((a, b) => a.minClusterBMD - b.minClusterBMD);
+    if (isLoading) return <Spin tip="Running clustering and processing results..." />;
 
-    // Build the final ordered array by appending the maxRow at the end.
-    const finalSummaryRows = [...sortedRows, maxRow].map((row, index) => ({
-        ...row,
-        sort: index + 1, // Assign a ranking for display.
-    }));
+    // Display specific errors
+    if (error) {
+        let errorType = 'Clustering Error';
+        if (parsedApiResponse.parsingError) errorType = 'API Response Parsing Error';
+        if (processingError) errorType = 'Data Processing Error';
+        return (
+            <Alert message={errorType} description={error.message} type="error" showIcon />
+        );
+    }
 
-    // --- Define summary table columns ---
-    // No interactive sorting is applied—the table order is fixed.
-    const summaryColumns = [
-        {
-            title: "Cluster",
-            dataIndex: "cluster",
-            key: "cluster",
-        },
-        {
-            title: "Min Cluster BMD",
-            dataIndex: "minClusterBMD",
-            key: "minClusterBMD",
-            render: (value: number) => value.toExponential(4),
-        },
-        {
-            title: "Num Category IDs",
-            dataIndex: "numCategoryIDs",
-            key: "numCategoryIDs",
-        }
-    ];
+    if (categoryTableData.length === 0) {
+        return <Text>No clustering data available or processed.</Text>;
+    }
 
-    // --- Render both tables in a single return ---
+    // --- Final Render ---
     return (
-
         <div>
-            <Collapse>
-                <Panel header="Category Details" key="1">
-                    <div style={{ marginTop: '2rem' }}>
-                        <Title level={4}>Combined Category Table</Title>
+            <Collapse defaultActiveKey={['1']}>
+                <Panel
+                    header={`Category Details (${categoryTableData.length} items)`}
+                    key="1"
+                >
+                    <div style={{ marginTop: '1rem' }}>
+                        {/* <Title level={4}>Combined Category Table</Title> */}
                         <Table
-                            dataSource={categoryTableRowsWithSize}
+                            dataSource={categoryTableData}
                             columns={categoryColumns}
-                            rowKey="key"
-                            pagination={true}
+                            rowKey="key" // Uses the 'key' property from CategoryRow
+                            pagination={{ pageSize: 15, showSizeChanger: true }} // Example pagination
+                            size="small" // Make table more compact
+                            scroll={{ x: 1000 }} // Enable horizontal scroll if needed
                         />
                     </div>
                 </Panel>
-            </Collapse >
+            </Collapse>
 
-
-            <Collapse>
-                <Panel header="Category Cluster Summary" key="1">
-                    <div style={{ marginTop: '2rem' }}>
-                        <Title level={4}>Summary Table by Cluster</Title>
+            <Collapse style={{ marginTop: '1rem' }}>
+                <Panel
+                    header={`Category Cluster Summary (${summaryTableData.length} clusters)`}
+                    key="2" // Use a different key
+                >
+                    <div style={{ marginTop: '1rem' }}>
+                        {/* <Title level={4}>Summary Table by Cluster</Title> */}
                         <Table
-                            dataSource={finalSummaryRows}
+                            dataSource={summaryTableData}
                             columns={summaryColumns}
-                            rowKey="key"
-                            pagination={false}
+                            rowKey="key" // Uses the 'key' property from SummaryRow
+                            pagination={false} // Summary table likely doesn't need pagination
+                            size="small"
                         />
                     </div>
                 </Panel>
-            </Collapse >
+            </Collapse>
         </div>
-
-
-
     );
 };
 
