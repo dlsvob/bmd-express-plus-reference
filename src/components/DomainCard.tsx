@@ -1,6 +1,6 @@
 import React from 'react';
 import { Collapse, Card } from 'antd';
-import DomainDetails from './DomainDetails';
+import DomainDetails from './CategoryAnalysisDetails';
 import { IDBPDatabase } from 'idb';
 import { ProjectDB } from '../utils/myIDB';
 

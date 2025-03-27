@@ -1,6 +1,6 @@
 // src/components/ClusteringDetails.tsx
-import React, { useEffect, useState, useMemo } from 'react'; // Added useMemo
-import { Table, Spin, Typography, Collapse, Alert } from 'antd'; // Added Alert
+import React, { useMemo } from 'react'; // Added useMemo
+import { Table, Spin, Collapse, Alert } from 'antd'; // Added Alert
 import { useRunHierarchicalClusteringQuery } from '../store/api/pyodideClusteringApi';
 import {
     transformDataForClustering,
@@ -12,10 +12,36 @@ import {
     SourceDataForClustering, // Assuming this is defined in utils for input type
     ApiClusteringInputItem, // Assuming this is defined in utils for API input type
 } from '../utils/clusteringUtils'; // Adjust path if needed
-// import { defineCategoryColumns, defineSummaryColumns } from './ClusteringTableColumns'; // Optional: Move column definitions out
+import { FetchBaseQueryError } from '@reduxjs/toolkit/query';
+
+// Helper function to extract a displayable error message
+const getErrorMessage = (error: unknown): string => {
+    if (!error) {
+        return 'An unknown error occurred.';
+    }
+    // Handle plain strings
+    if (typeof error === 'string') {
+        return error;
+    }
+    // Handle standard Error objects and SerializedError (common case)
+    if (typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+        return error.message;
+    }
+    // Handle RTK Query FetchBaseQueryError (check for 'status')
+    if (typeof error === 'object' && 'status' in error) {
+        // You might want to format the data part more nicely
+        const fetchError = error as FetchBaseQueryError;
+        return `Error ${fetchError.status}: ${JSON.stringify(fetchError.data)}`;
+    }
+    // Fallback for other object types
+    try {
+        return JSON.stringify(error);
+    } catch {
+        return 'Could not stringify error object.';
+    }
+};
 
 const { Panel } = Collapse;
-const { Text } = Typography;
 
 // Interface for the raw API result structure
 export interface ClusteringResult {
@@ -298,24 +324,24 @@ const ClusteringDetails: React.FC<ClusteringDetailsProps> = ({
     }, []); // Empty dependency array
 
     // --- 6. Render Logic ---
-    const isLoading = isApiLoading; // Could add || isProcessing if processing was async
-    const error = apiError || parsedApiResponse.parsingError || processingError;
+    const isLoading = isApiLoading;
+  const error = apiError || parsedApiResponse.parsingError || processingError;
 
-    if (isLoading) return <Spin tip="Running clustering and processing results..." />;
+  if (isLoading) return <Spin tip="Running clustering and processing results..." />;
 
-    // Display specific errors
-    if (error) {
-        let errorType = 'Clustering Error';
-        if (parsedApiResponse.parsingError) errorType = 'API Response Parsing Error';
-        if (processingError) errorType = 'Data Processing Error';
-        return (
-            <Alert message={errorType} description={error.message} type="error" showIcon />
-        );
-    }
+  // Display specific errors
+  if (error) {
+    let errorType = 'Clustering Error';
+    if (parsedApiResponse.parsingError) errorType = 'API Response Parsing Error';
+    if (processingError) errorType = 'Data Processing Error';
 
-    if (categoryTableData.length === 0) {
-        return <Text>No clustering data available or processed.</Text>;
-    }
+    // Use the helper function to safely get the description
+    const errorDescription = getErrorMessage(error);
+
+    return (
+      <Alert message={errorType} description={errorDescription} type="error" showIcon />
+    );
+  }
 
     // --- Final Render ---
     return (
