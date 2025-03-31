@@ -49,7 +49,7 @@ interface CategoryRowStructure {
     downGenesSize: number;
 
     // Add groupSize back if you need the count of categories per cluster
-    // groupSize?: number;
+    groupSize?: number;
 }
 
 /**

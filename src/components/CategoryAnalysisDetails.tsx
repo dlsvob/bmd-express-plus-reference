@@ -1,155 +1,115 @@
-// src/components/DomainDetails.tsx
-import React, { useEffect, useState } from 'react';
-import { Table, Spin, Typography } from 'antd';
-import { IDBPDatabase } from 'idb';
-import { ProjectDB } from '../utils/myIDB';
-import { getCategoryAnalysisResultsByNamePrefix } from '../api/categoryAnalysisQueries';
-import * as BMDxExported from '../models/BMDxExported';
-import ClusteringDetails from './ClusteringDetails';
+// src/components/CategoryAnalysisDetails.tsx
+import React, { useEffect, useState, useMemo } from 'react';
+// Use Empty for no data state
+import { Spin, Typography, Collapse, Table, Empty } from 'antd';
+// Import specific types needed
+import { CategoryAnalysisResult, CategoryAnalysisItem } from '../models/BMDxExported';
+import ClusteringDetails from './ClusteringDetails'; // Assuming ClusteringDetails expects SourceDataForClustering[]
 
-const { Title, Text } = Typography;
+const { Text } = Typography; // Keep Text for messages or use Empty
+const { Panel } = Collapse;
 
-export interface DomainDetailsProps {
-    experimentName: string; // Used as the query prefix (should be nonempty)
-    db: IDBPDatabase<ProjectDB> | null;
+// Define props - Accepts data directly
+interface CategoryAnalysisDetailsProps {
+    experimentName: string; // Keep if needed for display/titles
+    // Accept data as prop, can be undefined if not loaded/filtered yet
+    categoryAnalysisData: CategoryAnalysisResult[] | undefined;
 }
 
-const DomainDetails: React.FC<DomainDetailsProps> = ({ experimentName, db }) => {
-    const [results, setResults] = useState<BMDxExported.CategoryAnalysisResult[]>([]);
-    const [loading, setLoading] = useState<boolean>(false);
+const CategoryAnalysisDetails: React.FC<CategoryAnalysisDetailsProps> = ({
+    experimentName,
+    categoryAnalysisData
+}) => {
+    // State for processed/filtered results derived from props
+    const [processedResults, setProcessedResults] = useState<CategoryAnalysisResult[]>([]);
+    // State to indicate processing of props is happening
+    const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
+    // Process incoming data when it changes
     useEffect(() => {
-        if (!experimentName || !db) {
-            console.log('Skipping query because experimentName or db is not available');
-            return;
+        if (categoryAnalysisData) {
+            setIsProcessing(true);
+            // Simulate async processing if needed, otherwise can be sync
+            Promise.resolve().then(() => { // Use Promise.resolve for microtask timing
+                try {
+                    // Apply filtering logic (moved from old useEffect)
+                    const filtered = categoryAnalysisData
+                        .map((result) => {
+                            const filteredItems = result.categoryAnalsyisResults?.filter((item) => {
+                                // Add null checks for safety
+                                return (
+                                    item.geneAllCount != null && item.geneAllCount >= 40 &&
+                                    item.geneAllCount <= 500 &&
+                                    item.percentage != null && item.percentage >= 5 &&
+                                    item.genesThatPassedAllFilters != null && item.genesThatPassedAllFilters >= 3
+                                );
+                            }) || []; // Handle case where categoryAnalsyisResults might be null/undefined
+                            return { ...result, categoryAnalsyisResults: filteredItems };
+                        })
+                        .filter((result) => result.categoryAnalsyisResults.length > 0);
+                    setProcessedResults(filtered);
+                } catch (err) {
+                    console.error('Error processing category analysis data:', err);
+                    setProcessedResults([]); // Clear results on error
+                } finally {
+                    setIsProcessing(false);
+                }
+            });
+        } else {
+            setProcessedResults([]); // Clear results if no data is passed
         }
+    }, [categoryAnalysisData]); // Re-process only when input data changes
 
-        setLoading(true);
-        getCategoryAnalysisResultsByNamePrefix(db, experimentName)
-            .then((queryResults) => {
-                const processedResults = queryResults
-                    .map((result) => {
-                        const filteredItems = result.categoryAnalsyisResults.filter((item) => {
-                            return (
-                                item.geneAllCount >= 40 &&
-                                item.geneAllCount <= 500 &&
-                                item.percentage >= 5 &&
-                                item.genesThatPassedAllFilters >= 3
-                            );
-                        });
-                        return { ...result, categoryAnalsyisResults: filteredItems };
-                    })
-                    .filter((result) => result.categoryAnalsyisResults.length > 0);
-                setResults(processedResults);
-            })
-            .catch((err) => {
-                console.error('Error querying domain details:', err);
-            })
-            .finally(() => setLoading(false));
-    }, [db, experimentName]);
+    // --- Prepare data for ClusteringDetails ---
+    // Memoize this calculation
+    const clusteringRowData = useMemo(() => {
+        // IMPORTANT: ClusteringDetails expects SourceDataForClustering[]
+        // We need to map CategoryAnalysisItem[] to SourceDataForClustering[]
+        // Assuming SourceDataForClustering is { value: Partial<CategoryRow> }
+        // And CategoryAnalysisItem has the fields needed for CategoryRow
+        const items = processedResults.flatMap((result) => result.categoryAnalsyisResults || []);
 
-    if (!db) return <Spin tip="Loading database..." />;
-    if (loading) return <Spin tip="Loading category analysis details..." />;
-    if (!results || results.length === 0)
-        return <Text>No Category Analysis data available.</Text>;
+        return items.map(item => ({
+            // Wrap the item data inside the 'value' property
+            value: {
+                // Map fields from CategoryAnalysisItem to CategoryRow structure
+                // Add nullish coalescing for safety
+                key: item.categoryIdentifier?.id ?? `missing-key-${item['@ref']}`,
+                categoryId: item.categoryIdentifier?.id ?? '',
+                categoryTitle: item.categoryIdentifier?.title ?? '',
+                clusterBMD: String(item.bmdFifthPercentileTotalGenes ?? ''), // Example mapping
+                upGenes: item.genesUp ?? '', // Adjust based on actual CategoryAnalysisItem fields
+                downGenes: item.genesDown ?? '', // Adjust based on actual CategoryAnalysisItem fields
+                allGenes: item.genesIds ?? '', // Adjust based on actual CategoryAnalysisItem fields
+                // cluster and clusterValue will be determined by ClusteringDetails itself
+                // allGenesSize, upGenesSize, downGenesSize will be calculated by prepareClusteringDetails
+            }
+        }));
+    }, [processedResults]);
 
-    // Define columns for the raw category analysis table.
-    const columns = [
-        {
-            title: 'Category ID',
-            dataIndex: ['categoryIdentifier', 'id'],
-            key: 'catId',
-        },
-        {
-            title: 'Category Title',
-            dataIndex: ['categoryIdentifier', 'title'],
-            key: 'catTitle',
-        },
-        {
-            title: 'Cluster BMD',
-            key: 'clusterBMD',
-            render: (_: any, item: BMDxExported.CategoryAnalysisItem) => {
-                if (item.bmdFifthPercentileTotalGenes && item.bmdFifthPercentileTotalGenes > 0) {
-                    return item.bmdFifthPercentileTotalGenes;
-                }
-                return '';
-            },
-        },
-        {
-            title: 'Overall Direction',
-            key: 'overallDirection',
-            render: (_: any, item: BMDxExported.CategoryAnalysisItem) => {
-                if (item.overallDirection) {
-                    return item.overallDirection;
-                }
-                return '';
-            },
-        },
-        {
-            title: 'Genes Change Count',
-            key: 'genesChangeCount',
-            render: (_: any, item: BMDxExported.CategoryAnalysisItem) => {
-                if (item.genesAdverseUpCount && item.genesAdverseDownCount && item.genesAdverseUpCount > 0 && item.genesAdverseDownCount > 0) {
-                    return item.genesAdverseUpCount + item.genesAdverseDownCount;
-                }
-                return '';
-            },
-        },
-        {
-            title: 'Genes Up Count',
-            key: 'genesAdverseUpCount',
-            render: (_: any, item: BMDxExported.CategoryAnalysisItem) => {
-                if (item.genesAdverseUpCount && item.genesAdverseUpCount > 0) {
-                    return item.genesAdverseUpCount;
-                }
-                return '';
-            },
-        },
-        {
-            title: 'Genes Down Count',
-            key: 'genesAdverseDownCount',
-            render: (_: any, item: BMDxExported.CategoryAnalysisItem) => {
-                if (item.genesAdverseDownCount && item.genesAdverseDownCount > 0) {
-                    return item.genesAdverseDownCount;
-                }
-                return '';
-            },
-        },
-        {
-            title: 'Percentage',
-            key: 'percentage',
-            render: (_: any, item: BMDxExported.CategoryAnalysisItem) => {
-                if (item.percentage && item.percentage > 0) {
-                    return item.percentage;
-                }
-                return '';
-            },
-        },
-    ];
+    // --- Render logic ---
+    if (isProcessing) return <Spin tip="Processing category analysis details..." />;
 
-    // Flatten all filtered items from all results into a single array for clustering.
-    const clusteringRowData = results.flatMap((result) => result.categoryAnalsyisResults);
-    console.log("clusteringRowData: ", clusteringRowData);
+    // Use Empty component if no data passed filters or no initial data
+    if (clusteringRowData.length === 0) {
+        return <Empty description={
+            categoryAnalysisData && categoryAnalysisData.length > 0
+                ? "No Category Analysis data passed the filters."
+                : "No Category Analysis data available."
+        } style={{ marginTop: '1rem' }} />;
+    }
+
+    console.log("Data passed to ClusteringDetails:", clusteringRowData);
 
     return (
         <div>
-            {/* Render raw Category Analysis results */}
-{/*             {results.map((result) => (
-                <div key={result['@ref']} style={{ marginBottom: '2rem' }}>
-                    <Title level={4}>{result.name}</Title>
-                    <Table
-                        dataSource={result.categoryAnalsyisResults}
-                        columns={columns}
-                        rowKey={(record: BMDxExported.CategoryAnalysisItem) =>
-                            record.categoryIdentifier.id
-                        }
-                    />
-                </div>
-            ))} */}
-            {/* Render clustering details computed from the Category Analysis results */}
+            {/* Pass the correctly formatted rowData */}
             <ClusteringDetails rowData={clusteringRowData} />
+
+            {/* Optional: Raw filtered data display (consider removing for production) */}
+            {/* <Collapse> ... </Collapse> */}
         </div>
     );
 };
 
-export default DomainDetails;
+export default CategoryAnalysisDetails;

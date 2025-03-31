@@ -1,87 +1,119 @@
 // src/hooks/useProcessedClusteringData.ts
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
+import {
+    parseLabelToObject, // Now used
+    prepareClusteringDetails, // Now used
+    calculateSummaries, // Now used
+    CategoryRow,
+    SummaryRow,
+} from '../utils/clusteringUtils'; // Adjust path
+// Import ClusteringResult from the component file or define it here/shared location
 import { ClusteringResult } from '../components/ClusteringDetails'; // Adjust path
-import { parseLabelToObject, calculateSummaries, sortSummaries } from '../utils/clusteringUtils'; // Assume these helpers exist
 
-// Define types for the processed table data
-export interface CategoryTableRow {
-    key: string;
-    categoryId: string;
-    categoryTitle: string;
-    clusterBMD: string | number;
-    upGenes: string;
-    downGenes: string;
-    allGenes: string;
-    cluster: string;
-    groupSize: number;
-}
-
-export interface SummaryTableRow {
-    key: string;
-    cluster: string;
-    minClusterBMD: number;
-    numCategoryIDs: number;
-    sort?: number; // Optional sort rank
+export interface UseProcessedClusteringDataResult {
+    categoryTableData: CategoryRow[];
+    summaryTableData: SummaryRow[];
+    processingError: Error | null;
 }
 
 export function useProcessedClusteringData(
-    clusteringResults: ClusteringResult[] | null,
-    computedNumClusters: number
-) {
-    const [categoryTableData, setCategoryTableData] = useState<CategoryTableRow[]>([]);
-    const [summaryTableData, setSummaryTableData] = useState<SummaryTableRow[]>([]);
-    const [processingError, setProcessingError] = useState<Error | null>(null);
+    clusters: ClusteringResult[] | null,
+    parsingError: Error | null // Correctly typed
+): UseProcessedClusteringDataResult {
 
-    useEffect(() => {
-        if (!clusteringResults) {
-            setCategoryTableData([]);
-            setSummaryTableData([]);
-            setProcessingError(null);
-            return;
+    const result = useMemo<UseProcessedClusteringDataResult>(() => {
+        if (parsingError) {
+            return { categoryTableData: [], summaryTableData: [], processingError: parsingError };
+        }
+        if (!clusters) {
+            return { categoryTableData: [], summaryTableData: [], processingError: null };
         }
 
         try {
-            setProcessingError(null);
-            // --- Perform all the processing logic here ---
+            // --- 4a. Flatten API results, parse labels, prepare details ---
+            const initialCategoryRows: CategoryRow[] = clusters.flatMap(
+                // *** START: flatMap Callback ***
+                (clusterResult: ClusteringResult) => {
+                    if (
+                        !Array.isArray(clusterResult.orderedLabels) ||
+                        !Array.isArray(clusterResult.orderedClusters) ||
+                        clusterResult.orderedLabels.length !== clusterResult.orderedClusters.length
+                    ) {
+                        console.warn('Skipping malformed cluster result:', clusterResult);
+                        return [];
+                    }
 
-            // 1. Add display name if needed (or handle in component)
-            // const resultsWithNames = ...
+                    // Map within flatMap
+                    return clusterResult.orderedLabels.map(
+                        // *** START: map Callback ***
+                        (label: string, i: number) => {
+                            const parsedLabelData = parseLabelToObject(label); // <<< USE util
+                            const clusterString = (clusterResult.orderedClusters?.[i] ?? '').toString().trim();
+                            const clusterValue = parseFloat(clusterString);
 
-            // 2. Flatten and parse labels
-            const allCategoryRows = clusteringResults.flatMap(cluster => {
-                // ... (logic using parseLabelToObject) ...
-                // Handle potential errors in parseLabelToObject
-            });
+                            const partialRow: Omit<CategoryRow, 'allGenesSize' | 'upGenesSize' | 'downGenesSize' | 'groupSize'> = {
+                                key: parsedLabelData['Category ID'] || `missing-key-${i}-${Date.now()}`,
+                                categoryId: parsedLabelData['Category ID'] || '',
+                                categoryTitle: parsedLabelData['Category Title'] || '',
+                                clusterBMD: parsedLabelData['Cluster BMD'] || '',
+                                upGenes: parsedLabelData['Up Genes'] || '',
+                                downGenes: parsedLabelData['Down Genes'] || '',
+                                allGenes: parsedLabelData['All Genes'] || '',
+                                cluster: clusterString,
+                                clusterValue: isNaN(clusterValue) ? -1 : clusterValue,
+                            };
+                            // prepareClusteringDetails adds gene sizes
+                            return prepareClusteringDetails(partialRow); // <<< USE util
+                        } // *** END: map Callback ***
+                    ); // End of inner .map
+                } // *** END: flatMap Callback ***
+            ); // End of .flatMap
 
-            // 3. Group by cluster
-            const groupedByCluster = allCategoryRows.reduce((acc, curr) => {
-                // ... (grouping logic) ...
-            }, {});
+            // --- 4b. Group by cluster ---
+            const groupedByCluster = initialCategoryRows.reduce(
+                // *** START: reduce Callback ***
+                (acc: { [key: string]: CategoryRow[] }, curr: CategoryRow) => {
+                    const clusterKey = curr.cluster;
+                    if (clusterKey === null || clusterKey === undefined || clusterKey === '') {
+                        console.warn('Skipping row with invalid cluster key:', curr);
+                        return acc;
+                    }
+                    if (!acc[clusterKey]) {
+                        acc[clusterKey] = [];
+                    }
+                    acc[clusterKey].push(curr);
+                    return acc;
+                }, // *** END: reduce Callback ***
+                {} // Initial value for reduce
+            ); // End of .reduce
 
-            // 4. Build category table rows with group size
-            const categoryRowsWithSize = Object.values(groupedByCluster).flatMap(group =>
-                group.map(row => ({
-                    // ... (mapping logic) ...
-                    groupSize: group.length,
-                }))
-            );
-            setCategoryTableData(categoryRowsWithSize);
+            // --- 4c. Add groupSize to each CategoryRow ---
+            const categoryTableDataWithGroupSize: CategoryRow[] = initialCategoryRows.map(
+                // *** START: map Callback ***
+                (row: CategoryRow) => ({
+                    ...row,
+                    groupSize: groupedByCluster[row.cluster]?.length || 0,
+                }) // *** END: map Callback ***
+            ); // End of .map
 
-            // 5. Calculate and sort summary rows
-            const finalSummaryRows = calculateSummaries(groupedByCluster); // Use helper
-            setSummaryTableData(finalSummaryRows);
+            // --- 4d. Calculate Summaries ---
+            const finalSummaryRows = calculateSummaries(groupedByCluster); // <<< USE util (pass grouped data)
 
-        } catch (error) {
-            console.error("Error processing clustering data:", error);
-            setProcessingError(error instanceof Error ? error : new Error('Processing failed'));
-            setCategoryTableData([]);
-            setSummaryTableData([]);
+            return {
+                categoryTableData: categoryTableDataWithGroupSize,
+                summaryTableData: finalSummaryRows,
+                processingError: null,
+            };
+        } catch (e) {
+            console.error('Error processing clustering data:', e);
+            return {
+                categoryTableData: [],
+                summaryTableData: [],
+                processingError: e instanceof Error ? e : new Error(String(e)),
+            };
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [clusters, parsingError]); // Depend on clusters and parsingError
 
-    }, [clusteringResults, computedNumClusters]); // Re-run if results or numClusters change
-
-    return { categoryTableData, summaryTableData, processingError };
+    return result;
 }
-
-// --- You would also move parseLabelToObject, calculateSummaries etc. ---
-// --- into src/utils/clusteringUtils.ts ---
