@@ -1,11 +1,12 @@
 import React from 'react';
 import { Select } from 'antd';
 import { Experiment } from '../models/Experiment';
+import { DoseResponseExperiment } from '../models/BMDxExported';
 
 const { Option } = Select;
 
 export interface ExperimentsMultiSelectProps {
-    experiments: Experiment[];
+    experiments: DoseResponseExperiment[];
     onSelectionChange: (selectedNames: string[]) => void;
 }
 

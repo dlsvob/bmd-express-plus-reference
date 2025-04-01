@@ -148,17 +148,29 @@ const AnalyzeProject: React.FC = () => {
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No experiments found in this project's data." style={{ marginTop: '1rem' }} />
           )}
 
+
+
           {/* Render Experiment Cards (only if experiments are selected) */}
           {selectedExperiments.length > 0 ? (
+            
             <div style={{ marginTop: '1rem' }}> {/* Adjusted margin */}
               {selectedExperiments.map((exp) => {
                 // Filter data slices directly from the loaded projectData
+                console.log(`AnalyzeProject Map: Processing experiment: ${exp.name} (@ref: ${exp['@ref']})`);
+                console.log("projectData: ", projectData);
+
+                const bmdResultsDataForExp = projectData.bMDResult?.filter(
+                  (bmdRes) => bmdRes && bmdRes.doseResponseExperiment === exp['@ref'] // Check this field name carefully!
+                );
+                console.log('AnalyzeProject Map: Filtered BMD Results:', bmdResultsDataForExp);
+
                 const categoryAnalysisDataForExp = projectData.categoryAnalysisResults?.filter(
                   (catRes) => catRes && catRes.bmdResult === exp['@ref']
                 );
-                const bmdResultsDataForExp = projectData.bMDResult?.filter(
-                  (bmdRes) => bmdRes && bmdRes.doseResponseExperiment === exp['@ref']
-                );
+                console.log('AnalyzeProject Map: Filtered Category Analysis:', categoryAnalysisDataForExp);
+
+
+
                 const prefilteringDataForExp: PrefilteringDataType = {
                   anova: projectData.oneWayANOVAResults?.filter(
                     (res: any) => res && res.doseResponseExperiement === exp['@ref'] // Adjust property name if needed

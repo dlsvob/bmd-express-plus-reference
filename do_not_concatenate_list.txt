@@ -1,3 +1,5 @@
+README_design_update.md
+README_design.md
 src/schemas/
 src/py/bokeh/
 src/models/BokehPlot.ts
