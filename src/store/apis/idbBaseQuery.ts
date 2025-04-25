@@ -7,7 +7,6 @@ import {
     CAT_ANALYSIS_STORE,
     BMD_RESULT_STORE,
 } from '../../utils/myIDB'; // Adjust path if needed
-// Import necessary types from BMDxExported
 import { CategoryAnalysisItem, BMDResult } from '../../models/BMDxExported'; // Adjust path/type names if needed
 
 // --- Filter Constants ---
@@ -17,31 +16,22 @@ const MIN_GENE_ALL_COUNT = 40;
 const MAX_GENE_ALL_COUNT = 500;
 // ------------------------
 
-// Define the actual structure stored in CAT_ANALYSIS_STORE
-// NOTE: This interface assumes the CORRECT spelling. The code below handles the legacy typo during data access.
 interface StoredCategoryAnalysisCollection {
-    bmdResult: number | string; // Foreign key linking to BMDResult
-    categoryAnalysisResults?: CategoryAnalysisItem[]; // Correct spelling (optional)
-    categoryAnalsyisResults?: CategoryAnalysisItem[]; // Legacy typo spelling (optional)
-    // Add other potential properties if they exist
+    bmdResult: number | string;
+    categoryAnalysisResults?: CategoryAnalysisItem[];
+    categoryAnalsyisResults?: CategoryAnalysisItem[];
 }
 
-// Arguments for the query
-interface IdbRawDataQueryArgs {
+export interface IdbRawDataQueryArgs { // Renamed for clarity
     projectName: string;
     stores: ReadonlyArray<'bMDResult' | 'categoryAnalysisResults'>;
-    // Expecting string refs. Treat as single selection for this query type.
-    selectedBmdResultRefs?: string[];
+    selectedBmdResultRefs?: string[]; // Now explicitly an array
 }
 
-// Define the structure of the successfully returned data
-// Note: bMDResult can be single or array depending on how it was called
-interface IdbQueryData {
-    bMDResult?: BMDResult | BMDResult[] | null;
-    // This will hold the FILTERED items, regardless of which property name they came from
-    categoryAnalysisResults?: CategoryAnalysisItem[];
-    // Add other potential stores if they can be requested
-    [key: string]: any; // Allow other potential stores
+export interface IdbQueryData {
+    bMDResult?: BMDResult[]; // Changed to always be an array or null/undefined
+    categoryAnalysisResults?: CategoryAnalysisItem[]; // Filtered items
+    [key: string]: any;
 }
 
 interface IdbQueryError {
@@ -50,22 +40,19 @@ interface IdbQueryError {
     details?: any;
 }
 
-// Helper to map args stores to actual DB store names
 const mapArgStoreToDbStore = (storeName: string): keyof ProjectDB | null => {
     switch (storeName) {
         case 'bMDResult': return BMD_RESULT_STORE;
         case 'categoryAnalysisResults': return CAT_ANALYSIS_STORE;
         default:
-            // Use the updated log prefix here too
-            console.warn(`[idbBaseQuery v21 Legacy Typo Check] Unknown store name requested: ${storeName}`);
+            console.warn(`[idbBaseQuery v22 Multi-Fetch] Unknown store name requested: ${storeName}`);
             return null;
     }
 }
 
-
 export const idbBaseQuery: BaseQueryFn<
     IdbRawDataQueryArgs,
-    IdbQueryData, // Use the more specific success type
+    IdbQueryData,
     IdbQueryError
 > = async ({ projectName, stores: argStores, selectedBmdResultRefs = [] }, { getState, dispatch }) => {
 
@@ -73,14 +60,17 @@ export const idbBaseQuery: BaseQueryFn<
         return { error: { status: 'UNKNOWN_ERROR', message: 'Project name is required' } };
     }
 
-    // Determine if a specific BMDResult ref is provided for targeted fetching
-    const selectedRefString = selectedBmdResultRefs.length > 0 ? selectedBmdResultRefs[0] : null;
-
     const dbStoresToFetch = argStores.map(mapArgStoreToDbStore).filter(s => s !== null) as (keyof ProjectDB)[];
     const uniqueDbStores = Array.from(new Set(dbStoresToFetch));
 
-    const logPrefix = '[idbBaseQuery v21 Legacy Typo Check]'; // Updated version
-    console.log(`${logPrefix} Executing for project: ${projectName}, stores: ${argStores.join(', ')}, selectedRef: ${selectedRefString ?? 'None'}`);
+    // --- LOGGING POINT 1: Input Arguments ---
+    const logPrefix = '[idbBaseQuery v22 Multi-Fetch]';
+    console.log(`${logPrefix} Executing for project: ${projectName}`);
+    console.log(`${logPrefix} Requested argStores: ${argStores.join(', ')}`);
+    console.log(`${logPrefix} Mapped to dbStores: ${uniqueDbStores.join(', ')}`);
+    console.log(`${logPrefix} Selected Refs: [${selectedBmdResultRefs.join(', ')}]`);
+    // ---------------------------------------
+
     let db: IDBPDatabase<ProjectDB> | null = null;
 
     try {
@@ -98,42 +88,64 @@ export const idbBaseQuery: BaseQueryFn<
         tx.onabort = (event) => console.error(`${logPrefix} Transaction ABORTED!`, event, tx?.error);
         tx.onerror = (event) => console.error(`${logPrefix} Transaction ERROR!`, event);
 
-        // Use a map to store promises, keyed by DB store name for easier retrieval
+        // --- MODIFIED FETCH LOGIC ---
         const promisesMap = new Map<keyof ProjectDB, Promise<any>>();
 
         uniqueDbStores.forEach(dbStoreName => {
             const store = tx.objectStore(dbStoreName);
             let promise: Promise<any>;
 
-            // --- Fetch Logic (Handles numeric key for BMD_RESULT_STORE) ---
-            if (dbStoreName === BMD_RESULT_STORE && selectedRefString !== null) {
-                let keyToGet: number | string;
-                let isValidNumber = /^\d+$/.test(selectedRefString);
+            if (dbStoreName === BMD_RESULT_STORE && selectedBmdResultRefs.length > 0) {
+                // Fetch BMDResult for EACH selected ref
+                const getPromises = selectedBmdResultRefs.map(refStr => {
+                    const numericKey = parseInt(refStr, 10);
+                    if (!isNaN(numericKey)) {
+                        // --- LOGGING POINT 2: Fetching specific BMDResult ---
+                        console.log(`${logPrefix} Creating promise to GET ${dbStoreName} with numeric key: ${numericKey}`);
+                        // ----------------------------------------------------
+                        return store.get(numericKey);
+                    } else {
+                        console.warn(`${logPrefix} Invalid numeric key for ${dbStoreName}: ${refStr}. Skipping fetch.`);
+                        return Promise.resolve(undefined); // Resolve with undefined if key is invalid
+                    }
+                });
+                // Combine results into a single array promise
+                promise = Promise.all(getPromises).then(results => results.filter(r => r !== undefined)); // Filter out undefined results from invalid keys
 
-                if (isValidNumber) {
-                    keyToGet = parseInt(selectedRefString, 10);
-                    console.log(`${logPrefix} Getting specific item for ${dbStoreName} with numeric key: ${keyToGet}`);
-                    promise = store.get(keyToGet);
-                } else {
-                    keyToGet = selectedRefString;
-                    console.warn(`${logPrefix} Provided ref '${selectedRefString}' for ${dbStoreName} is not a simple integer string. Attempting get() with string key.`);
-                    promise = store.get(keyToGet);
-                }
+            } else if (dbStoreName === CAT_ANALYSIS_STORE) {
+                // Fetch ALL CategoryAnalysis collections first, we'll filter later based on selected refs
+                // --- LOGGING POINT 3: Fetching ALL CategoryAnalysis ---
+                console.log(`${logPrefix} Creating promise to GET ALL ${dbStoreName} (will filter later)`);
+                // ----------------------------------------------------
+                promise = store.getAll();
+
             } else {
-                console.log(`${logPrefix} Getting all for ${dbStoreName}`);
+                // Default: Fetch all for other stores if needed (though currently only BMD and Cat are used)
+                console.log(`${logPrefix} Creating promise to GET ALL ${dbStoreName} (default)`);
                 promise = store.getAll();
             }
-            // --------------------------
             promisesMap.set(dbStoreName, promise);
         });
+        // --- END MODIFIED FETCH LOGIC ---
 
         console.log(`${logPrefix} Awaiting all store promises (${promisesMap.size})...`);
-        await Promise.all(promisesMap.values());
+        await Promise.all(promisesMap.values()); // Wait for fetches to complete
 
         const dbResultsMap = new Map<keyof ProjectDB, any>();
         for (const [dbStoreName, promise] of promisesMap.entries()) {
             try {
-                dbResultsMap.set(dbStoreName, await promise);
+                const resultData = await promise;
+                // --- LOGGING POINT 4: Raw Fetched Data ---
+                const resultSize = Array.isArray(resultData) ? resultData.length : (resultData ? 1 : 0);
+                console.log(`${logPrefix} Raw data fetched for ${dbStoreName}: ${resultData === null || resultData === undefined ? 'None' : `${resultSize} item(s)`}`);
+                // Optional: Log first item if array is large
+                // if (Array.isArray(resultData) && resultData.length > 0) {
+                //     console.log(`${logPrefix} First item sample for ${dbStoreName}:`, resultData[0]);
+                // } else if (resultData) {
+                //     console.log(`${logPrefix} Item sample for ${dbStoreName}:`, resultData);
+                // }
+                // -----------------------------------------
+                dbResultsMap.set(dbStoreName, resultData);
             } catch (err) {
                 console.error(`${logPrefix} Promise failed for store ${dbStoreName}:`, err);
                 dbResultsMap.set(dbStoreName, undefined);
@@ -141,77 +153,59 @@ export const idbBaseQuery: BaseQueryFn<
         }
         console.log(`${logPrefix} All store promises resolved.`);
 
-        // --- Filtering Logic for categoryAnalysisResults ---
-        const catAnalysisArgName = 'categoryAnalysisResults'; // The name the CALLER uses
-        const catAnalysisDbName = CAT_ANALYSIS_STORE; // The actual DB store name
-        let finalFilteredNestedItems: CategoryAnalysisItem[] = []; // Holds the final filtered result
+        // --- Filtering Logic for categoryAnalysisResults (Adjusted for multiple refs) ---
+        const catAnalysisArgName = 'categoryAnalysisResults';
+        const catAnalysisDbName = CAT_ANALYSIS_STORE;
+        let finalFilteredNestedItems: CategoryAnalysisItem[] = [];
 
-        // Check if category analysis was requested and data was fetched for its store
         if (argStores.includes(catAnalysisArgName) && dbResultsMap.has(catAnalysisDbName)) {
-            const allStoredCollections = dbResultsMap.get(catAnalysisDbName) as StoredCategoryAnalysisCollection[];
+            const allStoredCollections = dbResultsMap.get(catAnalysisDbName) as StoredCategoryAnalysisCollection[] | undefined;
 
-            if (selectedRefString !== null && allStoredCollections) {
-                console.log(`${logPrefix} Searching for Stored Collection with bmdResult matching string: '${selectedRefString}' among ${allStoredCollections.length} collections.`);
+            if (allStoredCollections && selectedBmdResultRefs.length > 0) {
+                console.log(`${logPrefix} Filtering CategoryAnalysis collections for selected refs: [${selectedBmdResultRefs.join(', ')}]`);
+                const selectedRefsSet = new Set(selectedBmdResultRefs);
+                let totalItemsBeforeFilter = 0;
 
-                const parentCollection = allStoredCollections.find(collection =>
-                    collection && String(collection.bmdResult) === selectedRefString
-                );
+                allStoredCollections.forEach(parentCollection => {
+                    if (parentCollection && selectedRefsSet.has(String(parentCollection.bmdResult))) {
+                        let nestedItemsToFilter: CategoryAnalysisItem[] = [];
+                        let usedPropertyName: string | null = null;
 
-                // *** MODIFIED EXTRACTION LOGIC ***
-                if (parentCollection) {
-                    console.log(`${logPrefix} Found parent collection for ref ${selectedRefString}. Checking for nested items...`);
+                        const itemsCorrectSpelling = parentCollection?.['categoryAnalysisResults'];
+                        if (Array.isArray(itemsCorrectSpelling)) {
+                            nestedItemsToFilter = itemsCorrectSpelling;
+                            usedPropertyName = 'categoryAnalysisResults';
+                        } else {
+                            const itemsLegacyTypo = parentCollection?.['categoryAnalsyisResults'];
+                            if (Array.isArray(itemsLegacyTypo)) {
+                                nestedItemsToFilter = itemsLegacyTypo;
+                                usedPropertyName = 'categoryAnalsyisResults';
+                            }
+                        }
 
-                    let nestedItemsToFilter: CategoryAnalysisItem[] = []; // Default to empty array
-                    let usedPropertyName: string | null = null;
-
-                    // 1. Prioritize the CORRECT spelling
-                    const itemsCorrectSpelling = parentCollection?.['categoryAnalysisResults'];
-                    if (Array.isArray(itemsCorrectSpelling)) {
-                        nestedItemsToFilter = itemsCorrectSpelling;
-                        usedPropertyName = 'categoryAnalysisResults';
-                    } else {
-                        // 2. If not found, check for the LEGACY TYPO spelling
-                        console.log(`${logPrefix} Property 'categoryAnalysisResults' not found or not an array. Checking for legacy typo 'categoryAnalsyisResults'...`);
-                        const itemsLegacyTypo = parentCollection?.['categoryAnalsyisResults']; // Use bracket notation
-                        if (Array.isArray(itemsLegacyTypo)) {
-                            nestedItemsToFilter = itemsLegacyTypo;
-                            usedPropertyName = 'categoryAnalsyisResults'; // Note the typo
-                            console.warn(`${logPrefix} Used LEGACY TYPO property 'categoryAnalsyisResults' to extract items. Consider fixing data in DB.`);
+                        if (usedPropertyName) {
+                            totalItemsBeforeFilter += nestedItemsToFilter.length;
+                            const filteredForThisRef = nestedItemsToFilter.filter(item => {
+                                const passesFilter =
+                                    item &&
+                                    item.percentage != null && item.percentage >= MIN_PERCENTAGE &&
+                                    item.genesThatPassedAllFilters != null && item.genesThatPassedAllFilters >= MIN_GENES_PASSED_ALL_FILTERS &&
+                                    item.geneAllCount != null && item.geneAllCount >= MIN_GENE_ALL_COUNT && item.geneAllCount <= MAX_GENE_ALL_COUNT;
+                                return passesFilter;
+                            });
+                            finalFilteredNestedItems.push(...filteredForThisRef); // Add filtered items to the final list
                         }
                     }
-
-                    if (usedPropertyName) {
-                        console.log(`${logPrefix} Extracted ${nestedItemsToFilter.length} nested items using property '${usedPropertyName}'.`);
-                    } else {
-                        console.warn(`${logPrefix} Could not find a valid array property ('categoryAnalysisResults' or 'categoryAnalsyisResults') in the parent collection for ref ${selectedRefString}.`);
-                        // nestedItemsToFilter remains []
-                    }
-
-                    // Apply the property filters to the extracted items (which might be empty)
-                    finalFilteredNestedItems = nestedItemsToFilter.filter(item => {
-                        const passesFilter =
-                            item && // Check if item exists
-                            item.percentage != null && item.percentage >= MIN_PERCENTAGE &&
-                            item.genesThatPassedAllFilters != null && item.genesThatPassedAllFilters >= MIN_GENES_PASSED_ALL_FILTERS &&
-                            item.geneAllCount != null && item.geneAllCount >= MIN_GENE_ALL_COUNT && item.geneAllCount <= MAX_GENE_ALL_COUNT;
-                        return passesFilter;
-                    });
-                    console.log(`${logPrefix} Filtering complete. ${finalFilteredNestedItems.length} nested items passed.`);
-
-                } else {
-                    console.warn(`${logPrefix} No parent collection found for bmdResultRef: ${selectedRefString}`);
-                }
-            } else if (selectedRefString === null && argStores.includes(catAnalysisArgName)) {
-                console.warn(`${logPrefix} Cannot filter categoryAnalysisResults without a selectedBmdResultRef.`);
+                });
+                console.log(`${logPrefix} Filtering complete. Total items before filter: ${totalItemsBeforeFilter}, Total items after filter: ${finalFilteredNestedItems.length}`);
             } else {
-                console.warn(`${logPrefix} No category analysis collections fetched or available.`);
+                console.warn(`${logPrefix} No category analysis collections fetched or no refs selected for filtering.`);
             }
         }
-        // ===============================================================
+        // --- End Filtering Logic ---
 
         // --- Result Structuring ---
         const dataResult: IdbQueryData = {};
-        let bmdResultFound = true;
 
         argStores.forEach(argName => {
             const dbStoreName = mapArgStoreToDbStore(argName);
@@ -220,34 +214,31 @@ export const idbBaseQuery: BaseQueryFn<
                 return;
             }
 
-            const fetchedData = dbResultsMap.get(dbStoreName);
-
-            // Use the ARGUMENT name ('categoryAnalysisResults') as the key in the final result object,
-            // but assign the 'finalFilteredNestedItems' which came from potentially different property names.
             if (argName === catAnalysisArgName) {
-                dataResult[argName] = finalFilteredNestedItems;
+                dataResult[argName] = finalFilteredNestedItems; // Assign the combined filtered list
             } else if (argName === 'bMDResult') {
-                dataResult[argName] = fetchedData;
-                if (selectedRefString !== null && (fetchedData === null || fetchedData === undefined)) {
-                    console.warn(`${logPrefix} Requested bMDResult with ref ${selectedRefString} (used numeric key) but it was not found in DB.`);
-                    bmdResultFound = false;
-                }
+                // Ensure bMDResult is always an array, even if only one was fetched/found
+                const fetchedBmdData = dbResultsMap.get(dbStoreName);
+                dataResult[argName] = Array.isArray(fetchedBmdData) ? fetchedBmdData : (fetchedBmdData ? [fetchedBmdData] : []);
             } else {
-                dataResult[argName] = fetchedData;
+                dataResult[argName] = dbResultsMap.get(dbStoreName);
             }
         });
-        // ===================================
+        // --- End Result Structuring ---
 
-        console.log(`${logPrefix} Successfully prepared data for ${projectName}.`);
+        // --- LOGGING POINT 5: Final Structured Data ---
+        console.log(`${logPrefix} Successfully prepared data for ${projectName}. Returning structured data:`);
         argStores.forEach(argName => {
             const resultData = dataResult[argName];
             const size = Array.isArray(resultData) ? resultData.length : (resultData ? 1 : 0);
-            console.log(`${logPrefix} Final result size for ${argName}: ${resultData === null || resultData === undefined ? 0 : size}`);
+            console.log(`${logPrefix} -> ${argName}: ${resultData === null || resultData === undefined ? 'None' : `${size} item(s)`}`);
         });
+        // ---------------------------------------------
 
         return { data: dataResult };
 
     } catch (error: unknown) {
+        // ... (error handling remains the same) ...
         console.error(`${logPrefix} Error during DB operation for ${projectName}:`, error);
         const message = (error instanceof Error) ? error.message : String(error);
         if (db && typeof db.close === 'function') {

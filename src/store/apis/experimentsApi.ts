@@ -111,7 +111,6 @@ export const experimentsApi = createApi({
         }),
 
         // --- Endpoint 2: Fetch ONLY the Raw Data Arrays ---
-        // (Keep the previously corrected version of getRawAnalysisData)
         getRawAnalysisData: builder.query<RawDataQueryResult, RawDataQueryArgs>({
             query: ({ projectName, selectedBmdResultRefs }) => ({
                 projectName: projectName ?? '',
@@ -119,31 +118,31 @@ export const experimentsApi = createApi({
                 selectedBmdResultRefs: selectedBmdResultRefs
             } as IdbRawDataQueryArgs),
             transformResponse: (response: IdbQueryData | undefined, meta, arg): RawDataQueryResult => {
-                const logPrefix = '[experimentsApi getRawAnalysisData transform v2]'; // New version log
-                console.log(`${logPrefix} Structuring raw data for ${arg.projectName}, selectedRefs: ${arg.selectedBmdResultRefs?.join(',') ?? 'None'}`);
-                console.log(`${logPrefix} Received response from idbBaseQuery:`, response);
+                // --- LOGGING POINT 6: Data Received by Transform ---
+                const logPrefix = '[experimentsApi getRawAnalysisData transform v22 Multi-Fetch]';
+                console.log(`${logPrefix} Received response from idbBaseQuery for project ${arg.projectName}, refs [${arg.selectedBmdResultRefs?.join(', ')}]:`);
+                console.log(`${logPrefix} -> bMDResult type: ${typeof response?.bMDResult}, isArray: ${Array.isArray(response?.bMDResult)}, length: ${Array.isArray(response?.bMDResult) ? response.bMDResult.length : (response?.bMDResult ? 1 : 0)}`);
+                console.log(`${logPrefix} -> categoryAnalysisResults type: ${typeof response?.categoryAnalysisResults}, isArray: ${Array.isArray(response?.categoryAnalysisResults)}, length: ${Array.isArray(response?.categoryAnalysisResults) ? response.categoryAnalysisResults.length : 0}`);
+                // Optional: Log the actual response object if needed for deep inspection, but be mindful of size
+                // console.log(`${logPrefix} Full response object:`, response);
+                // ----------------------------------------------------
 
+                // --- Existing transformation logic (slightly adapted) ---
                 const bmdResultInput = response?.bMDResult;
-                const categoryAnalysisItemsInput = response?.categoryAnalysisResults || [];
+                const categoryAnalysisItemsInput = response?.categoryAnalysisResults || []; // Use the already filtered items
 
-                let normalizedBmdResults: BMDResult[] = [];
-                if (Array.isArray(bmdResultInput)) {
-                    normalizedBmdResults = bmdResultInput;
-                    console.log(`${logPrefix} Received BMD results as array.`);
-                } else if (typeof bmdResultInput === 'object' && bmdResultInput !== null) {
-                    normalizedBmdResults = [bmdResultInput];
-                    console.log(`${logPrefix} Received single BMD result object.`);
-                } else {
-                    console.log(`${logPrefix} Received no BMD result (null/undefined).`);
-                }
+                // Ensure bMDResult is always an array in the final output
+                const normalizedBmdResults: BMDResult[] = Array.isArray(bmdResultInput)
+                    ? bmdResultInput
+                    : (bmdResultInput ? [bmdResultInput] : []);
 
-                const normalizedCategoryItems = Array.isArray(categoryAnalysisItemsInput)
-                    ? categoryAnalysisItemsInput
-                    : [];
+                // categoryAnalysisItemsInput should already be the filtered array from idbBaseQuery
+                const normalizedCategoryItems = categoryAnalysisItemsInput;
 
                 const rawData: RawDataQueryResult = {
                     rawBmdResults: normalizedBmdResults,
                     rawCategoryAnalysisItems: normalizedCategoryItems,
+                    // Keep selected refs if needed downstream, ensure they are numbers if parsed
                     selectedBmdResultRefs: arg.selectedBmdResultRefs?.map(ref => parseInt(ref, 10)).filter(num => !isNaN(num)),
                 };
 
