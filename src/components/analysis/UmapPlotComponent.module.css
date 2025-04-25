@@ -1,0 +1,31 @@
+/* src/components/analysis/UmapPlotComponent.module.css */
+
+.plotContainer {
+    position: relative;
+    /* Needed for absolute positioning of the plot inside */
+    width: 100%;
+    /* Take up available width */
+    aspect-ratio: 1 / 1;
+    /* Force square aspect ratio */
+    /* border: 1px dashed lightcoral; */
+    /* Keep commented out unless debugging */
+    overflow: hidden;
+    /* Hide anything overflowing the square */
+}
+
+/* Target Plotly's generated div within our container */
+.plotContainer> :global(.js-plotly-plot) {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    /* Override Plotly's inline styles */
+    height: 100% !important;
+    /* Override Plotly's inline styles */
+}
+
+/* Optional: Add a min-height if needed when container width is very small */
+.plotContainer {
+    min-height: 300px;
+    /* Example minimum height */
+}

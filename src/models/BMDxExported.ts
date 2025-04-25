@@ -337,7 +337,7 @@ export interface CategoryAnalysisItem {
     geneSymbolsPrivate: string | null,
     genesAdverseDownCount: number | null,
     probeIds: string | null,
-    bmduconflictList: string | null, ,
+    bmduconflictList: string | null,
     genesIds: string | null,
     genesConflictList: string | null,
     probesAdversUpCount: number | null,

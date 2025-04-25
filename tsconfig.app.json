@@ -1,25 +1,53 @@
+// tsconfig.app.json
 {
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "outDir": "./dist",
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "skipLibCheck": true,
     "composite": true,
-
+    "declaration": true,
+    "declarationMap": true,
     /* Bundler mode */
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "moduleDetection": "force",
     "jsx": "react-jsx",
-
     /* Linting */
     "strict": true,
-    "noUnusedLocals": true,
+    "noUnusedLocals": true, // Keep these strict checks
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+    /* Explicit types for app code */
+    "types": [
+      "vite/client", // Needed for CSS/raw imports, import.meta.env etc.
+      "node", // If using Node types like Buffer directly in React code
+      "react",
+      "react-dom",
+      "plotly.js",
+      "react-plotly.js"
+      // Add others used in src/ if needed
+    ]
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ], // Only compile src for the app
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-electron",
+    "release",
+    "src/**/*.d.ts",
+    "src/**/*.js",
+    "src/**/*.js.map"
+  ],
+  "references": [] // App doesn't reference other configs directly
 }

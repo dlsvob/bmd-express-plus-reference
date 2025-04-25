@@ -1,0 +1,144 @@
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+
+button:hover {
+  border-color: #646cff;
+}
+
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+
+  a:hover {
+    color: #747bff;
+  }
+
+  button {
+    background-color: #f9f9f9;
+  }
+}
+
+/* Add this to your global CSS file (e.g., src/index.css) */
+
+/* Target the Ant Design slider handle */
+.ant-slider-handle {
+  width: 8px !important;
+  /* Make width smaller (default is often 12px/14px) */
+  height: 8px !important;
+  /* Make height smaller */
+  margin-top: -2px !important;
+  /* Adjust vertical position slightly if needed */
+  margin-left: -3px !important;
+  /* Adjust horizontal position slightly if needed */
+  border-radius: 50% !important;
+  /* Ensure it stays circular */
+  border-width: 1px !important;
+  /* Optional: make border thinner */
+}
+
+/* Optional: Adjust focus state if the default ring looks too large */
+.ant-slider-handle:focus {
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2) !important;
+  /* Smaller focus ring */
+}
+
+/* Highlighting for rows matching the GO ID Filter */
+.highlighted-go-filter td {
+  background-color: #e6f7ff !important;
+  /* Light blue background */
+  font-weight: 500;
+  /* Slightly bolder text */
+}
+
+/* Highlighting for rows selected via Accumulation Plot */
+.highlighted-accumulation-selection td {
+  background-color: #fffbe6 !important;
+  /* Light yellow background */
+  border-top: 1px dashed #ffe58f !important;
+  border-bottom: 1px dashed #ffe58f !important;
+}
+
+/* Style for when a row matches both (optional, otherwise last class applied wins) */
+.highlighted-go-filter.highlighted-accumulation-selection td {
+  background-color: #e6fffb !important;
+  /* Light cyan/teal background */
+  font-weight: bold;
+  border-top: 1px dashed #87e8de !important;
+  border-bottom: 1px dashed #87e8de !important;
+}
+
+/* Ensure alternating row colors don't override highlights */
+.ant-table-tbody>tr.highlighted-go-filter:hover>td,
+.ant-table-tbody>tr.highlighted-accumulation-selection:hover>td,
+.ant-table-tbody>tr.highlighted-go-filter.highlighted-accumulation-selection:hover>td {
+  background-color: inherit !important;
+  /* Keep highlight on hover */
+}
+
+.ant-table-tbody>tr.ant-table-row:nth-child(odd).highlighted-go-filter>td,
+.ant-table-tbody>tr.ant-table-row:nth-child(odd).highlighted-accumulation-selection>td,
+.ant-table-tbody>tr.ant-table-row:nth-child(odd).highlighted-go-filter.highlighted-accumulation-selection>td {
+  background-color: inherit !important;
+  /* Keep highlight on odd rows */
+}
+
+.ant-table-tbody>tr.ant-table-row:nth-child(even).highlighted-go-filter>td,
+.ant-table-tbody>tr.ant-table-row:nth-child(even).highlighted-accumulation-selection>td,
+.ant-table-tbody>tr.ant-table-row:nth-child(even).highlighted-go-filter.highlighted-accumulation-selection>td {
+  background-color: inherit !important;
+  /* Keep highlight on even rows */
+}

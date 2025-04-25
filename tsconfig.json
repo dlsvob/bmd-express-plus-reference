@@ -1,12 +1,37 @@
+// tsconfig.json
 {
   "compilerOptions": {
     "skipLibCheck": true,
     "composite": true,
+    // Explicitly define global types needed by build tools/configs
+    "types": [
+      "node",
+      "vite/client"
+    ]
   },
-  "include": ["src/**/*"],
+  "include": [], // Rely on references
   "files": [],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-electron",
+    "release",
+    "src/**/*.d.ts",
+    "src/**/*.js",
+    "src/**/*.js.map"
+  ],
   "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
+    {
+      "path": "./tsconfig.app.json"
+    },
+    {
+      "path": "./tsconfig.node.json"
+    },
+    {
+      "path": "./tsconfig.main.json"
+    },
+    {
+      "path": "./tsconfig.preload.json"
+    }
   ]
 }

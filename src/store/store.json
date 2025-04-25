@@ -1,0 +1,98 @@
+{
+  // Metadata about projects stored locally
+  projects: {
+    status: 'idle' | 'loading' | 'succeeded' | 'failed',
+    error: string | null,
+    // List of project metadata (name, timestamp, IndexedDB key)
+    available: { id: string, name: string, timestamp: number }[],
+  },
+
+  // Data for the currently selected project
+  currentProject: {
+    status: 'idle' | 'loading' | 'succeeded' | 'failed',
+    error: string | null,
+    projectId: string | null,
+    data: { // Data loaded from IndexedDB for the selected project
+      projectName: string,
+      analyses: { // Keyed by analysis ID/name
+        [analysisId: string]: {
+          id: string,
+          name: string,
+          // ... other analysis metadata
+          categoryResults: { // Keyed by GO ID
+            [goId: string]: {
+              goId: string,
+              term: string,
+              bmd: number | null,
+              direction: 'up' | 'down' | 'none',
+              // ... other stats (p-value, FDR, etc.)
+              geneIds: string[], // Genes in this category for this analysis
+              bmdRank?: number, // Calculated rank
+            }
+          },
+        }
+      },
+      // Pre-computed UMAP coordinates for all relevant GO terms (reference map)
+      referenceUMAP: { // Keyed by GO ID
+        [goId: string]: { x: number, y: number, term: string }
+      },
+      // Other relevant data extracted from JSON (probes, experiments, etc.) might be stored here too
+    } | null
+  },
+
+  // UI State and selections for the analysis view
+  analysisView: {
+    selectedAnalysisIds: string[],
+
+    // Filtering criteria
+    filters: {
+      bmdRank: { // For SlidingWindowFilter
+        min: number,
+        max: number,
+        windowSize?: number, // Optional: if it's a sliding window vs range
+        enabled: boolean
+      },
+      highlightedGoIds: { // For GoIdFilterUI
+        ids: string[],
+        mode: 'exact' | 'cluster' // How to use the IDs
+      }
+    },
+
+    // Styling criteria
+    styling: { // For StylingSelectors
+      colorBy: string, // e.g., 'Cluster', 'Experiment', 'Direction', 'BMD'
+      shapeBy: string, // e.g., 'Experiment'
+      sizeBy: string, // e.g., 'Percentage', 'NumGenes'
+    },
+
+    // Visibility toggles based on legends
+    visibility: { // Keyed by legend type (color, shape) then by value
+      [legendType: string]: {
+        [value: string]: boolean // true if visible, false if hidden
+      }
+    },
+
+    // Clustering state
+    clustering: {
+      status: 'idle' | 'loading' | 'succeeded' | 'failed',
+      error: string | null,
+      // Results: Map GO ID -> cluster ID for the *currently filtered* set
+      results: { [goId: string]: number } | null,
+      params: { // Parameters used for the last run (e.g., distance metric, linkage)
+        distance: 'jaccard', // etc.
+        linkage: 'ward', // etc.
+      } | null
+    },
+
+    // State for interactions between plots
+    interactions: {
+      highlightedGoIdsFromAccumulation: string[] // GO IDs highlighted by AccumulationPlot interaction
+    }
+  },
+
+  // Pyodide status
+  pyodide: {
+    status: 'idle' | 'loading' | 'ready' | 'failed',
+    error: string | null,
+  }
+}:

@@ -98,8 +98,8 @@ export interface ApiClusteringInputItem {
     'Category ID': string;
     'Category Title': string;
     'Cluster BMD': string;
-    'Up Genes': string;
-    'Down Genes': string;
+    'Genes Up': string;
+    'Genes Down': string;
     'All Genes': string;
     // Add/remove/adjust keys based on the exact API specification
 }
@@ -315,8 +315,8 @@ export function transformDataForClustering(
             'Category ID': categoryId,
             'Category Title': categoryTitle,
             'Cluster BMD': clusterBMD,
-            'Up Genes': upGenes,
-            'Down Genes': downGenes,
+            'Genes Up': upGenes,
+            'Genes Down': downGenes,
             'All Genes': allGenes,
         };
     });
