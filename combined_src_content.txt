@@ -11,28 +11,21 @@ const container = document.getElementById('root');
 if (container) {
   const root = createRoot(container);
   root.render(
-//    <React.StrictMode>
+    <React.StrictMode>
       <Provider store={store}>
         <App />
       </Provider>
-//    </React.StrictMode>
+    </React.StrictMode>
   );
 }
 // src/App.tsx
-import React from 'react'; // Removed unused { useContext }
+import React from 'react';
 import { Layout, Typography, Spin, Alert } from 'antd';
-
-// Import Providers and Hooks/Context
-import { PyodideProvider, usePyodide } from './contexts/PyodideProvider';
+//import { PyodideProvider, usePyodide } from './contexts/PyodideProvider'; // Keep this import for usePyodide hook
 import { useAppSelector } from './store/hooks';
 import { useGetProjectsQuery } from './store/apis/projectsApi';
-
-// Import necessary selectors with  extension
 import { selectSelectedProjectName } from './store/selectors/projectSelectors';
-// Import slice/selector with  extension (assuming selector exported from slice file)
 import { selectCurrentView } from './store/slices/navigationSlice';
-
-// Import components
 import AppHeader from './components/layout/AppHeader';
 import AppSidebar from './components/layout/AppSidebar';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -40,51 +33,58 @@ import PyodideErrorNotifier from './components/PyodideErrorNotifier';
 import ExperimentListView from './components/views/ExperimentListView';
 import GOUmapAnalysisUnit from './components/analysis/GOUmapAnalysisUnit';
 
-// Removed unused 'Content' destructuring
 const { Title, Paragraph } = Typography;
 
-// Main app content rendering logic
 const AppContent: React.FC = () => {
+  // --- usePyodide hook will now throw an error because provider is missing ---
+  // --- You might need to conditionally use this or provide a mock context ---
+  // const { isLoading: pyodideLoading, error: pyodideError } = usePyodide();
+  // --- TEMPORARY FIX: Assume Pyodide is not loading and has no error ---
+  const pyodideLoading = false;
+  const pyodideError = null;
+  // ---------------------------------------------------------------------
 
-  // Use custom hook which handles undefined check
-  const { isLoading: pyodideLoading, error: pyodideError } = usePyodide();
-
-  // --- RTK Query hook for projects ---
   const {
     data: projectsData,
     isLoading: isLoadingProjects,
-    error: projectsError, // Keep original error object here
-    isSuccess: projectsLoadSuccess
+    error: projectsError,
+    isSuccess: projectsLoadSuccess,
   } = useGetProjectsQuery();
 
-  // --- Other Redux State ---
   const selectedProjectName = useAppSelector(selectSelectedProjectName);
-  // Removed underscore - variable is now used
   const activeView = useAppSelector(selectCurrentView);
   const isProjectSelected = !!selectedProjectName;
 
-  // Log for debugging (Optional: remove when stable)
   console.log(
     `Rendering AppContent: selectedProjectName = "${selectedProjectName}", isProjectSelected = ${isProjectSelected}, activeView = "${activeView}"`
   );
 
-  // Format error for passing as prop
-  const formattedProjectsError = projectsError ? (
-    (typeof projectsError === 'object' && projectsError !== null && 'message' in projectsError)
+  const formattedProjectsError = projectsError
+    ? typeof projectsError === 'object' &&
+      projectsError !== null &&
+      'message' in projectsError
       ? String(projectsError.message)
       : String(projectsError)
-  ) : null;
+    : null;
 
-  // --- Content Rendering Logic ---
   let mainContent: React.ReactNode;
 
   if (pyodideLoading) {
+    // This block might not be reached now
     mainContent = (
       <Spin tip="Initializing Pyodide..." size="large" spinning={true}>
-        <div style={{ padding: '50px', background: 'rgba(0, 0, 0, 0.02)', minHeight: '200px', borderRadius: '4px' }} />
+        <div
+          style={{
+            padding: '50px',
+            background: 'rgba(0, 0, 0, 0.02)',
+            minHeight: '200px',
+            borderRadius: '4px',
+          }}
+        />
       </Spin>
     );
   } else if (pyodideError) {
+    // This block might not be reached now
     mainContent = (
       <Alert
         message="Pyodide Initialization Failed"
@@ -96,46 +96,70 @@ const AppContent: React.FC = () => {
   } else if (isLoadingProjects) {
     mainContent = (
       <Spin tip="Loading project list..." size="large" spinning={true}>
-        <div style={{ padding: '50px', background: 'rgba(0, 0, 0, 0.02)', minHeight: '200px', borderRadius: '4px' }} />
+        <div
+          style={{
+            padding: '50px',
+            background: 'rgba(0, 0, 0, 0.02)',
+            minHeight: '200px',
+            borderRadius: '4px',
+          }}
+        />
       </Spin>
     );
   } else if (projectsError) {
-    const errorMessage = formattedProjectsError || "An unknown error occurred loading projects.";
-    mainContent = <Alert message={`Error loading projects: ${errorMessage}`} type="error" showIcon />;
+    const errorMessage =
+      formattedProjectsError || 'An unknown error occurred loading projects.';
+    mainContent = (
+      <Alert
+        message={`Error loading projects: ${errorMessage}`}
+        type="error"
+        showIcon
+      />
+    );
   } else if (!isProjectSelected && projectsLoadSuccess) {
     mainContent = (
       <div style={{ textAlign: 'center', marginTop: '50px' }}>
         <Title level={3}>Welcome to BMDx Plus</Title>
-        <Paragraph>Project list loaded ({projectsData?.length || 0} found). Please select a project or add a new one using the header.</Paragraph>
+        <Paragraph>
+          Project list loaded ({projectsData?.length || 0} found). Please select
+          a project or add a new one using the header.
+        </Paragraph>
       </div>
     );
-  } else if (isProjectSelected && selectedProjectName) { // Ensure selectedProjectName is truthy
-    // --- Project is selected - Render based on activeView ---
+  } else if (isProjectSelected && selectedProjectName) {
     mainContent = (
       <div>
-        <Title level={4} style={{ marginBottom: '20px' }}>Project: {selectedProjectName}</Title>
-
-        {/* Render Component based on activeView state */}
-        {(!activeView || activeView === 'experiments') && <ExperimentListView projectName={selectedProjectName} />}
-
-        {/* **** FIX: Added projectName prop **** */}
-        {activeView === 'categoryAnalysis' && <GOUmapAnalysisUnit />}
-        {/* *********************************** */}
-
-        {/* Placeholder for other potential views */}
-        {/* {activeView === 'settings' && <ProjectSettingsView projectName={selectedProjectName} />} */}
-
-        {/* Fallback for unknown/unexpected view key */}
-        {activeView && !['experiments', 'categoryAnalysis', 'settings' /* add other known keys */].includes(activeView) && (
-          <Alert message={`Error: Unknown view requested (${activeView})`} type="warning" showIcon />
+        <Title level={4} style={{ marginBottom: '20px' }}>
+          Project: {selectedProjectName}
+        </Title>
+        {(!activeView || activeView === 'experiments') && (
+          <ExperimentListView projectName={selectedProjectName} />
         )}
+        {/* Pass projectName if GOUmapAnalysisUnit needs it */}
+        {activeView === 'categoryAnalysis' && <GOUmapAnalysisUnit />}
+        {activeView &&
+          !['experiments', 'categoryAnalysis', 'settings'].includes(
+            activeView
+          ) && (
+            <Alert
+              message={`Error: Unknown view requested (${activeView})`}
+              type="warning"
+              showIcon
+            />
+          )}
       </div>
     );
   } else {
-    // Fallback (e.g. projects loaded but somehow selection state is invalid)
     mainContent = (
       <Spin tip="Loading..." size="large" spinning={true}>
-        <div style={{ padding: '50px', background: 'rgba(0, 0, 0, 0.02)', minHeight: '200px', borderRadius: '4px' }} />
+        <div
+          style={{
+            padding: '50px',
+            background: 'rgba(0, 0, 0, 0.02)',
+            minHeight: '200px',
+            borderRadius: '4px',
+          }}
+        />
       </Spin>
     );
   }
@@ -145,11 +169,10 @@ const AppContent: React.FC = () => {
       <AppHeader
         projectList={projectsData}
         isLoading={isLoadingProjects}
-        error={formattedProjectsError} // Pass formatted error
-        disabled={!!pyodideError}
+        error={formattedProjectsError}
+        disabled={!!pyodideError} // Still uses pyodideError state
       />
       <Layout>
-        {/* Render sidebar only if a project is selected AND Pyodide is working */}
         {isProjectSelected && !pyodideError && <AppSidebar />}
         <Layout.Content style={{ padding: '24px', margin: '16px' }}>
           {mainContent}
@@ -163,15 +186,20 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
-      <PyodideProvider>
-        <AppContent />
-        <PyodideErrorNotifier />
-      </PyodideProvider>
+      {/* --- PyodideProvider still needed here if AppContent uses usePyodide --- */}
+      {/* --- Or provide a mock context / handle the error --- */}
+      {/* <PyodideProvider> */}
+      <AppContent />
+      <PyodideErrorNotifier />
+      {/* </PyodideProvider> */}
+      {/* ----------------------------- */}
+      {/* -------------------------------------------------------------------- */}
     </ErrorBoundary>
   );
 };
 
-export default App;# src/py/categoryClustering.py
+export default App;
+# src/py/categoryClustering.py
 
 import json
 import math
@@ -1395,11 +1423,11 @@ export const filterPlotItems = (
  * to prepared analysis data points based on UI settings and interactions.
  */
 
-import { HighlightMode } from '../store/slices/analysisUISlice'; // Adjust path if needed
+import { HighlightMode } from '../store/slices/analysisUISlice' // Adjust path if needed
 import type {
   BaseCategoryAnalysisDataPoint,
-  UmapAnalysisDataPoint
-} from '../models/ApplicationModelCompositional'; // Adjust path if needed
+  UmapAnalysisDataPoint,
+} from '../models/ApplicationModelCompositional' // Adjust path if needed
 import {
   DEFAULT_MARKER_COLOR,
   DEFAULT_MARKER_SHAPE,
@@ -1411,20 +1439,20 @@ import {
   SIZE_BIN_LABELS, // Ensure defined/exported from legendUtils
   getDirectionLegendName,
   DEFAULT_SHAPE_LABEL,
-  DEFAULT_SIZE_LABEL
-} from './legendUtils'; // Adjust path if needed
-import type { ReferenceUmapItem } from '../data/referenceUmapData'; // Adjust path if needed
+  DEFAULT_SIZE_LABEL,
+} from './legendUtils' // Adjust path if needed
+import type { ReferenceUmapItem } from '../data/referenceUmapData' // Adjust path if needed
 
 // Define input/output Map types
-type BaseGroupedData = Map<number, BaseCategoryAnalysisDataPoint[]>;
-type StyledUmapGroupedData = Map<number, UmapAnalysisDataPoint[]>;
+type BaseGroupedData = Map<string, BaseCategoryAnalysisDataPoint[]> // Key is string ref
+type StyledUmapGroupedData = Map<string, UmapAnalysisDataPoint[]> // Key is string ref
 
 // Constants for Opacity
-const VISIBLE_OPACITY = 0.9;
-const HIDDEN_OPACITY = 0.0;
-const DIM_OPACITY = 0.4;
+const VISIBLE_OPACITY = 0.9
+const HIDDEN_OPACITY = 0.0
+const DIM_OPACITY = 0.4
 
-// --- Helper Functions ---
+// --- Helper Functions (Keep as is) ---
 function getBinnedSize(percentage: number | null | undefined): number {
   if (percentage == null || isNaN(percentage)) return DEFAULT_MARKER_SIZE;
   for (let i = 0; i < PERCENTAGE_BINS.length; i++) {
@@ -1434,238 +1462,312 @@ function getBinnedSize(percentage: number | null | undefined): number {
   }
   return PERCENTAGE_SIZES[PERCENTAGE_SIZES.length - 1];
 }
-
 function getDirectionShape(direction: string | null | undefined): string {
   const key = direction?.toLowerCase() ?? 'none';
   return DIRECTION_SHAPE_MAP[key] || DEFAULT_MARKER_SHAPE;
 }
-
 function getDirectionColor(direction: string | null | undefined): string {
   const key = direction?.toLowerCase() ?? 'none';
   return DIRECTION_COLOR_MAP[key] || DEFAULT_MARKER_COLOR;
 }
+// ------------------------------------
 
 // --- Main Styling Function ---
 export function calculateOverlayStyles(
-  
   baseGroupedData: BaseGroupedData | null,
   stylingOptions: { colorBy: string; shapeBy: string; sizeBy: string },
-  hiddenColorLabels: Set<string> | string[], // Accept Set or Array
+  hiddenColorLabels: Set<string> | string[],
   hiddenShapeLabels: Set<string> | string[],
   hiddenSizeLabels: Set<string> | string[],
   goIdFilterList: string[],
   highlightMode: HighlightMode,
   bmdRefToExperimentNameMap: Map<number, string> | null,
-  selectedGoIdsFromAccumulation: Set<string>, // Expect a Set here
+  selectedGoIdsFromAccumulation: Set<string>,
   referenceMap: Map<string, ReferenceUmapItem> | null,
-  clusterColorMap: Map<string | number, string> | null,
-  bmdRefShapeMap: Map<number, string> | null
-): Map<number, UmapAnalysisDataPoint[]> | null { // Return type
+  // *** CORRECTED TYPE HINT ***
+  clusterColorMap: Map<string, string> | null,
+  // ***************************
+  bmdRefShapeMap: Map<number, string> | null,
+  rankRange?: [number, number] | null
+): StyledUmapGroupedData | null {
 
+  // *** ADDED LOGS ***
+  console.log('[calculateOverlayStyles] Received stylingOptions:', stylingOptions);
+  console.log('[calculateOverlayStyles] Received clusterColorMap size:', clusterColorMap?.size ?? 'null');
+  // ****************
 
-  // Temporary diagnostic logging—remove once fixed
-  if (baseGroupedData && referenceMap) {
-    console.group('[Diagnostics] GO ID Matching Check')
-    // Log first 5 GO IDs from analysis
-    const sampleAnalysisGoIds: string[] = []
-    Array.from(baseGroupedData.values())
-      .flat()
-      .slice(0, 5)
-      .forEach(pt => sampleAnalysisGoIds.push(String(pt.go_id)))
-    console.log('Sample analysis GO IDs:', sampleAnalysisGoIds)
-
-    // Log first 5 referenceMap keys
-    const sampleRefKeys = Array.from(referenceMap.keys()).slice(0, 5)
-    console.log('Sample referenceMap keys:', sampleRefKeys)
-    console.groupEnd()
+  // --- DIAGNOSTIC LOGGING ---
+  if (baseGroupedData && referenceMap && baseGroupedData.size > 0) {
+    console.groupCollapsed('[StyleUtils Diagnostics] GO ID Matching Check')
+    try {
+      const firstGroupKey = baseGroupedData.keys().next().value
+      const sampleAnalysisPoints = firstGroupKey
+        ? baseGroupedData.get(firstGroupKey)?.slice(0, 5) || []
+        : []
+      const sampleAnalysisGoIds = sampleAnalysisPoints.map((pt) => pt.go_id)
+      console.log(
+        `Sample analysis GO IDs (from ref ${firstGroupKey}):`,
+        sampleAnalysisGoIds
+      )
+      const sampleRefKeys = Array.from(referenceMap.keys()).slice(0, 5)
+      console.log('Sample referenceMap keys:', sampleRefKeys)
+      sampleAnalysisGoIds.forEach((goId) => {
+        const normalizedKey = (goId ?? '').trim().toUpperCase()
+        const exists = referenceMap.has(normalizedKey)
+        console.log(
+          `  Check: Analysis GO ID '${goId}' (Normalized: '${normalizedKey}') exists in refMap? ${exists}`
+        )
+      })
+    } catch (e) {
+      console.error('Error during diagnostic logging:', e)
+    } finally {
+      console.groupEnd()
+    }
   }
-
+  // --- END DIAGNOSTIC LOGGING ---
 
   // Initial Guard Clauses
-  if (!baseGroupedData || !referenceMap) {
-    console.warn('[calculateOverlayStyles] Missing baseGroupedData or referenceMap');
-    return null;
+  if (!baseGroupedData || baseGroupedData.size === 0 || !referenceMap) {
+    console.warn(
+      '[calculateOverlayStyles v2] Skipping: Missing or empty baseGroupedData or missing referenceMap.'
+    )
+    return null
   }
 
-  // Ensure hidden labels are Sets for efficient lookup
-  const hiddenColorSet = hiddenColorLabels instanceof Set ? hiddenColorLabels : new Set(hiddenColorLabels);
-  const hiddenShapeSet = hiddenShapeLabels instanceof Set ? hiddenShapeLabels : new Set(hiddenShapeLabels);
-  const hiddenSizeSet = hiddenSizeLabels instanceof Set ? hiddenSizeLabels : new Set(hiddenSizeLabels);
+  // Ensure hidden labels are Sets
+  const hiddenColorSet =
+    hiddenColorLabels instanceof Set
+      ? hiddenColorLabels
+      : new Set(hiddenColorLabels)
+  const hiddenShapeSet =
+    hiddenShapeLabels instanceof Set
+      ? hiddenShapeLabels
+      : new Set(hiddenShapeLabels)
+  const hiddenSizeSet =
+    hiddenSizeLabels instanceof Set
+      ? hiddenSizeLabels
+      : new Set(hiddenSizeLabels)
 
-  const styledGroupedData = new Map<number, UmapAnalysisDataPoint[]>();
-  let pointsProcessed = 0;
-  let pointsSkippedMissingRef = 0;
-  let pointsOutput = 0;
-  const failedKeysSample = new Set<string>(); // Keep sample for summary warning
+  const styledGroupedData = new Map<string, UmapAnalysisDataPoint[]>()
+  let pointsProcessed = 0
+  let pointsSkippedMissingRef = 0
+  let pointsOutput = 0
+  const failedKeysSample = new Set<string>()
 
-  console.log(`[calculateOverlayStyles] Starting styling calculation...`); // Simplified start log
+  console.log(
+    `[calculateOverlayStyles v2] Starting styling calculation for ${baseGroupedData.size} analysis groups...`
+  )
 
   // Pre-calculation for highlighting
   const exactMatchGoIds = new Set(
-    goIdFilterList.map(id => (id ?? '').toUpperCase())
+    goIdFilterList.map((id) => (id ?? '').toUpperCase())
   )
   const clusterMatchClusterIds = new Set<string | number>()
-  if (highlightMode === 'cluster' && exactMatchGoIds.size > 0) {
-    baseGroupedData.forEach(points => {
-      points.forEach(point => {
-        // Use goId, not go_id
-        const goIdUpper = (point.goId ?? '').toUpperCase()
+  if (highlightMode === HighlightMode.CLUSTER && exactMatchGoIds.size > 0) {
+    baseGroupedData.forEach((points) => {
+      points.forEach((point) => {
+        const goIdUpper = (point.go_id ?? '').toUpperCase()
         if (exactMatchGoIds.has(goIdUpper)) {
-          // Normalize then uppercase for lookup
-          const trimmed = typeof point.goId === 'string'
-            ? point.goId.trim()
-            : point.goId
-          const lookupKey = typeof trimmed === 'string'
-            ? trimmed.toUpperCase()
-            : trimmed
-          const refData = lookupKey
-            ? referenceMap.get(lookupKey)
-            : undefined
+          const lookupKey = (point.go_id ?? '').trim().toUpperCase()
+          const refData = lookupKey ? referenceMap.get(lookupKey) : undefined
           if (refData?.cluster_id != null) {
             clusterMatchClusterIds.add(refData.cluster_id)
           }
         }
       })
     })
+    console.log(
+      `[calculateOverlayStyles v2] Cluster highlight mode: Found ${clusterMatchClusterIds.size} clusters containing target GO IDs.`
+    )
   }
 
   // Main Styling Loop
-  baseGroupedData.forEach((basePoints, ref) => {
-    const styledPoints = basePoints.map(basePoint => {
-      pointsProcessed++
-      // Normalize the GO ID to uppercase for map lookup
-      const trimmed = typeof basePoint.go_id === 'string'
-        ? basePoint.go_id.trim()
-        : basePoint.go_id
-      const lookupKey = typeof trimmed === 'string'
-        ? trimmed.toUpperCase()
-        : trimmed
-      const refDataItem = lookupKey
-        ? referenceMap.get(lookupKey)
-        : undefined
+  baseGroupedData.forEach((basePoints, refStringKey) => {
+    const styledPoints = basePoints
+      .map((basePoint) => {
+        pointsProcessed++
 
-      if (!refDataItem) {
-        pointsSkippedMissingRef++
-        if (typeof lookupKey === 'string' && failedKeysSample.size < 20) {
-          if (!failedKeysSample.has(lookupKey)) {
-            console.warn(
-              `[StyleUtils] Ref Data MISS: Key='${lookupKey}' not found.`
+        const goIdSource = basePoint.go_id
+        const lookupKey =
+          typeof goIdSource === 'string'
+            ? goIdSource.trim().toUpperCase()
+            : null
+
+        const refDataItem = lookupKey ? referenceMap.get(lookupKey) : undefined
+
+        if (!refDataItem) {
+          pointsSkippedMissingRef++
+          if (lookupKey && failedKeysSample.size < 20) {
+            if (!failedKeysSample.has(lookupKey)) {
+              failedKeysSample.add(lookupKey)
+            }
+          }
+          return null
+        }
+
+        // Determine Base Styles
+        const { colorBy, shapeBy, sizeBy } = stylingOptions
+        const experimentNameForLabel =
+          bmdRefToExperimentNameMap?.get(basePoint.bmdResultRef) ||
+          basePoint.bmdResultName
+        let baseFinalColor = DEFAULT_MARKER_COLOR,
+          colorLabel = experimentNameForLabel
+        switch (colorBy) {
+          case 'cluster_id':
+            const clusterIdValue = refDataItem.cluster_id; // Can be number or string
+            // *** FIX: Ensure lookup key is a STRING ***
+            const clusterIdString = String(clusterIdValue);
+            // ****************************************
+            baseFinalColor =
+              clusterIdValue != null // Check original value for existence
+                // *** FIX: Use string key for lookup ***
+                ? clusterColorMap?.get(clusterIdString) || DEFAULT_MARKER_COLOR
+                // ************************************
+                : DEFAULT_MARKER_COLOR;
+            colorLabel =
+              clusterIdValue != null ? `Cluster ${clusterIdValue}` : 'Unknown Cluster';
+            break;
+          case 'direction':
+            baseFinalColor = getDirectionColor(basePoint.direction)
+            colorLabel = getDirectionLegendName(
+              getDirectionShape(basePoint.direction)
             )
-            failedKeysSample.add(lookupKey)
-          }
+            break;
+          // default: // Keep defaults
         }
-        return null
-      }
 
-      // Determine Base Styles
-      const { colorBy, shapeBy, sizeBy } = stylingOptions;
-      const experimentNameForLabel = bmdRefToExperimentNameMap?.get(basePoint.bmdResultRef) || basePoint.bmdResultName;
-      let baseFinalColor = DEFAULT_MARKER_COLOR, colorLabel = experimentNameForLabel;
-      switch (colorBy) {
-        case 'cluster_id':
-          const clusterId = refDataItem.cluster_id; // refDataItem guaranteed here
-          baseFinalColor = clusterId != null ? (clusterColorMap?.get(clusterId) || DEFAULT_MARKER_COLOR) : DEFAULT_MARKER_COLOR;
-          colorLabel = clusterId != null ? `Cluster ${clusterId}` : 'Unknown Cluster';
-          break;
-        case 'direction':
-          baseFinalColor = getDirectionColor(basePoint.direction);
-          colorLabel = basePoint.direction || 'None';
-          break;
-        default: break; // Keep defaults
-      }
-
-      let baseFinalShape = DEFAULT_MARKER_SHAPE, shapeLabel = DEFAULT_SHAPE_LABEL;
-      switch (shapeBy) {
-        case 'direction':
-          baseFinalShape = getDirectionShape(basePoint.direction);
-          shapeLabel = getDirectionLegendName(baseFinalShape);
-          break;
-        case 'bmdResultName':
-          baseFinalShape = bmdRefShapeMap?.get(basePoint.bmdResultRef) || DEFAULT_MARKER_SHAPE;
-          shapeLabel = experimentNameForLabel;
-          break;
-        default: break; // Keep defaults
-      }
-
-      let baseFinalSize = DEFAULT_MARKER_SIZE, sizeLabel = DEFAULT_SIZE_LABEL;
-      switch (sizeBy) {
-        case 'percentage':
-          baseFinalSize = getBinnedSize(basePoint.percentage);
-          try {
-            const sizeIndex = PERCENTAGE_SIZES.indexOf(baseFinalSize);
-            // Ensure SIZE_BIN_LABELS exists and index is valid
-            sizeLabel = sizeIndex !== -1 && SIZE_BIN_LABELS && sizeIndex < SIZE_BIN_LABELS.length ? SIZE_BIN_LABELS[sizeIndex] : DEFAULT_SIZE_LABEL;
-          } catch (e) { sizeLabel = DEFAULT_SIZE_LABEL; }
-          break;
-        default: break; // Keep defaults
-      }
-
-      // Check Legend Toggles
-      const isHiddenByLegend = hiddenColorSet.has(colorLabel) || hiddenShapeSet.has(shapeLabel) || hiddenSizeSet.has(sizeLabel);
-
-      // Apply Highlighting & Final Opacity/Size
-      let finalSize = baseFinalSize;
-      let finalOpacity = isHiddenByLegend ? HIDDEN_OPACITY : VISIBLE_OPACITY;
-      const currentGoIdUpper = (trimmedGoId ?? '').toUpperCase();
-      const isExactMatch = exactMatchGoIds.has(currentGoIdUpper);
-      const clusterIdForHighlight = refDataItem.cluster_id; // Already checked refDataItem exists
-      const isInHighlightCluster = highlightMode === 'cluster' && clusterIdForHighlight != null && clusterMatchClusterIds.has(clusterIdForHighlight);
-      const isSelectedFromAccumulation = selectedGoIdsFromAccumulation.has(currentGoIdUpper); // Use the Set directly
-
-      if (!isHiddenByLegend) {
-        if (isSelectedFromAccumulation) {
-          finalSize = baseFinalSize * 1.5; finalOpacity = 1.0;
-        } else if (highlightMode !== HighlightMode.NONE && exactMatchGoIds.size > 0) {
-          if (highlightMode === HighlightMode.SELECTED) { // Assuming 'selected' is 'exact' mode
-            if (!isExactMatch) finalOpacity = HIDDEN_OPACITY;
-          } else if (highlightMode === HighlightMode.CLUSTER) {
-            if (isExactMatch) { finalSize = baseFinalSize * 1.2; finalOpacity = VISIBLE_OPACITY; }
-            else if (isInHighlightCluster) { finalSize = Math.max(1, baseFinalSize * 0.8); finalOpacity = DIM_OPACITY; }
-            else { finalOpacity = HIDDEN_OPACITY; }
-          }
+        let baseFinalShape = DEFAULT_MARKER_SHAPE,
+          shapeLabel = DEFAULT_SHAPE_LABEL
+        switch (shapeBy) {
+          case 'direction':
+            baseFinalShape = getDirectionShape(basePoint.direction)
+            shapeLabel = getDirectionLegendName(baseFinalShape)
+            break
+          case 'bmdResultName':
+            baseFinalShape =
+              bmdRefShapeMap?.get(basePoint.bmdResultRef) ||
+              DEFAULT_MARKER_SHAPE
+            shapeLabel = experimentNameForLabel
+            break;
+          // default: // Keep defaults
         }
-      } else {
-        finalOpacity = HIDDEN_OPACITY;
-      }
 
-      // Final check before returning point
-      if (finalOpacity === HIDDEN_OPACITY) {
-        return null;
-      }
+        let baseFinalSize = DEFAULT_MARKER_SIZE,
+          sizeLabel = DEFAULT_SIZE_LABEL
+        switch (sizeBy) {
+          case 'percentage':
+            baseFinalSize = getBinnedSize(basePoint.percentage)
+            try {
+              sizeLabel =
+                SIZE_BIN_LABELS && SIZE_BIN_LABELS[baseFinalSize]
+                  ? SIZE_BIN_LABELS[baseFinalSize]
+                  : DEFAULT_SIZE_LABEL
+            } catch (e) {
+              sizeLabel = DEFAULT_SIZE_LABEL
+            }
+            break;
+          // default: // Keep defaults
+        }
 
-      // Create Point
-      pointsOutput++;
-      const styledPoint: UmapAnalysisDataPoint = {
-        ...basePoint,
-        UMAP_1: refDataItem.UMAP_1,
-        UMAP_2: refDataItem.UMAP_2,
-        cluster_id: refDataItem.cluster_id,
-        finalColor: baseFinalColor,
-        finalShape: baseFinalShape,
-        finalSize: finalSize,
-        finalOpacity: finalOpacity,
-        colorLabel, shapeLabel, sizeLabel,
-      };
-      return styledPoint;
+        // Check Legend Toggles
+        const isHiddenByLegend =
+          hiddenColorSet.has(colorLabel) ||
+          hiddenShapeSet.has(shapeLabel) ||
+          hiddenSizeSet.has(sizeLabel)
 
-    }).filter((p): p is UmapAnalysisDataPoint => p !== null);
+        // Apply Highlighting & Final Opacity/Size
+        let finalSize = baseFinalSize
+        let finalOpacity = isHiddenByLegend ? HIDDEN_OPACITY : VISIBLE_OPACITY
+        const currentGoIdUpper = lookupKey
+        const isExactMatch =
+          currentGoIdUpper && exactMatchGoIds.has(currentGoIdUpper)
+        const clusterIdForHighlight = refDataItem.cluster_id
+        const isInHighlightCluster =
+          highlightMode === HighlightMode.CLUSTER &&
+          clusterIdForHighlight != null &&
+          clusterMatchClusterIds.has(clusterIdForHighlight)
+        const isSelectedFromAccumulation =
+          currentGoIdUpper &&
+          selectedGoIdsFromAccumulation.has(currentGoIdUpper)
+
+        if (!isHiddenByLegend) {
+          if (isSelectedFromAccumulation) {
+            finalSize = baseFinalSize * 1.5
+            finalOpacity = 1.0
+          } else if (
+            highlightMode !== HighlightMode.NONE &&
+            exactMatchGoIds.size > 0
+          ) {
+            if (highlightMode === HighlightMode.SELECTED) {
+              if (!isExactMatch) finalOpacity = HIDDEN_OPACITY
+            } else if (highlightMode === HighlightMode.CLUSTER) {
+              if (isExactMatch) {
+                finalSize = baseFinalSize * 1.2
+                finalOpacity = VISIBLE_OPACITY
+              } else if (isInHighlightCluster) {
+                finalSize = Math.max(1, baseFinalSize * 0.8)
+                finalOpacity = DIM_OPACITY
+              } else {
+                finalOpacity = HIDDEN_OPACITY
+              }
+            }
+          }
+        } else {
+          finalOpacity = HIDDEN_OPACITY
+        }
+
+        // Final check before returning point
+        if (finalOpacity === HIDDEN_OPACITY) {
+          return null
+        }
+
+        // *** ADDED LOG before creating styledPoint ***
+        console.log(`[calculateOverlayStyles] Point ${basePoint.go_id}: baseSize=${baseFinalSize}, finalSize=${finalSize}, baseColor=${baseFinalColor}, finalColor=${baseFinalColor}, opacity=${finalOpacity}`);
+        // ********************************************
+
+        // Create Point (Type UmapAnalysisDataPoint)
+        pointsOutput++
+        const styledPoint: UmapAnalysisDataPoint = {
+          ...basePoint,
+          UMAP_1: refDataItem.UMAP_1,
+          UMAP_2: refDataItem.UMAP_2,
+          cluster_id: refDataItem.cluster_id,
+          finalColor: baseFinalColor,
+          finalShape: baseFinalShape,
+          finalSize: finalSize,
+          finalOpacity: finalOpacity,
+          colorLabel,
+          shapeLabel,
+          sizeLabel,
+        }
+        return styledPoint
+      })
+      .filter((p): p is UmapAnalysisDataPoint => p !== null)
 
     if (styledPoints.length > 0) {
-      styledGroupedData.set(ref, styledPoints);
+      styledGroupedData.set(refStringKey, styledPoints)
     }
-  }); // End baseGroupedData.forEach
+  }) // End baseGroupedData.forEach
 
   // Final Summary Logging
   if (pointsSkippedMissingRef > 0) {
-    console.warn(`[StyleUtils] Total points skipped due to missing reference data: ${pointsSkippedMissingRef} out of ${pointsProcessed}`);
+    console.warn(
+      `[StyleUtils v2] Total points skipped due to missing reference data: ${pointsSkippedMissingRef} out of ${pointsProcessed}`
+    )
     if (failedKeysSample.size > 0) {
-      console.warn(`[StyleUtils] Sample of missing keys:`, Array.from(failedKeysSample));
+      console.warn(
+        `[StyleUtils v2] Sample of missing keys (normalized, uppercase):`,
+        Array.from(failedKeysSample)
+      )
     }
   }
-  console.log(`[calculateOverlayStyles] Finished styling. Output Points: ${pointsOutput}. Result map size: ${styledGroupedData.size}`);
-  // Return the map (could be empty)
-  return styledGroupedData;
-}// src/utils/projectDBUtils.ts
+  console.log(
+    `[calculateOverlayStyles v2] Finished styling. Output Points: ${pointsOutput}. Result map size: ${styledGroupedData.size}`
+  )
+
+  return styledGroupedData
+}
+// src/utils/projectDBUtils.ts
 
 // Assuming Project type might be defined elsewhere, e.g., in types/index.ts
 // export interface Project {
@@ -2455,7 +2557,8 @@ export async function listProjectDatabaseNames(): Promise<string[]> {
 // src/utils/analysisUtils.ts
 
 import { BMDResult, CategoryAnalysisItem } from '../models/BMDxExported'
-import { BaseCategoryAnalysisDataPoint } from '../models/ApplicationModelCompositional'
+// *** USE CORRECT TYPE ***
+import { BaseCategoryAnalysisDataPoint } from '../models/ApplicationModelCompositional' // Adjusted path/type
 
 /**
  * Groups raw category‐analysis items into the basic overlay points,
@@ -2463,85 +2566,159 @@ import { BaseCategoryAnalysisDataPoint } from '../models/ApplicationModelComposi
  */
 export function prepareGroupedOverlayData(
   bmdResultMap: Map<number, BMDResult>,
+  // *** USE CORRECT TYPE FOR INPUT MAP VALUE ***
   categoryItemsMap: Map<string, CategoryAnalysisItem[]>
+  // *** USE CORRECT TYPE FOR RETURN MAP VALUE ***
 ): Map<string, BaseCategoryAnalysisDataPoint[]> {
+  // *** USE CORRECT TYPE FOR OUTPUT MAP ***
   const out = new Map<string, BaseCategoryAnalysisDataPoint[]>()
 
-  console.log('prepareGroupedOverlayData input:', {
+  console.log('[prepareGroupedOverlayData v2] Input:', {
     bmdKeys: Array.from(bmdResultMap.keys()),
     categoryKeys: Array.from(categoryItemsMap.keys()),
   })
 
+  // Iterate over the keys provided by the correctly structured categoryItemsMap
   for (const refStr of categoryItemsMap.keys()) {
-    console.log('  trying ref:', refStr)
-    const bmd = bmdResultMap.get(Number(refStr))
-    const items = categoryItemsMap.get(refStr)
+    console.log(`  [prepareGroupedOverlayData v2] trying ref: ${refStr}`)
+    const bmd = bmdResultMap.get(Number(refStr)) // Get corresponding BMDResult
+    const items = categoryItemsMap.get(refStr) // Get the array of items for this ref
+
     if (!bmd) {
-      console.warn('   🌶️ no BMD for', refStr)
+      console.warn(`   🌶️ no BMD for ref ${refStr}`)
       continue
     }
     if (!items || items.length === 0) {
-      console.warn('   🌶️ no items for', refStr)
+      console.warn(`   🌶️ no category items for ref ${refStr}`)
       continue
     }
 
-    // build the BaseCategoryAnalysisDataPoint[] for this ref
-    const basePoints: BaseCategoryAnalysisDataPoint[] = items.map(item => ({
-      ref: refStr,
-      goId: item.go_id,
-      percentage: item.percentage,
-      direction: item.direction,
-      clusterId: item.cluster_id,
-      // use the bmd.recordedDose or similar as x/y or leave blank
-      bmdValue: bmd.benchmarkDose,
-    }))
+    // Build the BaseCategoryAnalysisDataPoint[] for this ref
+    // *** FIX POINT A & B ***
+    const basePoints: BaseCategoryAnalysisDataPoint[] = items
+      .map((item) => {
+        // --- FIX A: Use categoryIdentifier.id for goId ---
+        const goId = item?.categoryIdentifier?.id
+        const goTerm = item?.categoryIdentifier?.title
+        // --- Map other relevant fields from CategoryAnalysisItem ---
+        const direction = item?.overallDirection
+        const percentage = item?.percentage
+        // Use the field specified for ranking/accumulation plot
+        const bmdFifthPercentileTotalGenes = item?.bmdFifthPercentileTotalGenes
+        const geneAllCount = item?.geneAllCount
+        const genesPassed = item?.genesThatPassedAllFilters
 
-    console.log(`   → built ${basePoints.length} points for ref ${refStr}`)
+        // Basic validation: Ensure goId exists
+        if (!goId) {
+          console.warn(
+            `   🌶️ Skipping item due to missing goId:`,
+            item?.categoryIdentifier
+          )
+          return null // Skip items without a GO ID
+        }
+
+        // Create the base point object
+        return {
+          // Identifiers
+          go_id: goId, // Keep snake_case for consistency with reference data? Or switch to goId? Let's use go_id for now.
+          go_term: goTerm || 'Unknown Term',
+
+          // Source Info (Use number for ref consistency internally if possible, but map key is string)
+          bmdResultRef: bmd['@ref'], // Store the original numeric ref
+          bmdResultName: bmd.name || 'Unnamed BMD Result',
+
+          // Data Fields (ensure names match ApplicationModelCompositional)
+          direction: direction,
+          percentage: percentage,
+          bmdFifthPercentileTotalGenes: bmdFifthPercentileTotalGenes, // Field for ranking/accumulation
+          geneAllCount: geneAllCount,
+          genesThatPassedAllFilters: genesPassed,
+
+          // Placeholder for calculated styles - will be added by styleUtils
+          finalColor: '',
+          finalShape: '',
+          finalSize: 0,
+          finalOpacity: 0,
+        }
+      })
+      .filter((p): p is BaseCategoryAnalysisDataPoint => p !== null) // Filter out nulls
+
+    console.log(
+      `   → [prepareGroupedOverlayData v2] built ${basePoints.length} base points for ref ${refStr}`
+    )
+    // Use the string ref as the key for the output map
     out.set(refStr, basePoints)
   }
 
-  console.log('prepareGroupedOverlayData output keys:', Array.from(out.keys()))
+  console.log(
+    '[prepareGroupedOverlayData v2] Output map keys:',
+    Array.from(out.keys())
+  )
   return out
 }
 // src/utils/referenceDataUtils.ts
 
-// Assuming referenceUmapData is imported or available here
-// Ensure path is correct relative to this file
-import { ReferenceUmapItem } from '../data/referenceUmapData';
-import { ReferenceDataMap } from '../models/ReferenceData'; // Adjust path
+import { ReferenceUmapItem, hardcodedReferenceData } from '../data/referenceUmapData'; // Ensure path is correct
+// Define the specific Map type alias if not already done globally
+export type ReferenceDataMap = Map<string, ReferenceUmapItem>;
 
 let referenceMapCache: ReferenceDataMap | null = null;
-let loggedKeys = false; // Flag to log only once
+// let loggedKeys = false; // Flag to log only once - can be removed if not needed
 
 /**
  * Creates a Map for efficient lookup of reference UMAP data by GO ID.
- * Keys are normalized (trimmed, potentially case-changed).
- * @param referenceData - The array of ReferenceUmapItem objects.
+ * Keys are normalized (trimmed, uppercase).
+ * @param referenceData - The array of ReferenceUmapItem objects. Defaults to hardcoded data.
  * @returns A Map where keys are normalized GO IDs and values are the corresponding ReferenceUmapItem objects.
  */
-
 export function createReferenceDataMap(
-    referenceData: ReferenceUmapItem[] = referenceUmapData
+    referenceData: ReferenceUmapItem[] = hardcodedReferenceData // Use default parameter
 ): ReferenceDataMap {
-    if (referenceMapCache) return referenceMapCache
-    const map: ReferenceDataMap = new Map()
+    // Return cache if already built
+    if (referenceMapCache) {
+        // console.log("[createReferenceDataMap] Returning cached map.");
+        return referenceMapCache;
+    }
+
+    console.log(`[createReferenceDataMap] Creating new reference map from ${referenceData?.length || 0} items.`);
+    const map: ReferenceDataMap = new Map();
+
+    if (!referenceData) {
+        console.warn("[createReferenceDataMap] Input referenceData is null or undefined.");
+        return map; // Return empty map
+    }
 
     referenceData.forEach(item => {
-        const keySource = item.go_id
+        // --- Key Normalization Logic (Matches Fix C expectation) ---
+        const keySource = item?.go_id; // Use optional chaining
         if (typeof keySource === 'string') {
-            const finalKey = keySource.trim().toUpperCase()
-            if (finalKey) map.set(finalKey, item)
+            const finalKey = keySource.trim().toUpperCase(); // Trim and uppercase
+            if (finalKey) { // Ensure key is not empty after trimming
+                // Check for duplicates (optional but good practice)
+                // if (map.has(finalKey)) {
+                //     console.warn(`[createReferenceDataMap] Duplicate GO ID key found after normalization: '${finalKey}'`);
+                // }
+                map.set(finalKey, item);
+            } else {
+                // console.warn(`[createReferenceDataMap] Skipping item with empty GO ID after trimming:`, item);
+            }
+        } else {
+            // console.warn(`[createReferenceDataMap] Skipping item with missing or non-string GO ID:`, item);
         }
-    })
+        // ---------------------------------------------------------
+    });
 
-    referenceMapCache = map
-    return map
+    console.log(`[createReferenceDataMap] Finished creating map. Size: ${map.size}`);
+    referenceMapCache = map; // Cache the newly created map
+    return map;
 }
 
 // Optional: Function to get the map (ensures creation logic runs if not cached)
 export function getReferenceDataMap(): ReferenceDataMap {
-    return createReferenceDataMap();
-}/* src/index.css */
+    // console.log("[getReferenceDataMap] Accessing reference map...");
+    return createReferenceDataMap(); // This will either create or return cache
+}
+/* src/index.css */
 
 /* 1. Ensure sorted cells inherit the row's background set by inline style */
 .ant-table-wrapper .ant-table-tbody>tr>td.ant-table-column-sort {
@@ -2990,12 +3167,11 @@ export interface ReferenceGeneProbeStatResult {
     probeStatResults: number[];
     adverseDirection: string;
     conflictMinCorrelation: number | null;
-}/**
- * src/models/ApplicationModelCompositional.ts
- *
- * Defines application-specific data structures, interfaces, and type aliases.
- * This layer provides idiomatic views of the master data model (`BMDxExported.ts`)
- * tailored for use in application logic (components, hooks, UI state).
+}* src / models / ApplicationModelCompositional.ts
+    *
+ * Defines application - specific data structures, interfaces, and type aliases.
+ * This layer provides idiomatic views of the master data model(`BMDxExported.ts`)
+    * tailored for use in application logic(components, hooks, UI state).
  * It uses a compositional approach with TypeScript types and interfaces.
  */
 
@@ -3228,16 +3404,8 @@ export type AnalysisResult =
 // Can be useful for component props or variable declarations
 
 export type AnalysisPoint = MapCategoryAnalysisDataPoint; // Default "point" to map points for now
-export type AnalysisTableRow = UmapAnalysisDataPoint; // Example: If table focuses on UMAP data
-
-
-// --- CREATED AD HOC BY LLM. NEED TO REVISIT, AND MAKE RIGHT. ---
-import { BMDResult, CategoryAnalysisItem } from './BMDxExported';
-
-export interface AnalysisDetailsForProcessing {
-    bmdResult: BMDResult; // The parent BMD result
-    filteredCategoryItems: CategoryAnalysisItem[]; // The pre-filtered items
-}// src/types/IUmapBokehPlot.ts
+export type AnalysisTableRow = UmapAnalysisDataPoint; // Example: If table focuses on UMAP data// src/types/IUmapBokehPlot.ts
+/// src/types/IUmapBokehPlot.ts
 // To parse this data:
 //
 //   import { Convert, IUmapBokehPlot } from "./file";
@@ -4683,212 +4851,78 @@ const CustomLegend: React.FC<CustomLegendProps> = ({
     );
 };
 
-export default CustomLegend;// src/components/analysis/GOUmapAnalysisUnit.tsx
-import React, { useMemo, useState } from 'react';
-import { Row, Col, Card, Spin, Alert, Typography, Space } from 'antd';
-// ** Use the hook directly **
-import { useGetExperimentsQuery } from '../../store/apis/experimentsApi.ts'; // Adjust path
-import type { Experiment } from '../../store/apis/experimentsApi.ts'; // Adjust path
+export default CustomLegend;// src/components/analysis/placeholders/AnalysisDataTable.tsx
+import React from 'react';
+import { Card } from 'antd';
 
-// Import or Define Placeholders (Corrected Versions)
-// Ensure these files exist and export correctly, or define inline as below
-// import UmapPlotPlaceholder from './UmapPlotPlaceholder.tsx';
-// import AccumulationPlotPlaceholder from './AccumulationPlotPlaceholder.tsx';
-// import CustomLegendPlaceholder from './CustomLegendPlaceholder.tsx';
-// import FilterableTablePlaceholder from './FilterableTablePlaceholder.tsx';
-// import GoIdFilterPlaceholder from './GoIdFilterPlaceholder.tsx';
-// import RankFilterPlaceholder from './RankFilterPlaceholder.tsx';
-// import StylingSelectorsPlaceholder from './StylingSelectorsPlaceholder.tsx';
+const AnalysisDataTable: React.FC = () => (
+    <Card size="small" title="Analysis Data Table">
+        (Placeholder: Filterable Data Table)
+    </Card>
+);
+export default AnalysisDataTable;// src/components/analysis/placeholders/GoIdFilterUI.tsx
+import React from 'react';
+import { Card } from 'antd';
 
-const { Title } = Typography;
+const GoIdFilterUI: React.FC = () => (
+    <Card size="small" title="GO ID / Highlight Filter">
+        (Placeholder: GO ID Text Area, Highlight Mode Radio Buttons)
+    </Card>
+);
+export default GoIdFilterUI;
 
-// --- Constants ---
-const UMAP_PLOT_HEIGHT = '550px';
+// src/components/analysis/placeholders/ColorLegend.tsx
+import React from 'react';
+import { Card } from 'antd';
 
-// --- Prop Interface ---
-interface GOUmapAnalysisUnitProps {
-    projectName: string;
-    selectedExperimentRefs: (string | number)[];
+const ColorLegend: React.FC = () => (
+    <Card size="small" title="Color Legend">
+        (Placeholder: Color Legend Items)
+    </Card>
+);
+export default ColorLegend;// src/components/analysis/placeholders/RankSliderUI.tsx
+import React from 'react';
+import { Card } from 'antd';
+
+const RankSliderUI: React.FC = () => (
+    <Card size="small" title="Rank Filter & Styling Selectors">
+        (Placeholder: Rank Slider, Color/Shape/Size Dropdowns)
+    </Card>
+);
+export default RankSliderUI;// src/components/analysis/placeholders/AccumulationPlot.tsx
+import React from 'react';
+import { Card } from 'antd';
+
+interface AccumulationPlotProps {
+    analysisName?: string; // Optional name prop
 }
 
-// --- Corrected Placeholder Component Definitions ---
-// Base placeholder - simplified
-const PlaceholderCard: React.FC<{ title: string; data?: Experiment[]; height?: string; children?: React.ReactNode }> =
-    ({ title, data, height = 'auto', children }) => (
-        <Card title={title} size="small" style={{ height: height, border: '1px dashed grey' }}>
-            {children ? children : (
-                <pre style={{ maxHeight: '150px', overflow: 'auto', fontSize: '10px' }}>
-                    {title} Placeholder
-                    {Array.isArray(data) && `\nData items: ${data.length}`}
-                </pre>
-            )}
-        </Card>
-    );
-// Specific placeholders using the base card
-const UmapPlotPlaceholder: React.FC<{ data: Experiment[] }> = ({ data }) =>
-    <PlaceholderCard title="UMAP Plot" data={data} height="100%" />;
-const AccumulationPlotPlaceholder: React.FC<{ data: Experiment[]; title?: string }> = ({ data, title }) =>
-    <PlaceholderCard title={title || "Accumulation Plot"} data={data} height="400px" />;
-const CustomLegendPlaceholder: React.FC<{ data: Experiment[] }> = ({ data }) =>
-    <PlaceholderCard title="Custom Legend" data={data} />; // Single legend
-const FilterableTablePlaceholder: React.FC<{ data: Experiment[] }> = ({ data }) =>
-    <PlaceholderCard title="Filterable Table" data={data} />;
-// Filter placeholders
-const GoIdFilterPlaceholder: React.FC<any> = ({ filterState }) => (
-    <PlaceholderCard title="GO ID Filter">
-        <pre style={{ fontSize: '10px' }}>State: {JSON.stringify(filterState)}</pre>
-        (GO Filter UI Placeholder)
-    </PlaceholderCard>
+const AccumulationPlot: React.FC<AccumulationPlotProps> = ({ analysisName }) => (
+    <Card size="small" title={`Accumulation Plot: ${analysisName || 'Selected'}`}>
+        (Placeholder: Accumulation Plot Visualization)
+    </Card>
 );
-const RankFilterPlaceholder: React.FC<any> = ({ filterState }) => (
-    <PlaceholderCard title="Rank Filter">
-        <pre style={{ fontSize: '10px' }}>State: {JSON.stringify(filterState)}</pre>
-        (Rank Filter UI Placeholder)
-    </PlaceholderCard>
+export default AccumulationPlot;// src/components/analysis/placeholders/ShapeSizeLegend.tsx
+import React from 'react';
+import { Card } from 'antd';
+
+const ShapeSizeLegend: React.FC = () => (
+    <Card size="small" title="Shape & Size Legend">
+        (Placeholder: Shape/Size Legend Items)
+    </Card>
 );
-const StylingSelectorsPlaceholder: React.FC<any> = ({ stylingState }) => (
-    <PlaceholderCard title="Styling Selectors">
-        <pre style={{ fontSize: '10px' }}>State: {JSON.stringify(stylingState)}</pre>
-        (Styling Selectors Placeholder)
-    </PlaceholderCard>
-);
-// --- End Placeholder Definitions ---
+export default ShapeSizeLegend;// src/components/analysis/GOUmapAnalysisUnit.tsx
 
-
-// --- Main Analysis Unit Component ---
-const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = ({
-    projectName,
-    selectedExperimentRefs,
-}) => {
-
-    // --- Fetch Data using useGetExperimentsQuery hook ---
-    // This replaces useQueryState to keep subscription active
-    const {
-        data: allExperiments = [], // Default to empty array
-        isLoading: isLoadingAllExperiments,
-        error: allExperimentsError,
-        isSuccess: allExperimentsSuccess,
-    } = useGetExperimentsQuery(
-        { projectName },
-        { skip: !projectName } // Skip if projectName isn't valid
-    );
-    // -----------------------------------------------------
-
-    // --- Filter for SELECTED experiments ---
-    const selectedExperimentsData = useMemo((): Experiment[] => {
-        console.log('[GOUmapAnalysisUnit] Calculating selectedExperimentsData. allExperiments count:', allExperiments?.length, 'selectedRefs:', selectedExperimentRefs);
-        if (!allExperimentsSuccess || selectedExperimentRefs.length === 0) return [];
-        const selectedRefSet = new Set(selectedExperimentRefs.map(String));
-        const filtered = allExperiments.filter(exp => selectedRefSet.has(String(exp['@ref'])));
-        console.log('[GOUmapAnalysisUnit] Calculated selectedExperimentsData count:', filtered.length);
-        return filtered;
-    }, [allExperiments, selectedExperimentRefs, allExperimentsSuccess]);
-
-    // --- Placeholder State for Filters ---
-    const [goIdFilterState, setGoIdFilterState] = useState<any>(null);
-    const [rankFilterState, setRankFilterState] = useState<[number, number]>([1, 100]);
-    const [stylingState, setStylingState] = useState<any>({ colorBy: '?', shapeBy: '?', sizeBy: '?' });
-    // ----------------------------------
-
-    // --- Placeholder Filtered/Transformed Data ---
-    const finalPlotTableData = useMemo(() => {
-        console.log("[GOUmapAnalysisUnit] Filtering data based on:", goIdFilterState, rankFilterState, stylingState);
-        return selectedExperimentsData; // Use selected data directly for now
-    }, [selectedExperimentsData, goIdFilterState, rankFilterState, stylingState]);
-    // --------------------------------
-
-    // --- Render Logic ---
-    // Use loading/error state from the useGetExperimentsQuery hook
-    if (isLoadingAllExperiments) { return <Spin tip="Loading experiment data..." />; }
-    if (allExperimentsError) { return <Alert message="Error loading experiment data" description={String(allExperimentsError)} type="error" showIcon />; }
-    // Check if selected refs exist but corresponding data wasn't found after loading succeeded
-    if (allExperimentsSuccess && selectedExperimentsData.length === 0 && selectedExperimentRefs.length > 0) {
-        return <Alert message="Could not find data for selected experiments." description={`Selected refs: ${selectedExperimentRefs.join(', ')}`} type="warning" showIcon />;
-    }
-    // Check if no experiments were selected in the first place
-    if (selectedExperimentRefs.length === 0) {
-        return <Alert message="No experiments selected for analysis." type="info" showIcon />;
-    }
-    // If selectedExperimentsData is empty for other reasons (e.g., project truly has 0 experiments)
-    if (allExperimentsSuccess && selectedExperimentsData.length === 0) {
-        return <Alert message="No experiment data available for analysis." type="info" showIcon />;
-    }
-
-
-    // --- Layout matching specific structure requested ---
-    return (
-        <div>
-            {/* 1. GO ID Filter */}
-            <div style={{ marginBottom: '1rem' }}>
-                <GoIdFilterPlaceholder
-                    filterState={goIdFilterState}
-                    setFilterState={setGoIdFilterState}
-                />
-            </div>
-
-            {/* 2. Rank Filter and Styling Selectors Row */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', gap: '16px', flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 400px', minWidth: '350px' }}>
-                    <RankFilterPlaceholder
-                        filterState={rankFilterState}
-                        setFilterState={setRankFilterState}
-                    />
-                </div>
-                <div style={{ flex: '0 1 auto' }}>
-                    <StylingSelectorsPlaceholder
-                        stylingState={stylingState}
-                        setStylingState={setStylingState}
-                    />
-                </div>
-            </div>
-
-            {/* 3. UMAP Plot Area */}
-            <div style={{ marginBottom: '1rem', height: UMAP_PLOT_HEIGHT }}>
-                {/* Pass final filtered/transformed data eventually */}
-                <UmapPlotPlaceholder data={finalPlotTableData} />
-            </div>
-
-            {/* 4. Single Custom Legend (Placed below UMAP) */}
-            {/* Adjust placement/styling as needed */}
-            <div style={{ marginBottom: '1rem' }}>
-                <CustomLegendPlaceholder data={finalPlotTableData} />
-            </div>
-
-            {/* 5. Accumulation Plot(s) Area */}
-            <div style={{ marginTop: '1rem' }}>
-                <Title level={5}>Accumulation Plot(s)</Title>
-                <Row gutter={[16, 16]}>
-                    {/* Render one plot placeholder per selected experiment */}
-                    {/* Pass individual experiment data */}
-                    {selectedExperimentsData.map((expData) => (
-                        <Col key={expData['@ref']} xs={24} sm={12} md={8}>
-                            <AccumulationPlotPlaceholder data={[expData]} title={expData.name} />
-                        </Col>
-                    ))}
-                </Row>
-            </div>
-
-            {/* 6. Table Area */}
-            <div style={{ marginTop: '1rem' }}>
-                {/* Pass final filtered/transformed data eventually */}
-                <FilterableTablePlaceholder data={finalPlotTableData} />
-            </div>
-        </div>
-    );
-};
-
-export default GOUmapAnalysisUnit;// src/components/analysis/GOUmapAnalysisUnit.tsx
-
-import React, { useCallback, useState } from "react"
-import { Row, Col, Card, Spin, Alert, Space, Typography } from "antd"
-import UmapPlotComponent from "./UmapPlotComponent"
-import { useAppSelector, useAppDispatch } from "../../store/hooks"
-import { usePreparedPlotData } from "../../hooks/usePreparedPlotData"
-import { selectSelectedAnalysisRefs } from "../../store/slices/selectedAnalysisSlice"
+import React, { useMemo, useEffect } from 'react';
+import { Row, Col, Spin, Alert, Space } from 'antd';
+import UmapPlotComponent from './UmapPlotComponent';
+import { useAppSelector } from '../../store/hooks';
+import { usePreparedPlotData } from '../../hooks/usePreparedPlotData';
+import { selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice';
 import {
-    selectReferenceDataMap,
+    selectReferenceDataMap, // Keep this import
     selectReferenceData,
-} from "../../store/selectors/referenceDataSelector"
+} from '../../store/selectors/referenceDataSelector';
 import {
     selectColorBy,
     selectShapeBy,
@@ -4897,65 +4931,53 @@ import {
     selectHiddenShapeLabelsSet,
     selectHiddenSizeLabelsSet,
     selectGoIdFilterList,
-    selectGoIdInputString,
     selectHighlightMode,
     selectAccumulationPlotSelectedGoIdsSet,
-    setGoIdInputString,
-    setHighlightMode,
-    HighlightMode,
-} from "../../store/slices/analysisUISlice"
-import { selectSelectedProjectName } from "../../store/selectors/projectSelectors"
-import { BMDResult, CategoryAnalysisItem } from "../../models/BMDxExported"
+} from '../../store/slices/analysisUISlice';
+import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
+import { BMDResult, CategoryAnalysisItem } from '../../models/BMDxExported';
 import {
-    useGetSelectableAnalysesQuery,
     useGetRawAnalysisDataQuery,
-} from "../../store/apis/experimentsApi"
+} from '../../store/apis/experimentsApi';
 
-const GoIdFilterPlaceholder: React.FC<any> = () => (
-    <Card title="GO ID / Highlight Filter">...</Card>
-)
-const RankSliderStylingPlaceholder: React.FC<any> = () => (
-    <Card title="Rank Filter & Styling">...</Card>
-)
-const AccumulationPlotPlaceholder: React.FC<any> = ({ analysisName }) => (
-    <Card title={`Accumulation Plot: ${analysisName}`}>...</Card>
-)
-const LegendPlaceholder: React.FC<any> = () => <Card title="Legend">...</Card>
-const DataTablePlaceholder: React.FC<any> = () => (
-    <Card title="Data Table">...</Card>
-)
+// --- Import Placeholders ---
+import GoIdFilterUI from './placeholders/GoIdFilterUI';
+import RankSliderUI from './placeholders/RankSliderUI';
+import AccumulationPlot from './placeholders/AccumulationPlot';
+import ColorLegend from './placeholders/ColorLegend';
+import ShapeSizeLegend from './placeholders/ShapeSizeLegend';
+import AnalysisDataTable from './placeholders/AnalysisDataTable';
+// -----------------------------
+
+// --- Border Colors & Helper ---
+const BORDER_COLORS = {
+    level1: 'red', level2: 'orange', level3: 'yellow', level4: 'green',
+    level5: 'blue', level6: 'indigo', level7: 'violet',
+};
+const borderStyle = (color: string, level: number = 1) => ({
+    border: `${level * 2}px solid ${color}`,
+    padding: `${level * 4}px`,
+    marginBottom: '10px',
+});
+// --------------------------
 
 const GOUmapAnalysisUnit: React.FC = () => {
-    const dispatch = useAppDispatch()
-    const projectName = useAppSelector(selectSelectedProjectName)
-    const selectedBmdResultRefs = useAppSelector(selectSelectedAnalysisRefs)
+    // --- Selectors ---
+    const projectName = useAppSelector(selectSelectedProjectName);
+    const selectedBmdResultRefs = useAppSelector(selectSelectedAnalysisRefs);
+    const colorByOption = useAppSelector(selectColorBy);
+    const shapeByOption = useAppSelector(selectShapeBy);
+    const sizeByOption = useAppSelector(selectSizeBy);
+    const hiddenColorLabels = useAppSelector(selectHiddenColorLabelsSet);
+    const hiddenShapeLabels = useAppSelector(selectHiddenShapeLabelsSet);
+    const hiddenSizeLabels = useAppSelector(selectHiddenSizeLabelsSet);
+    const goIdFilterList = useAppSelector(selectGoIdFilterList);
+    const highlightMode = useAppSelector(selectHighlightMode);
+    const selectedGoIdsSet = useAppSelector(selectAccumulationPlotSelectedGoIdsSet);
+    const referenceData = useAppSelector(selectReferenceData);
+    const referenceDataMap = useAppSelector(selectReferenceDataMap); // Keep this selector
 
-    const colorByOption = useAppSelector(selectColorBy)
-    const shapeByOption = useAppSelector(selectShapeBy)
-    const sizeByOption = useAppSelector(selectSizeBy)
-    const hiddenColorLabels = useAppSelector(selectHiddenColorLabelsSet)
-    const hiddenShapeLabels = useAppSelector(selectHiddenShapeLabelsSet)
-    const hiddenSizeLabels = useAppSelector(selectHiddenSizeLabelsSet)
-    const goIdFilterList = useAppSelector(selectGoIdFilterList)
-    const goIdInputString = useAppSelector(selectGoIdInputString)
-    const highlightMode = useAppSelector(selectHighlightMode)
-    const selectedGoIdsSet = useAppSelector(
-        selectAccumulationPlotSelectedGoIdsSet
-    )
-    const referenceDataMap = useAppSelector(selectReferenceDataMap)
-    const referenceData = useAppSelector(selectReferenceData)
-
-    const [committedRankSliderValue, setCommittedRankSliderValue] = useState<
-        [number, number]
-    >([1, 100])
-
-    const {
-        data: selectableAnalyses,
-        isLoading: isLoadingList,
-        error: listError,
-        isSuccess: listSuccess,
-    } = useGetSelectableAnalysesQuery({ projectName }, { skip: !projectName })
-
+    // --- Data Fetching ---
     const {
         data: rawData,
         isLoading: isLoadingRaw,
@@ -4963,67 +4985,67 @@ const GOUmapAnalysisUnit: React.FC = () => {
         isSuccess: rawSuccess,
     } = useGetRawAnalysisDataQuery(
         { projectName, selectedBmdResultRefs },
-        {
-            skip:
-                !projectName ||
-                !selectedBmdResultRefs ||
-                selectedBmdResultRefs.length === 0,
+        { skip: !projectName || !selectedBmdResultRefs || selectedBmdResultRefs.length === 0 }
+    );
+
+    const isLoading = isLoadingRaw;
+    const queryError = rawError;
+
+    // === Memoize Maps from Raw Data ===
+    // Destructure the results directly into bmdResultMap and categoryItemsMap
+    const { bmdResultMap, categoryItemsMap } = useMemo<{
+        bmdResultMap: Map<number, BMDResult>;
+        categoryItemsMap: Map<string, CategoryAnalysisItem[]>;
+    }>(() => {
+        const logPrefix = '[GOUmapAnalysisUnit useMemo Maps]';
+        // Define temporary maps inside the memo callback
+        const tempBmdResultMap = new Map<number, BMDResult>();
+        const tempCategoryItemsMap = new Map<string, CategoryAnalysisItem[]>();
+
+        if (rawSuccess && rawData) {
+            rawData.rawBmdResults?.forEach((r) => {
+                if (r && r['@ref'] != null) {
+                    tempBmdResultMap.set(Number(r['@ref']), r);
+                }
+            });
+
+            if (selectedBmdResultRefs?.length === 1 && rawData.rawCategoryAnalysisItems) {
+                const singleRefKey = selectedBmdResultRefs[0];
+                tempCategoryItemsMap.set(singleRefKey, rawData.rawCategoryAnalysisItems);
+            }
         }
-    )
+        // Return the populated temporary maps
+        return { bmdResultMap: tempBmdResultMap, categoryItemsMap: tempCategoryItemsMap };
+    }, [rawSuccess, rawData, selectedBmdResultRefs]); // Correct dependencies
 
-    const isLoading = isLoadingList || isLoadingRaw
-    const queryError = listError || rawError
+    // Log arguments before calling the hook
+    useEffect(() => {
+        console.log('[GOUmapAnalysisUnit] Preparing arguments for usePreparedPlotData:', {
+            selectedBmdResultRefs, isLoading, hasError: !!queryError,
+            referenceDataExists: !!referenceData, referenceDataMapExists: !!referenceDataMap,
+            colorByOption, shapeByOption, sizeByOption,
+            hiddenColorLabelsSize: hiddenColorLabels?.size,
+            hiddenShapeLabelsSize: hiddenShapeLabels?.size,
+            hiddenSizeLabelsSize: hiddenSizeLabels?.size,
+            goIdFilterList, highlightMode, selectedGoIdsSetSize: selectedGoIdsSet?.size,
+            bmdResultMapSize: bmdResultMap?.size, // Use the destructured map
+            categoryItemsMapSize: categoryItemsMap?.size, // Use the destructured map
+        });
+    }, [
+        selectedBmdResultRefs, isLoading, queryError, referenceData, referenceDataMap,
+        colorByOption, shapeByOption, sizeByOption, hiddenColorLabels, hiddenShapeLabels,
+        hiddenSizeLabels, goIdFilterList, highlightMode, selectedGoIdsSet,
+        bmdResultMap, categoryItemsMap // Add maps to dependency array
+    ]);
 
-    // === unpack rawData ===
-    const rawBmdResults = rawData?.rawBmdResults ?? []
-    // rawCategoryAnalysisItems in transformResponse should be an array
-    const rawCategoryItemsArray =
-        rawData?.rawCategoryAnalysisItems ?? []
 
-    // --- START FIX BLOCK ---
-    // Turn that array into an object keyed by the one BMD ref:
-    // We assume rawBmdResults has exactly one element when rawSuccess===true.
-    const singleRefKey =
-        rawBmdResults.length === 1
-            ? String(rawBmdResults[0].ref)
-            : undefined
-
-    // Build a plain object mapping that ref -> the full array
-    const rawCategoryItemsByRef: Record<string, CategoryAnalysisItem[]> =
-        singleRefKey
-            ? { [singleRefKey]: rawCategoryItemsArray }
-            : {}
-
-    // Now build your Map using that object
-    const categoryItemsMap = new Map<string, CategoryAnalysisItem[]>(
-        Object.entries(rawCategoryItemsByRef)
-    )
-    // --- END FIX BLOCK ---
-
-    // === build ES Maps ===
-    const bmdResultMap = new Map<number, BMDResult>(
-        rawBmdResults.map((r) => [r.ref, r])
-    )
-
-    // Optional callback, now mostly unused
-    const getAnalysisDetails = useCallback(
-        (refString: string) => {
-            const num = Number(refString)
-            const bmd = bmdResultMap.get(num)
-            const items = categoryItemsMap.get(refString)
-            if (!bmd || !items) return null
-            return { bmdResult: bmd, categoryAnalysisItems: items }
-        },
-        [bmdResultMap, categoryItemsMap]
-    )
-
-    // === pass both maps into the hook ===
-    const { analysisPoints, styledGroupedData } = usePreparedPlotData({
-        selectedBmdResultRefs,
+    // === Prepare Plot Data ===
+    const { analysisPoints } = usePreparedPlotData({
+        selectedBmdResultRefs: selectedBmdResultRefs || [],
         isLoadingDetails: isLoading,
         detailsError: queryError ? new Error(String(queryError)) : null,
-        referenceDataMap,
-        referenceData,
+        referenceDataMap: referenceDataMap, // Pass the selected map
+        referenceData: referenceData,
         colorByOption,
         shapeByOption,
         sizeByOption,
@@ -5033,73 +5055,88 @@ const GOUmapAnalysisUnit: React.FC = () => {
         goIdFilterList,
         highlightMode,
         selectedGoIdsSet,
-        committedRankSliderValue,
-        bmdResultMap,
-        /**
-         * Now categoryItemsMap has exactly one key: "558710"
-         */
-        categoryItemsMap,
-    })
+        committedRankSliderValue: [1, 100], // Use default/state
+        bmdResultMap, // Pass the destructured map
+        categoryItemsMap, // Pass the destructured map
+        bmdRefToExperimentNameMap: null,
+        bmdRefShapeMap: null,
+    });
 
-    // === render logic (unchanged) ===
-    if (!projectName) {
-        return <Alert message="No project selected." type="info" showIcon />
-    }
-    if (isLoading) {
-        return (
-            <Spin tip="Loading..." size="large">
-                <div style={{ height: 200 }} />
-            </Spin>
-        )
-    }
-    if (queryError) {
-        return (
-            <Alert
-                message="Error Loading Data"
-                description={String(queryError)}
-                type="error"
-                showIcon
-            />
-        )
-    }
-    if (listSuccess && (!selectableAnalyses || !selectableAnalyses.length)) {
-        return <Alert message="No analyses found." type="warning" showIcon />
-    }
-    if (
-        rawSuccess &&
-        (!rawData ||
-            !Array.isArray(rawBmdResults) ||
-            rawBmdResults.length === 0)
-    ) {
-        return <Alert message="No raw data." type="warning" showIcon />
-    }
-    if (analysisPoints === null) {
-        return (
-            <Alert
-                message="Plot Preparation Issue"
-                description="Could not generate points."
-                type="warning"
-                showIcon
-            />
-        )
+    // Log analysisPoints when it changes
+    useEffect(() => {
+        console.log('[GOUmapAnalysisUnit] analysisPoints updated:', analysisPoints ? `Array(${analysisPoints.length})` : analysisPoints);
+    }, [analysisPoints]);
+
+
+    // === Render Logic ===
+    if (!projectName) { /* ... */ }
+    if (isLoading) { /* ... */ }
+    if (queryError) { /* ... */ }
+    if (!selectedBmdResultRefs || selectedBmdResultRefs.length === 0) { /* ... */ }
+    if (rawSuccess && (bmdResultMap.size === 0 || categoryItemsMap.size === 0)) { /* ... */ }
+    if (!isLoading && (!analysisPoints || analysisPoints.length === 0)) {
+        if (rawSuccess) {
+            console.warn('[GOUmapAnalysisUnit] Render check: rawSuccess is true, but analysisPoints is null or empty.');
+            return <Alert message="No Points to Display" description="Data loaded, but no points matched the current filter or visibility criteria." type="info" showIcon />;
+        } else {
+            return <Alert message="Plot Preparation Error" description="Failed to prepare data points for visualization." type="error" showIcon />;
+        }
     }
 
+    // --- Render New Layout ---
     return (
-        <Space direction="vertical" size="large" style={{ width: "100%" }}>
-            {/* …rest of your UI… */}
-            <Row gutter={[16, 16]}>
-                <Col span={24}>
-                    <Card title="UMAP Plot">
-                        <UmapPlotComponent data={analysisPoints} title="" />
-                    </Card>
-                </Col>
-            </Row>
-            {/* … */}
-        </Space>
-    )
-}
+        <div style={borderStyle(BORDER_COLORS.level1)}>
+            <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                {/* Filters Row */}
+                <div style={borderStyle(BORDER_COLORS.level2)}>
+                    <Row gutter={[16, 16]}>
+                        <Col span={24}> <GoIdFilterUI /> </Col>
+                        <Col span={24}> <RankSliderUI /> </Col>
+                    </Row>
+                </div>
+                {/* Plots/Legends Row */}
+                <div style={borderStyle(BORDER_COLORS.level3)}>
+                    <Row gutter={[16, 16]} wrap={false}>
+                        <Col flex="200px" style={borderStyle(BORDER_COLORS.level4)}> <ColorLegend /> </Col>
+                        <Col flex="auto" style={borderStyle(BORDER_COLORS.level5)}>
+                            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                                <div style={borderStyle(BORDER_COLORS.level6)}>
+                                    <Row gutter={[16, 16]}>
+                                        {selectedBmdResultRefs?.map((ref) => {
+                                            // *** CORRECTED VARIABLE NAME HERE ***
+                                            const bmdInfo = bmdResultMap.get(Number(ref));
+                                            // **********************************
+                                            return (
+                                                <Col key={ref} xs={24} sm={12} md={8} lg={6}>
+                                                    <AccumulationPlot analysisName={bmdInfo?.name || `Analysis ${ref}`} />
+                                                </Col>
+                                            );
+                                        })}
+                                    </Row>
+                                </div>
+                                <div style={borderStyle(BORDER_COLORS.level7)}>
+                                    <UmapPlotComponent
+                                        data={analysisPoints || []}
+                                        referenceData={referenceData}
+                                    />
+                                </div>
+                            </Space>
+                        </Col>
+                        <Col flex="200px" style={borderStyle(BORDER_COLORS.level4)}> <ShapeSizeLegend /> </Col>
+                    </Row>
+                </div>
+                {/* Table Row */}
+                <div style={borderStyle(BORDER_COLORS.level2)}>
+                    <Row>
+                        <Col span={24}> <AnalysisDataTable /> </Col>
+                    </Row>
+                </div>
+            </Space>
+        </div>
+    );
+};
 
-export default GOUmapAnalysisUnit
+export default GOUmapAnalysisUnit;
 // src/components/analysis/AccumulationPlot.tsx
 import React from 'react';
 import { Card } from 'antd';
@@ -5134,103 +5171,158 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = ({
     );
 };
 
-export default AccumulationPlot;/**
+export default AccumulationPlot;/* src/components/analysis/UmapPlotComponent.module.css */
+
+.plotContainer {
+    position: relative;
+    /* Needed for absolute positioning of the plot inside */
+    width: 100%;
+    /* Take up available width */
+    aspect-ratio: 1 / 1;
+    /* Force square aspect ratio */
+    /* border: 1px dashed lightcoral; */
+    /* Keep commented out unless debugging */
+    overflow: hidden;
+    /* Hide anything overflowing the square */
+}
+
+/* Target Plotly's generated div within our container */
+.plotContainer> :global(.js-plotly-plot) {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    /* Override Plotly's inline styles */
+    height: 100% !important;
+    /* Override Plotly's inline styles */
+}
+
+/* Optional: Add a min-height if needed when container width is very small */
+.plotContainer {
+    min-height: 300px;
+    /* Example minimum height */
+}/**
  * src/components/analysis/UmapPlotComponent.tsx
  *
- * Renders a Plotly scatter plot for UMAP data. (Original Version - No Reference Plot)
+ * Renders a Plotly scatter plot showing overlay data points
+ * on top of the reference UMAP data.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import Plot from 'react-plotly.js';
 import type { Data, Layout } from 'plotly.js';
 
-// --- Import the specific data point type ---
+// --- Import data point types ---
 import type { UmapAnalysisDataPoint } from '../../models/ApplicationModelCompositional'; // Adjust path
+import type { ReferenceUmapItem } from '../../data/referenceUmapData'; // Adjust path
+
+// --- Import CSS Module ---
+import styles from './UmapPlotComponent.module.css'; // Adjust path if needed
 
 interface UmapPlotComponentProps {
-    data: UmapAnalysisDataPoint[]; // Expects an array of processed points
+    data: UmapAnalysisDataPoint[] | null;
+    referenceData: ReferenceUmapItem[] | null;
     title?: string;
 }
 
 const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
-    data = [], // Default to empty array
-    title = 'UMAP Analysis',
+    data = null,
+    referenceData = null,
+    title = '',
 }) => {
 
-    // --- Transform data for Plotly ---
+    useEffect(() => {
+        // console.log('[UmapPlotComponent] Received referenceData prop:', referenceData ? `Array(${referenceData.length})` : referenceData);
+        // console.log('[UmapPlotComponent] Received overlay data prop:', data ? `Array(${data.length})` : data);
+    }, [referenceData, data]);
+
+    // --- Transform data for Plotly Traces ---
     const plotData: Data[] = useMemo(() => {
-        // Check added for clarity
-        if (!data || data.length === 0) {
-            console.log('[UmapPlotComponent Original] No overlay data provided, returning empty plot data.');
-            return [];
+        const traces: Data[] = [];
+
+        // 1. Create Reference Trace
+        if (referenceData && referenceData.length > 0) {
+            // console.log(`[UmapPlotComponent useMemo] Creating reference trace with ${referenceData.length} points.`); // Less verbose log
+            const referenceTrace: Plotly.ScatterglData = {
+                x: referenceData.map(p => p.UMAP_1),
+                y: referenceData.map(p => p.UMAP_2),
+                mode: 'markers', type: 'scattergl', name: 'Reference Data',
+                marker: { color: '#b0b0b0', size: 4, opacity: 0.5, symbol: 'circle' },
+                hoverinfo: 'text',
+                text: referenceData.map(p => `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Cluster: ${p.cluster_id}`),
+                customdata: referenceData.map(p => ({ goId: p.go_id })),
+            };
+            // *** UNCOMMENT THIS LINE TO ADD THE TRACE ***
+            traces.push(referenceTrace);
+            // ******************************************
+        } else {
+            console.log('[UmapPlotComponent useMemo] No reference data to create trace.');
         }
-        console.log(`[UmapPlotComponent Original] Creating overlay trace with ${data.length} points.`);
 
-        // Extract properties into arrays Plotly understands
-        const trace: Plotly.ScatterData = {
-            x: data.map(p => p.UMAP_1),
-            y: data.map(p => p.UMAP_2),
-            mode: 'markers',
-            type: 'scattergl', // Use WebGL for better performance
-            marker: {
-                color: data.map(p => p.finalColor),
-                size: data.map(p => p.finalSize),
-                symbol: data.map(p => p.finalShape),
-                opacity: data.map(p => p.finalOpacity),
-                line: {
-                    color: 'rgba(50, 50, 50, 0.6)',
-                    width: 0.5
-                }
-            },
-            hoverinfo: 'text',
-            text: data.map(p =>
-                `<b>${p.go_term}</b><br>` +
-                `GO ID: ${p.go_id}<br>` +
-                `Experiment: ${p.bmdResultName}<br>` +
-                `UMAP: (${p.UMAP_1?.toFixed(2)}, ${p.UMAP_2?.toFixed(2)})<br>` +
-                `Cluster: ${p.cluster_id}`
-            ),
-            customdata: data.map(p => ({ goId: p.go_id, bmdRef: p.bmdResultRef })),
-            name: '' // Hide trace name from legend/hover
-        };
+        // 2. Create Overlay Trace
+        if (data && data.length > 0) {
+            // console.log(`[UmapPlotComponent useMemo] Creating overlay trace with ${data.length} points (DYNAMIC STYLES).`); // Less verbose log
+            const overlayTrace: Plotly.ScatterglData = {
+                x: data.map(p => p.UMAP_1), y: data.map(p => p.UMAP_2),
+                mode: 'markers', type: 'scattergl', name: 'Selected Analysis',
+                marker: {
+                    color: data.map(p => p.finalColor),
+                    size: data.map(p => p.finalSize ?? 8),
+                    symbol: data.map(p => p.finalShape),
+                    opacity: data.map(p => p.finalOpacity),
+                    line: { color: 'rgba(50, 50, 50, 0.6)', width: 0.5 }
+                },
+                hoverinfo: 'text',
+                text: data.map(p => `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Experiment: ${p.bmdResultName}<br>UMAP: (${p.UMAP_1?.toFixed(2)}, ${p.UMAP_2?.toFixed(2)})<br>Cluster: ${p.cluster_id}`),
+                customdata: data.map(p => ({ goId: p.go_id, bmdRef: p.bmdResultRef })),
+            };
+            traces.push(overlayTrace);
+        } else {
+            console.log('[UmapPlotComponent useMemo] No overlay data to create trace.');
+        }
 
-        return [trace]; // Return only the single overlay trace
+        // console.log(`[UmapPlotComponent useMemo] Final plotData contains ${traces.length} traces.`); // Less verbose log
+        return traces;
 
-    }, [data]); // Recalculate only when data changes
+    }, [data, referenceData]);
 
     // --- Define Plotly Layout ---
     const layout: Partial<Layout> = useMemo(() => ({
-        title: title,
+        // title: title, // Title handled by Card
         xaxis: {
-            title: 'UMAP 1',
-            zeroline: false,
+            title: 'UMAP 1', zeroline: false, range: [0, 10],
         },
         yaxis: {
-            title: 'UMAP 2',
-            zeroline: false,
+            title: 'UMAP 2', zeroline: false, range: [0, 10],
+            scaleanchor: 'x', scaleratio: 1,
         },
         hovermode: 'closest',
-        showlegend: false, // Hide legend
+        showlegend: true,
+        legend: {
+            yanchor: "top", y: 0.99, xanchor: "left", x: 0.01,
+            bgcolor: 'rgba(255,255,255,0.7)'
+        },
         paper_bgcolor: 'rgba(0,0,0,0)',
-        plot_bgcolor: 'rgba(0,0,0,0)',
-        margin: { l: 50, r: 20, t: 40, b: 40 },
-    }), [title]);
+        plot_bgcolor: 'rgba(248, 248, 248, 1)',
+        margin: { l: 50, r: 20, t: 10, b: 40 },
+        // autosize: true, // Keep default or set explicitly
+
+    }), [/* No changing dependencies */]);
 
     // --- Render the Plot ---
     if (plotData.length === 0) {
-        // This check is now only for the overlay data
-        return <div>No data available for UMAP plot.</div>;
+        return <div className={styles.plotContainer}><p>No data available for UMAP plot.</p></div>;
     }
 
     return (
-        <Plot
-            data={plotData} // Pass only the overlay trace
-            layout={layout}
-            style={{ width: '100%', height: '500px' }}
-            config={{
-                responsive: true,
-                displaylogo: false,
-            }}
-        />
+        <div className={styles.plotContainer}>
+            <Plot
+                data={plotData}
+                layout={layout}
+                style={{ width: '100%', height: '100%' }}
+                useResizeHandler={true}
+                config={{ responsive: true, displaylogo: false }}
+            />
+        </div>
     );
 };
 
@@ -5479,19 +5571,30 @@ const AppSidebar: React.FC = () => {
 export default AppSidebar;// src/components/PyodideErrorNotifier.tsx
 import React, { useState, useEffect, useContext } from 'react';
 import { Modal, Button, Alert } from 'antd';
-import { ExclamationCircleFilled } from '@ant-design/icons'; // <-- Import an icon
-import { PyodideContext } from '../contexts/PyodideProvider';
+import { ExclamationCircleFilled } from '@ant-design/icons';
+import { PyodideContext } from '../contexts/PyodideProvider'; // Keep import for useContext
 
 const PyodideErrorNotifier: React.FC = () => {
-    const { isLoading, error } = useContext(PyodideContext);
+    // --- Safely access context ---
+    const pyodideCtx = useContext(PyodideContext);
+    // Provide default values if context is undefined
+    const isLoading = pyodideCtx?.isLoading ?? false; // Default to false if no provider
+    const error = pyodideCtx?.error ?? null;         // Default to null if no provider
+    // -----------------------------
+
     const [isModalVisible, setIsModalVisible] = useState(false);
 
     useEffect(() => {
-        if (!isLoading && error) {
+        // Only show modal if context exists, is not loading, and has an error
+        if (pyodideCtx && !isLoading && error) {
             console.log("PyodideErrorNotifier: Detected Pyodide Initialization Error.", error);
             setIsModalVisible(true);
+        } else {
+            // Ensure modal is hidden if context is missing or no error
+            setIsModalVisible(false);
         }
-    }, [isLoading, error]);
+        // Depend on the context object itself, isLoading, and error
+    }, [pyodideCtx, isLoading, error]);
 
     const handleModalClose = () => {
         setIsModalVisible(false);
@@ -5501,20 +5604,21 @@ const PyodideErrorNotifier: React.FC = () => {
         window.location.reload();
     };
 
-    if (!isModalVisible) {
+    // --- Don't render anything if context is missing or no error ---
+    if (!pyodideCtx || !error || !isModalVisible) {
         return null;
     }
+    // -------------------------------------------------------------
 
+    // Modal rendering logic remains the same, but will only run if error exists
     return (
         <Modal
-            // *** CORRECTED TITLE ***
             title={
                 <span>
-                    <ExclamationCircleFilled style={{ color: '#ff4d4f', marginRight: '8px' }} /> {/* Use imported icon */}
+                    <ExclamationCircleFilled style={{ color: '#ff4d4f', marginRight: '8px' }} />
                     Pyodide Initialization Failed
                 </span>
             }
-            // ***********************
             open={isModalVisible}
             onCancel={handleModalClose}
             maskClosable={true}
@@ -5532,7 +5636,7 @@ const PyodideErrorNotifier: React.FC = () => {
             <p>Some features requiring Python execution will be unavailable.</p>
             <p>You can try reloading the page. If the problem persists, please report the following error:</p>
             <Alert
-                message={error?.message || 'An unknown error occurred.'}
+                message={error?.message || 'An unknown error occurred.'} // error is guaranteed to exist here
                 type="error"
                 style={{ maxHeight: '200px', overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', marginTop: '10px' }}
             />
@@ -5540,54 +5644,8 @@ const PyodideErrorNotifier: React.FC = () => {
     );
 };
 
-export default PyodideErrorNotifier;// src/components/views/GOUmapAnalysisView.tsx
-import React from 'react';
-import { Typography, Alert } from 'antd';
-import { useAppSelector } from '../../store/hooks'; // Keep .js if that's your setup convention
-// --- REMOVE old selector import ---
-// import { selectSelectedExperimentRefs } from '../../store/slices/navigationSlice.js';
-// --- ADD new selector import ---
-import { selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice'; // Adjust path if needed, ensure correct file extension if using .js
-
-import GOUmapAnalysisUnit from '../analysis/GOUmapAnalysisUnit'; // Adjust path if needed
-
-const { Title, Paragraph } = Typography;
-
-interface GOUmapAnalysisViewProps {
-    projectName: string;
-}
-
-const GOUmapAnalysisView: React.FC<GOUmapAnalysisViewProps> = ({ projectName }) => {
-    // --- Use the updated selector ---
-    const selectedRefs = useAppSelector(selectSelectedAnalysisRefs);
-
-    // Optional: Handle case where user navigates here with no refs selected
-    // Added defensive check for null/undefined as well
-    if (!selectedRefs || selectedRefs.length === 0) {
-        return (
-            <Alert
-                message="No Experiments Selected"
-                description="Please go back to the Experiments view and select one or more experiments to analyze."
-                type="info"
-                showIcon
-            />
-        );
-    }
-
-    return (
-        <div>
-            <Title level={5} style={{ marginBottom: '20px' }}>Category Analysis View</Title>
-            <Paragraph>Analysis for {selectedRefs.length} selected experiment(s) in project '{projectName}'.</Paragraph>
-            <GOUmapAnalysisUnit
-                projectName={projectName}
-                // --- Pass the selected refs obtained from the correct selector ---
-                selectedExperimentRefs={selectedRefs}
-            />
-        </div>
-    );
-};
-
-export default GOUmapAnalysisView;// src/components/views/AnalysisViewContainer.tsx
+export default PyodideErrorNotifier;
+// src/components/views/AnalysisViewContainer.tsx
 import React from 'react';
 import { Typography, Alert } from 'antd';
 // Import the view component that is currently rendered directly by App.tsx
@@ -6447,16 +6505,34 @@ export const usePreparedPlotData = ({
 
   // 3) build clusterColorMap from referenceData
   const clusterColorMap = useMemo(() => {
-    const m = new Map<string, string>()
-    if (!canProceed || !referenceData) return m
-    // example: generate distinct colors per cluster ID
-    const clusterIds = Array.from(
-      new Set(referenceData.map((r: any) => r.cluster_id))
-    )
-    const colors = generateHaltonColors(clusterIds.length)
-    clusterIds.forEach((cid, i) => m.set(String(cid), colors[i]))
-    return m
-  }, [canProceed, referenceData])
+    const m = new Map<string, string>() // <<< Store keys as STRINGS >>>
+    const logPrefix = '[usePreparedPlotData clusterColorMap]'
+    if (!canProceed || !referenceData) {
+      console.log(`${logPrefix} Skipping map creation.`);
+      return m;
+    }
+    try {
+      console.log(`${logPrefix} Generating map from ${referenceData.length} reference items.`);
+      // Get unique cluster IDs, ensuring they are treated as strings for keys
+      const clusterIds = Array.from(
+        new Set(referenceData.map((r: ReferenceUmapItem) => String(r.cluster_id))) // <<< Convert to string early >>>
+      );
+      console.log(`${logPrefix} Unique cluster IDs found:`, clusterIds);
+
+      const colors = generateHaltonColors(clusterIds.length);
+
+      clusterIds.forEach((cidString, i) => {
+        // Key is already a string here
+        m.set(cidString, colors[i % colors.length]); // Use modulo just in case color generation is less than unique IDs
+      });
+
+      console.log(`${logPrefix} Generated clusterColorMap (first 5 entries):`, Array.from(m.entries()).slice(0, 5));
+      console.log(`${logPrefix} Map size: ${m.size}`);
+    } catch (error) {
+      console.error(`${logPrefix} Error during map generation:`, error);
+    }
+    return m;
+  }, [canProceed, referenceData]); // Dependencies are correct
 
   // 4) style each overlay point
   const styledGroupedData = useMemo(() => {
@@ -26770,7 +26846,7 @@ const pyodideBaseQuery: BaseQueryFn<{ code: string }, any, string> = async (
     }
 };
 
-export default pyodideBaseQuery;   Bud1           	                                                           r i m e n t                                                                                                                                                                                                                                                                                                                                                                                                                                           e x p e r i m e n t s A p i . t sptbLustr   � S y s t e m / V o l u m e s / D a t a / U s e r s / s v o b o d a d l / D e v / P r o j e c t s / b m d x _ p l u s _ c o m p o n e n t i z e d / b m d x _ p l u s _ c o m p o n e n t i z e d / b M D R e s u l t _ c e n t r i c / s r c / s t o r e / a p i /    e x p e r i m e n t s A p i . t sptbNustr    e x p e r i m e n t s A p i . t s                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          @      �                                        @      �                                          @      �                                          @                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   E  	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       DSDB                                 `          �                                         @      �                                          @      �                                          @                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              // src/store/apis/experimentsApi.ts
+export default pyodideBaseQuery;   Bud1           	                                                           r i m e n t                                                                                                                                                                                                                                                                                                                                                                                                                                           e x p e r i m e n t s A p i . t sptbLustr   � S y s t e m / V o l u m e s / D a t a / U s e r s / s v o b o d a d l / D e v / P r o j e c t s / b m d x _ p l u s _ c o m p o n e n t i z e d / b m d x _ p l u s _ c o m p o n e n t i z e d / b M D R e s u l t _ c e n t r i c / s r c / s t o r e / a p i /    e x p e r i m e n t s A p i . t sptbNustr    e x p e r i m e n t s A p i . t s                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          @      �                                        @      �                                          @      �                                          @                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   E  	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       DSDB                                 `          �                                         @      �                                          @      �                                          @                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              // src/store/apis/experimentsApi.ts
 import { createApi } from '@reduxjs/toolkit/query/react';
 // Import the specific types from idbBaseQuery
 import { idbBaseQuery, IdbQueryData, IdbRawDataQueryArgs } from './idbBaseQuery';
@@ -26883,7 +26959,6 @@ export const experimentsApi = createApi({
         }),
 
         // --- Endpoint 2: Fetch ONLY the Raw Data Arrays ---
-        // (Keep the previously corrected version of getRawAnalysisData)
         getRawAnalysisData: builder.query<RawDataQueryResult, RawDataQueryArgs>({
             query: ({ projectName, selectedBmdResultRefs }) => ({
                 projectName: projectName ?? '',
@@ -26891,31 +26966,31 @@ export const experimentsApi = createApi({
                 selectedBmdResultRefs: selectedBmdResultRefs
             } as IdbRawDataQueryArgs),
             transformResponse: (response: IdbQueryData | undefined, meta, arg): RawDataQueryResult => {
-                const logPrefix = '[experimentsApi getRawAnalysisData transform v2]'; // New version log
-                console.log(`${logPrefix} Structuring raw data for ${arg.projectName}, selectedRefs: ${arg.selectedBmdResultRefs?.join(',') ?? 'None'}`);
-                console.log(`${logPrefix} Received response from idbBaseQuery:`, response);
+                // --- LOGGING POINT 6: Data Received by Transform ---
+                const logPrefix = '[experimentsApi getRawAnalysisData transform v22 Multi-Fetch]';
+                console.log(`${logPrefix} Received response from idbBaseQuery for project ${arg.projectName}, refs [${arg.selectedBmdResultRefs?.join(', ')}]:`);
+                console.log(`${logPrefix} -> bMDResult type: ${typeof response?.bMDResult}, isArray: ${Array.isArray(response?.bMDResult)}, length: ${Array.isArray(response?.bMDResult) ? response.bMDResult.length : (response?.bMDResult ? 1 : 0)}`);
+                console.log(`${logPrefix} -> categoryAnalysisResults type: ${typeof response?.categoryAnalysisResults}, isArray: ${Array.isArray(response?.categoryAnalysisResults)}, length: ${Array.isArray(response?.categoryAnalysisResults) ? response.categoryAnalysisResults.length : 0}`);
+                // Optional: Log the actual response object if needed for deep inspection, but be mindful of size
+                // console.log(`${logPrefix} Full response object:`, response);
+                // ----------------------------------------------------
 
+                // --- Existing transformation logic (slightly adapted) ---
                 const bmdResultInput = response?.bMDResult;
-                const categoryAnalysisItemsInput = response?.categoryAnalysisResults || [];
+                const categoryAnalysisItemsInput = response?.categoryAnalysisResults || []; // Use the already filtered items
 
-                let normalizedBmdResults: BMDResult[] = [];
-                if (Array.isArray(bmdResultInput)) {
-                    normalizedBmdResults = bmdResultInput;
-                    console.log(`${logPrefix} Received BMD results as array.`);
-                } else if (typeof bmdResultInput === 'object' && bmdResultInput !== null) {
-                    normalizedBmdResults = [bmdResultInput];
-                    console.log(`${logPrefix} Received single BMD result object.`);
-                } else {
-                    console.log(`${logPrefix} Received no BMD result (null/undefined).`);
-                }
+                // Ensure bMDResult is always an array in the final output
+                const normalizedBmdResults: BMDResult[] = Array.isArray(bmdResultInput)
+                    ? bmdResultInput
+                    : (bmdResultInput ? [bmdResultInput] : []);
 
-                const normalizedCategoryItems = Array.isArray(categoryAnalysisItemsInput)
-                    ? categoryAnalysisItemsInput
-                    : [];
+                // categoryAnalysisItemsInput should already be the filtered array from idbBaseQuery
+                const normalizedCategoryItems = categoryAnalysisItemsInput;
 
                 const rawData: RawDataQueryResult = {
                     rawBmdResults: normalizedBmdResults,
                     rawCategoryAnalysisItems: normalizedCategoryItems,
+                    // Keep selected refs if needed downstream, ensure they are numbers if parsed
                     selectedBmdResultRefs: arg.selectedBmdResultRefs?.map(ref => parseInt(ref, 10)).filter(num => !isNaN(num)),
                 };
 
@@ -26945,7 +27020,6 @@ import {
     CAT_ANALYSIS_STORE,
     BMD_RESULT_STORE,
 } from '../../utils/myIDB'; // Adjust path if needed
-// Import necessary types from BMDxExported
 import { CategoryAnalysisItem, BMDResult } from '../../models/BMDxExported'; // Adjust path/type names if needed
 
 // --- Filter Constants ---
@@ -26955,31 +27029,22 @@ const MIN_GENE_ALL_COUNT = 40;
 const MAX_GENE_ALL_COUNT = 500;
 // ------------------------
 
-// Define the actual structure stored in CAT_ANALYSIS_STORE
-// NOTE: This interface assumes the CORRECT spelling. The code below handles the legacy typo during data access.
 interface StoredCategoryAnalysisCollection {
-    bmdResult: number | string; // Foreign key linking to BMDResult
-    categoryAnalysisResults?: CategoryAnalysisItem[]; // Correct spelling (optional)
-    categoryAnalsyisResults?: CategoryAnalysisItem[]; // Legacy typo spelling (optional)
-    // Add other potential properties if they exist
+    bmdResult: number | string;
+    categoryAnalysisResults?: CategoryAnalysisItem[];
+    categoryAnalsyisResults?: CategoryAnalysisItem[];
 }
 
-// Arguments for the query
-interface IdbRawDataQueryArgs {
+export interface IdbRawDataQueryArgs { // Renamed for clarity
     projectName: string;
     stores: ReadonlyArray<'bMDResult' | 'categoryAnalysisResults'>;
-    // Expecting string refs. Treat as single selection for this query type.
-    selectedBmdResultRefs?: string[];
+    selectedBmdResultRefs?: string[]; // Now explicitly an array
 }
 
-// Define the structure of the successfully returned data
-// Note: bMDResult can be single or array depending on how it was called
-interface IdbQueryData {
-    bMDResult?: BMDResult | BMDResult[] | null;
-    // This will hold the FILTERED items, regardless of which property name they came from
-    categoryAnalysisResults?: CategoryAnalysisItem[];
-    // Add other potential stores if they can be requested
-    [key: string]: any; // Allow other potential stores
+export interface IdbQueryData {
+    bMDResult?: BMDResult[]; // Changed to always be an array or null/undefined
+    categoryAnalysisResults?: CategoryAnalysisItem[]; // Filtered items
+    [key: string]: any;
 }
 
 interface IdbQueryError {
@@ -26988,22 +27053,19 @@ interface IdbQueryError {
     details?: any;
 }
 
-// Helper to map args stores to actual DB store names
 const mapArgStoreToDbStore = (storeName: string): keyof ProjectDB | null => {
     switch (storeName) {
         case 'bMDResult': return BMD_RESULT_STORE;
         case 'categoryAnalysisResults': return CAT_ANALYSIS_STORE;
         default:
-            // Use the updated log prefix here too
-            console.warn(`[idbBaseQuery v21 Legacy Typo Check] Unknown store name requested: ${storeName}`);
+            console.warn(`[idbBaseQuery v22 Multi-Fetch] Unknown store name requested: ${storeName}`);
             return null;
     }
 }
 
-
 export const idbBaseQuery: BaseQueryFn<
     IdbRawDataQueryArgs,
-    IdbQueryData, // Use the more specific success type
+    IdbQueryData,
     IdbQueryError
 > = async ({ projectName, stores: argStores, selectedBmdResultRefs = [] }, { getState, dispatch }) => {
 
@@ -27011,14 +27073,17 @@ export const idbBaseQuery: BaseQueryFn<
         return { error: { status: 'UNKNOWN_ERROR', message: 'Project name is required' } };
     }
 
-    // Determine if a specific BMDResult ref is provided for targeted fetching
-    const selectedRefString = selectedBmdResultRefs.length > 0 ? selectedBmdResultRefs[0] : null;
-
     const dbStoresToFetch = argStores.map(mapArgStoreToDbStore).filter(s => s !== null) as (keyof ProjectDB)[];
     const uniqueDbStores = Array.from(new Set(dbStoresToFetch));
 
-    const logPrefix = '[idbBaseQuery v21 Legacy Typo Check]'; // Updated version
-    console.log(`${logPrefix} Executing for project: ${projectName}, stores: ${argStores.join(', ')}, selectedRef: ${selectedRefString ?? 'None'}`);
+    // --- LOGGING POINT 1: Input Arguments ---
+    const logPrefix = '[idbBaseQuery v22 Multi-Fetch]';
+    console.log(`${logPrefix} Executing for project: ${projectName}`);
+    console.log(`${logPrefix} Requested argStores: ${argStores.join(', ')}`);
+    console.log(`${logPrefix} Mapped to dbStores: ${uniqueDbStores.join(', ')}`);
+    console.log(`${logPrefix} Selected Refs: [${selectedBmdResultRefs.join(', ')}]`);
+    // ---------------------------------------
+
     let db: IDBPDatabase<ProjectDB> | null = null;
 
     try {
@@ -27036,42 +27101,64 @@ export const idbBaseQuery: BaseQueryFn<
         tx.onabort = (event) => console.error(`${logPrefix} Transaction ABORTED!`, event, tx?.error);
         tx.onerror = (event) => console.error(`${logPrefix} Transaction ERROR!`, event);
 
-        // Use a map to store promises, keyed by DB store name for easier retrieval
+        // --- MODIFIED FETCH LOGIC ---
         const promisesMap = new Map<keyof ProjectDB, Promise<any>>();
 
         uniqueDbStores.forEach(dbStoreName => {
             const store = tx.objectStore(dbStoreName);
             let promise: Promise<any>;
 
-            // --- Fetch Logic (Handles numeric key for BMD_RESULT_STORE) ---
-            if (dbStoreName === BMD_RESULT_STORE && selectedRefString !== null) {
-                let keyToGet: number | string;
-                let isValidNumber = /^\d+$/.test(selectedRefString);
+            if (dbStoreName === BMD_RESULT_STORE && selectedBmdResultRefs.length > 0) {
+                // Fetch BMDResult for EACH selected ref
+                const getPromises = selectedBmdResultRefs.map(refStr => {
+                    const numericKey = parseInt(refStr, 10);
+                    if (!isNaN(numericKey)) {
+                        // --- LOGGING POINT 2: Fetching specific BMDResult ---
+                        console.log(`${logPrefix} Creating promise to GET ${dbStoreName} with numeric key: ${numericKey}`);
+                        // ----------------------------------------------------
+                        return store.get(numericKey);
+                    } else {
+                        console.warn(`${logPrefix} Invalid numeric key for ${dbStoreName}: ${refStr}. Skipping fetch.`);
+                        return Promise.resolve(undefined); // Resolve with undefined if key is invalid
+                    }
+                });
+                // Combine results into a single array promise
+                promise = Promise.all(getPromises).then(results => results.filter(r => r !== undefined)); // Filter out undefined results from invalid keys
 
-                if (isValidNumber) {
-                    keyToGet = parseInt(selectedRefString, 10);
-                    console.log(`${logPrefix} Getting specific item for ${dbStoreName} with numeric key: ${keyToGet}`);
-                    promise = store.get(keyToGet);
-                } else {
-                    keyToGet = selectedRefString;
-                    console.warn(`${logPrefix} Provided ref '${selectedRefString}' for ${dbStoreName} is not a simple integer string. Attempting get() with string key.`);
-                    promise = store.get(keyToGet);
-                }
+            } else if (dbStoreName === CAT_ANALYSIS_STORE) {
+                // Fetch ALL CategoryAnalysis collections first, we'll filter later based on selected refs
+                // --- LOGGING POINT 3: Fetching ALL CategoryAnalysis ---
+                console.log(`${logPrefix} Creating promise to GET ALL ${dbStoreName} (will filter later)`);
+                // ----------------------------------------------------
+                promise = store.getAll();
+
             } else {
-                console.log(`${logPrefix} Getting all for ${dbStoreName}`);
+                // Default: Fetch all for other stores if needed (though currently only BMD and Cat are used)
+                console.log(`${logPrefix} Creating promise to GET ALL ${dbStoreName} (default)`);
                 promise = store.getAll();
             }
-            // --------------------------
             promisesMap.set(dbStoreName, promise);
         });
+        // --- END MODIFIED FETCH LOGIC ---
 
         console.log(`${logPrefix} Awaiting all store promises (${promisesMap.size})...`);
-        await Promise.all(promisesMap.values());
+        await Promise.all(promisesMap.values()); // Wait for fetches to complete
 
         const dbResultsMap = new Map<keyof ProjectDB, any>();
         for (const [dbStoreName, promise] of promisesMap.entries()) {
             try {
-                dbResultsMap.set(dbStoreName, await promise);
+                const resultData = await promise;
+                // --- LOGGING POINT 4: Raw Fetched Data ---
+                const resultSize = Array.isArray(resultData) ? resultData.length : (resultData ? 1 : 0);
+                console.log(`${logPrefix} Raw data fetched for ${dbStoreName}: ${resultData === null || resultData === undefined ? 'None' : `${resultSize} item(s)`}`);
+                // Optional: Log first item if array is large
+                // if (Array.isArray(resultData) && resultData.length > 0) {
+                //     console.log(`${logPrefix} First item sample for ${dbStoreName}:`, resultData[0]);
+                // } else if (resultData) {
+                //     console.log(`${logPrefix} Item sample for ${dbStoreName}:`, resultData);
+                // }
+                // -----------------------------------------
+                dbResultsMap.set(dbStoreName, resultData);
             } catch (err) {
                 console.error(`${logPrefix} Promise failed for store ${dbStoreName}:`, err);
                 dbResultsMap.set(dbStoreName, undefined);
@@ -27079,77 +27166,59 @@ export const idbBaseQuery: BaseQueryFn<
         }
         console.log(`${logPrefix} All store promises resolved.`);
 
-        // --- Filtering Logic for categoryAnalysisResults ---
-        const catAnalysisArgName = 'categoryAnalysisResults'; // The name the CALLER uses
-        const catAnalysisDbName = CAT_ANALYSIS_STORE; // The actual DB store name
-        let finalFilteredNestedItems: CategoryAnalysisItem[] = []; // Holds the final filtered result
+        // --- Filtering Logic for categoryAnalysisResults (Adjusted for multiple refs) ---
+        const catAnalysisArgName = 'categoryAnalysisResults';
+        const catAnalysisDbName = CAT_ANALYSIS_STORE;
+        let finalFilteredNestedItems: CategoryAnalysisItem[] = [];
 
-        // Check if category analysis was requested and data was fetched for its store
         if (argStores.includes(catAnalysisArgName) && dbResultsMap.has(catAnalysisDbName)) {
-            const allStoredCollections = dbResultsMap.get(catAnalysisDbName) as StoredCategoryAnalysisCollection[];
+            const allStoredCollections = dbResultsMap.get(catAnalysisDbName) as StoredCategoryAnalysisCollection[] | undefined;
 
-            if (selectedRefString !== null && allStoredCollections) {
-                console.log(`${logPrefix} Searching for Stored Collection with bmdResult matching string: '${selectedRefString}' among ${allStoredCollections.length} collections.`);
+            if (allStoredCollections && selectedBmdResultRefs.length > 0) {
+                console.log(`${logPrefix} Filtering CategoryAnalysis collections for selected refs: [${selectedBmdResultRefs.join(', ')}]`);
+                const selectedRefsSet = new Set(selectedBmdResultRefs);
+                let totalItemsBeforeFilter = 0;
 
-                const parentCollection = allStoredCollections.find(collection =>
-                    collection && String(collection.bmdResult) === selectedRefString
-                );
+                allStoredCollections.forEach(parentCollection => {
+                    if (parentCollection && selectedRefsSet.has(String(parentCollection.bmdResult))) {
+                        let nestedItemsToFilter: CategoryAnalysisItem[] = [];
+                        let usedPropertyName: string | null = null;
 
-                // *** MODIFIED EXTRACTION LOGIC ***
-                if (parentCollection) {
-                    console.log(`${logPrefix} Found parent collection for ref ${selectedRefString}. Checking for nested items...`);
+                        const itemsCorrectSpelling = parentCollection?.['categoryAnalysisResults'];
+                        if (Array.isArray(itemsCorrectSpelling)) {
+                            nestedItemsToFilter = itemsCorrectSpelling;
+                            usedPropertyName = 'categoryAnalysisResults';
+                        } else {
+                            const itemsLegacyTypo = parentCollection?.['categoryAnalsyisResults'];
+                            if (Array.isArray(itemsLegacyTypo)) {
+                                nestedItemsToFilter = itemsLegacyTypo;
+                                usedPropertyName = 'categoryAnalsyisResults';
+                            }
+                        }
 
-                    let nestedItemsToFilter: CategoryAnalysisItem[] = []; // Default to empty array
-                    let usedPropertyName: string | null = null;
-
-                    // 1. Prioritize the CORRECT spelling
-                    const itemsCorrectSpelling = parentCollection?.['categoryAnalysisResults'];
-                    if (Array.isArray(itemsCorrectSpelling)) {
-                        nestedItemsToFilter = itemsCorrectSpelling;
-                        usedPropertyName = 'categoryAnalysisResults';
-                    } else {
-                        // 2. If not found, check for the LEGACY TYPO spelling
-                        console.log(`${logPrefix} Property 'categoryAnalysisResults' not found or not an array. Checking for legacy typo 'categoryAnalsyisResults'...`);
-                        const itemsLegacyTypo = parentCollection?.['categoryAnalsyisResults']; // Use bracket notation
-                        if (Array.isArray(itemsLegacyTypo)) {
-                            nestedItemsToFilter = itemsLegacyTypo;
-                            usedPropertyName = 'categoryAnalsyisResults'; // Note the typo
-                            console.warn(`${logPrefix} Used LEGACY TYPO property 'categoryAnalsyisResults' to extract items. Consider fixing data in DB.`);
+                        if (usedPropertyName) {
+                            totalItemsBeforeFilter += nestedItemsToFilter.length;
+                            const filteredForThisRef = nestedItemsToFilter.filter(item => {
+                                const passesFilter =
+                                    item &&
+                                    item.percentage != null && item.percentage >= MIN_PERCENTAGE &&
+                                    item.genesThatPassedAllFilters != null && item.genesThatPassedAllFilters >= MIN_GENES_PASSED_ALL_FILTERS &&
+                                    item.geneAllCount != null && item.geneAllCount >= MIN_GENE_ALL_COUNT && item.geneAllCount <= MAX_GENE_ALL_COUNT;
+                                return passesFilter;
+                            });
+                            finalFilteredNestedItems.push(...filteredForThisRef); // Add filtered items to the final list
                         }
                     }
-
-                    if (usedPropertyName) {
-                        console.log(`${logPrefix} Extracted ${nestedItemsToFilter.length} nested items using property '${usedPropertyName}'.`);
-                    } else {
-                        console.warn(`${logPrefix} Could not find a valid array property ('categoryAnalysisResults' or 'categoryAnalsyisResults') in the parent collection for ref ${selectedRefString}.`);
-                        // nestedItemsToFilter remains []
-                    }
-
-                    // Apply the property filters to the extracted items (which might be empty)
-                    finalFilteredNestedItems = nestedItemsToFilter.filter(item => {
-                        const passesFilter =
-                            item && // Check if item exists
-                            item.percentage != null && item.percentage >= MIN_PERCENTAGE &&
-                            item.genesThatPassedAllFilters != null && item.genesThatPassedAllFilters >= MIN_GENES_PASSED_ALL_FILTERS &&
-                            item.geneAllCount != null && item.geneAllCount >= MIN_GENE_ALL_COUNT && item.geneAllCount <= MAX_GENE_ALL_COUNT;
-                        return passesFilter;
-                    });
-                    console.log(`${logPrefix} Filtering complete. ${finalFilteredNestedItems.length} nested items passed.`);
-
-                } else {
-                    console.warn(`${logPrefix} No parent collection found for bmdResultRef: ${selectedRefString}`);
-                }
-            } else if (selectedRefString === null && argStores.includes(catAnalysisArgName)) {
-                console.warn(`${logPrefix} Cannot filter categoryAnalysisResults without a selectedBmdResultRef.`);
+                });
+                console.log(`${logPrefix} Filtering complete. Total items before filter: ${totalItemsBeforeFilter}, Total items after filter: ${finalFilteredNestedItems.length}`);
             } else {
-                console.warn(`${logPrefix} No category analysis collections fetched or available.`);
+                console.warn(`${logPrefix} No category analysis collections fetched or no refs selected for filtering.`);
             }
         }
-        // ===============================================================
+        // --- End Filtering Logic ---
 
         // --- Result Structuring ---
         const dataResult: IdbQueryData = {};
-        let bmdResultFound = true;
 
         argStores.forEach(argName => {
             const dbStoreName = mapArgStoreToDbStore(argName);
@@ -27158,34 +27227,31 @@ export const idbBaseQuery: BaseQueryFn<
                 return;
             }
 
-            const fetchedData = dbResultsMap.get(dbStoreName);
-
-            // Use the ARGUMENT name ('categoryAnalysisResults') as the key in the final result object,
-            // but assign the 'finalFilteredNestedItems' which came from potentially different property names.
             if (argName === catAnalysisArgName) {
-                dataResult[argName] = finalFilteredNestedItems;
+                dataResult[argName] = finalFilteredNestedItems; // Assign the combined filtered list
             } else if (argName === 'bMDResult') {
-                dataResult[argName] = fetchedData;
-                if (selectedRefString !== null && (fetchedData === null || fetchedData === undefined)) {
-                    console.warn(`${logPrefix} Requested bMDResult with ref ${selectedRefString} (used numeric key) but it was not found in DB.`);
-                    bmdResultFound = false;
-                }
+                // Ensure bMDResult is always an array, even if only one was fetched/found
+                const fetchedBmdData = dbResultsMap.get(dbStoreName);
+                dataResult[argName] = Array.isArray(fetchedBmdData) ? fetchedBmdData : (fetchedBmdData ? [fetchedBmdData] : []);
             } else {
-                dataResult[argName] = fetchedData;
+                dataResult[argName] = dbResultsMap.get(dbStoreName);
             }
         });
-        // ===================================
+        // --- End Result Structuring ---
 
-        console.log(`${logPrefix} Successfully prepared data for ${projectName}.`);
+        // --- LOGGING POINT 5: Final Structured Data ---
+        console.log(`${logPrefix} Successfully prepared data for ${projectName}. Returning structured data:`);
         argStores.forEach(argName => {
             const resultData = dataResult[argName];
             const size = Array.isArray(resultData) ? resultData.length : (resultData ? 1 : 0);
-            console.log(`${logPrefix} Final result size for ${argName}: ${resultData === null || resultData === undefined ? 0 : size}`);
+            console.log(`${logPrefix} -> ${argName}: ${resultData === null || resultData === undefined ? 'None' : `${size} item(s)`}`);
         });
+        // ---------------------------------------------
 
         return { data: dataResult };
 
     } catch (error: unknown) {
+        // ... (error handling remains the same) ...
         console.error(`${logPrefix} Error during DB operation for ${projectName}:`, error);
         const message = (error instanceof Error) ? error.message : String(error);
         if (db && typeof db.close === 'function') {

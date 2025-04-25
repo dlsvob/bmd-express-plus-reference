@@ -19,20 +19,23 @@ const MAX_GENE_ALL_COUNT = 500;
 interface StoredCategoryAnalysisCollection {
     bmdResult: number | string;
     categoryAnalysisResults?: CategoryAnalysisItem[];
-    categoryAnalsyisResults?: CategoryAnalysisItem[];
+    categoryAnalsyisResults?: CategoryAnalysisItem[]; // Legacy typo support
 }
 
-export interface IdbRawDataQueryArgs { // Renamed for clarity
+export interface IdbRawDataQueryArgs {
     projectName: string;
     stores: ReadonlyArray<'bMDResult' | 'categoryAnalysisResults'>;
-    selectedBmdResultRefs?: string[]; // Now explicitly an array
+    selectedBmdResultRefs?: string[];
 }
 
+// --- UPDATE IdbQueryData Interface ---
 export interface IdbQueryData {
-    bMDResult?: BMDResult[]; // Changed to always be an array or null/undefined
-    categoryAnalysisResults?: CategoryAnalysisItem[]; // Filtered items
+    bMDResult?: BMDResult[];
+    // This will now hold the array of { ref, item } objects
+    categoryAnalysisResults?: Array<{ bmdResultRef: number | string; item: CategoryAnalysisItem }>;
     [key: string]: any;
 }
+// -----------------------------------
 
 interface IdbQueryError {
     status: 'IDB_ERROR' | 'MISSING_STORES' | 'UNKNOWN_ERROR' | 'NOT_FOUND' | 'INVALID_KEY';
@@ -45,7 +48,7 @@ const mapArgStoreToDbStore = (storeName: string): keyof ProjectDB | null => {
         case 'bMDResult': return BMD_RESULT_STORE;
         case 'categoryAnalysisResults': return CAT_ANALYSIS_STORE;
         default:
-            console.warn(`[idbBaseQuery v22 Multi-Fetch] Unknown store name requested: ${storeName}`);
+            console.warn(`[idbBaseQuery v23 Multi-Fetch] Unknown store name requested: ${storeName}`); // <<< Version Bump
             return null;
     }
 }
@@ -63,13 +66,11 @@ export const idbBaseQuery: BaseQueryFn<
     const dbStoresToFetch = argStores.map(mapArgStoreToDbStore).filter(s => s !== null) as (keyof ProjectDB)[];
     const uniqueDbStores = Array.from(new Set(dbStoresToFetch));
 
-    // --- LOGGING POINT 1: Input Arguments ---
-    const logPrefix = '[idbBaseQuery v22 Multi-Fetch]';
+    const logPrefix = '[idbBaseQuery v23 Multi-Fetch]'; // <<< Version Bump
     console.log(`${logPrefix} Executing for project: ${projectName}`);
     console.log(`${logPrefix} Requested argStores: ${argStores.join(', ')}`);
     console.log(`${logPrefix} Mapped to dbStores: ${uniqueDbStores.join(', ')}`);
     console.log(`${logPrefix} Selected Refs: [${selectedBmdResultRefs.join(', ')}]`);
-    // ---------------------------------------
 
     let db: IDBPDatabase<ProjectDB> | null = null;
 
@@ -88,7 +89,6 @@ export const idbBaseQuery: BaseQueryFn<
         tx.onabort = (event) => console.error(`${logPrefix} Transaction ABORTED!`, event, tx?.error);
         tx.onerror = (event) => console.error(`${logPrefix} Transaction ERROR!`, event);
 
-        // --- MODIFIED FETCH LOGIC ---
         const promisesMap = new Map<keyof ProjectDB, Promise<any>>();
 
         uniqueDbStores.forEach(dbStoreName => {
@@ -96,55 +96,38 @@ export const idbBaseQuery: BaseQueryFn<
             let promise: Promise<any>;
 
             if (dbStoreName === BMD_RESULT_STORE && selectedBmdResultRefs.length > 0) {
-                // Fetch BMDResult for EACH selected ref
                 const getPromises = selectedBmdResultRefs.map(refStr => {
                     const numericKey = parseInt(refStr, 10);
                     if (!isNaN(numericKey)) {
-                        // --- LOGGING POINT 2: Fetching specific BMDResult ---
                         console.log(`${logPrefix} Creating promise to GET ${dbStoreName} with numeric key: ${numericKey}`);
-                        // ----------------------------------------------------
                         return store.get(numericKey);
                     } else {
                         console.warn(`${logPrefix} Invalid numeric key for ${dbStoreName}: ${refStr}. Skipping fetch.`);
-                        return Promise.resolve(undefined); // Resolve with undefined if key is invalid
+                        return Promise.resolve(undefined);
                     }
                 });
-                // Combine results into a single array promise
-                promise = Promise.all(getPromises).then(results => results.filter(r => r !== undefined)); // Filter out undefined results from invalid keys
+                promise = Promise.all(getPromises).then(results => results.filter(r => r !== undefined));
 
             } else if (dbStoreName === CAT_ANALYSIS_STORE) {
-                // Fetch ALL CategoryAnalysis collections first, we'll filter later based on selected refs
-                // --- LOGGING POINT 3: Fetching ALL CategoryAnalysis ---
                 console.log(`${logPrefix} Creating promise to GET ALL ${dbStoreName} (will filter later)`);
-                // ----------------------------------------------------
                 promise = store.getAll();
 
             } else {
-                // Default: Fetch all for other stores if needed (though currently only BMD and Cat are used)
                 console.log(`${logPrefix} Creating promise to GET ALL ${dbStoreName} (default)`);
                 promise = store.getAll();
             }
             promisesMap.set(dbStoreName, promise);
         });
-        // --- END MODIFIED FETCH LOGIC ---
 
         console.log(`${logPrefix} Awaiting all store promises (${promisesMap.size})...`);
-        await Promise.all(promisesMap.values()); // Wait for fetches to complete
+        await Promise.all(promisesMap.values());
 
         const dbResultsMap = new Map<keyof ProjectDB, any>();
         for (const [dbStoreName, promise] of promisesMap.entries()) {
             try {
                 const resultData = await promise;
-                // --- LOGGING POINT 4: Raw Fetched Data ---
                 const resultSize = Array.isArray(resultData) ? resultData.length : (resultData ? 1 : 0);
                 console.log(`${logPrefix} Raw data fetched for ${dbStoreName}: ${resultData === null || resultData === undefined ? 'None' : `${resultSize} item(s)`}`);
-                // Optional: Log first item if array is large
-                // if (Array.isArray(resultData) && resultData.length > 0) {
-                //     console.log(`${logPrefix} First item sample for ${dbStoreName}:`, resultData[0]);
-                // } else if (resultData) {
-                //     console.log(`${logPrefix} Item sample for ${dbStoreName}:`, resultData);
-                // }
-                // -----------------------------------------
                 dbResultsMap.set(dbStoreName, resultData);
             } catch (err) {
                 console.error(`${logPrefix} Promise failed for store ${dbStoreName}:`, err);
@@ -153,10 +136,12 @@ export const idbBaseQuery: BaseQueryFn<
         }
         console.log(`${logPrefix} All store promises resolved.`);
 
-        // --- Filtering Logic for categoryAnalysisResults (Adjusted for multiple refs) ---
+        // --- Filtering Logic for categoryAnalysisResults ---
         const catAnalysisArgName = 'categoryAnalysisResults';
         const catAnalysisDbName = CAT_ANALYSIS_STORE;
-        let finalFilteredNestedItems: CategoryAnalysisItem[] = [];
+        // --- ENSURE THIS TYPE IS CORRECT ---
+        let finalFilteredNestedItems: Array<{ bmdResultRef: number | string; item: CategoryAnalysisItem }> = [];
+        // -----------------------------------
 
         if (argStores.includes(catAnalysisArgName) && dbResultsMap.has(catAnalysisDbName)) {
             const allStoredCollections = dbResultsMap.get(catAnalysisDbName) as StoredCategoryAnalysisCollection[] | undefined;
@@ -167,34 +152,37 @@ export const idbBaseQuery: BaseQueryFn<
                 let totalItemsBeforeFilter = 0;
 
                 allStoredCollections.forEach(parentCollection => {
-                    if (parentCollection && selectedRefsSet.has(String(parentCollection.bmdResult))) {
-                        let nestedItemsToFilter: CategoryAnalysisItem[] = [];
-                        let usedPropertyName: string | null = null;
+                    const parentRef = parentCollection?.bmdResult;
+                    if (parentRef == null || !selectedRefsSet.has(String(parentRef))) {
+                        return;
+                    }
 
-                        const itemsCorrectSpelling = parentCollection?.['categoryAnalysisResults'];
-                        if (Array.isArray(itemsCorrectSpelling)) {
-                            nestedItemsToFilter = itemsCorrectSpelling;
-                            usedPropertyName = 'categoryAnalysisResults';
-                        } else {
-                            const itemsLegacyTypo = parentCollection?.['categoryAnalsyisResults'];
-                            if (Array.isArray(itemsLegacyTypo)) {
-                                nestedItemsToFilter = itemsLegacyTypo;
-                                usedPropertyName = 'categoryAnalsyisResults';
-                            }
-                        }
+                    let nestedItemsToFilter: CategoryAnalysisItem[] = [];
+                    if (Array.isArray(parentCollection.categoryAnalysisResults)) {
+                        nestedItemsToFilter = parentCollection.categoryAnalysisResults;
+                    } else if (Array.isArray(parentCollection.categoryAnalsyisResults)) {
+                        nestedItemsToFilter = parentCollection.categoryAnalsyisResults;
+                    }
 
-                        if (usedPropertyName) {
-                            totalItemsBeforeFilter += nestedItemsToFilter.length;
-                            const filteredForThisRef = nestedItemsToFilter.filter(item => {
-                                const passesFilter =
-                                    item &&
-                                    item.percentage != null && item.percentage >= MIN_PERCENTAGE &&
-                                    item.genesThatPassedAllFilters != null && item.genesThatPassedAllFilters >= MIN_GENES_PASSED_ALL_FILTERS &&
-                                    item.geneAllCount != null && item.geneAllCount >= MIN_GENE_ALL_COUNT && item.geneAllCount <= MAX_GENE_ALL_COUNT;
-                                return passesFilter;
+                    if (nestedItemsToFilter.length > 0) {
+                        totalItemsBeforeFilter += nestedItemsToFilter.length;
+                        const filteredForThisRef = nestedItemsToFilter.filter(item => {
+                            const passesFilter =
+                                item &&
+                                item.percentage != null && item.percentage >= MIN_PERCENTAGE &&
+                                item.genesThatPassedAllFilters != null && item.genesThatPassedAllFilters >= MIN_GENES_PASSED_ALL_FILTERS &&
+                                item.geneAllCount != null && item.geneAllCount >= MIN_GENE_ALL_COUNT && item.geneAllCount <= MAX_GENE_ALL_COUNT;
+                            return passesFilter;
+                        });
+
+                        // --- PUSH OBJECT WITH REF AND ITEM ---
+                        filteredForThisRef.forEach(filteredItem => {
+                            finalFilteredNestedItems.push({
+                                bmdResultRef: parentRef, // Use the ref from the parent collection
+                                item: filteredItem
                             });
-                            finalFilteredNestedItems.push(...filteredForThisRef); // Add filtered items to the final list
-                        }
+                        });
+                        // --------------------------------------
                     }
                 });
                 console.log(`${logPrefix} Filtering complete. Total items before filter: ${totalItemsBeforeFilter}, Total items after filter: ${finalFilteredNestedItems.length}`);
@@ -206,7 +194,6 @@ export const idbBaseQuery: BaseQueryFn<
 
         // --- Result Structuring ---
         const dataResult: IdbQueryData = {};
-
         argStores.forEach(argName => {
             const dbStoreName = mapArgStoreToDbStore(argName);
             if (!dbStoreName) {
@@ -215,9 +202,10 @@ export const idbBaseQuery: BaseQueryFn<
             }
 
             if (argName === catAnalysisArgName) {
-                dataResult[argName] = finalFilteredNestedItems; // Assign the combined filtered list
+                // --- Assign the array of {ref, item} objects ---
+                dataResult[argName] = finalFilteredNestedItems;
+                // ---------------------------------------------
             } else if (argName === 'bMDResult') {
-                // Ensure bMDResult is always an array, even if only one was fetched/found
                 const fetchedBmdData = dbResultsMap.get(dbStoreName);
                 dataResult[argName] = Array.isArray(fetchedBmdData) ? fetchedBmdData : (fetchedBmdData ? [fetchedBmdData] : []);
             } else {
@@ -226,19 +214,16 @@ export const idbBaseQuery: BaseQueryFn<
         });
         // --- End Result Structuring ---
 
-        // --- LOGGING POINT 5: Final Structured Data ---
         console.log(`${logPrefix} Successfully prepared data for ${projectName}. Returning structured data:`);
         argStores.forEach(argName => {
             const resultData = dataResult[argName];
             const size = Array.isArray(resultData) ? resultData.length : (resultData ? 1 : 0);
             console.log(`${logPrefix} -> ${argName}: ${resultData === null || resultData === undefined ? 'None' : `${size} item(s)`}`);
         });
-        // ---------------------------------------------
 
         return { data: dataResult };
 
     } catch (error: unknown) {
-        // ... (error handling remains the same) ...
         console.error(`${logPrefix} Error during DB operation for ${projectName}:`, error);
         const message = (error instanceof Error) ? error.message : String(error);
         if (db && typeof db.close === 'function') {

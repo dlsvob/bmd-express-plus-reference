@@ -79,59 +79,50 @@ const GOUmapAnalysisUnit: React.FC = () => {
     const queryError = rawError;
 
     // === Memoize Maps from Raw Data ===
-    // Destructure the results directly into bmdResultMap and categoryItemsMap
-    const { bmdResultMap, categoryItemsMap } = useMemo<{
+    // ONLY create bmdResultMap for now. Log the raw category items.
+    const { bmdResultMap } = useMemo<{ // <<< Only return bmdResultMap
         bmdResultMap: Map<number, BMDResult>;
-        categoryItemsMap: Map<string, CategoryAnalysisItem[]>;
     }>(() => {
-        const logPrefix = '[GOUmapAnalysisUnit useMemo Maps]';
-        // Define temporary maps inside the memo callback
+        const logPrefix = '[GOUmapAnalysisUnit useMemo Maps v2]'; // <<< New log prefix
         const tempBmdResultMap = new Map<number, BMDResult>();
-        const tempCategoryItemsMap = new Map<string, CategoryAnalysisItem[]>();
+
+        // --- Log the raw category items received ---
+        const rawItems = rawData?.rawCategoryAnalysisItems;
+        const rawItemCount = Array.isArray(rawItems) ? rawItems.length : (rawItems ? 1 : 0);
+        console.log(`${logPrefix} Received rawData.rawCategoryAnalysisItems: Type=${typeof rawItems}, IsArray=${Array.isArray(rawItems)}, Count=${rawItemCount}`);
+        if (Array.isArray(rawItems) && rawItems.length > 0) {
+            console.log(`${logPrefix} First rawCategoryAnalysisItem sample:`, rawItems[0]); // Log first item
+        }
+        // -------------------------------------------
 
         if (rawSuccess && rawData) {
+            // Logic for tempBmdResultMap (keep as is)
             rawData.rawBmdResults?.forEach((r) => {
                 if (r && r['@ref'] != null) {
                     tempBmdResultMap.set(Number(r['@ref']), r);
                 }
             });
-
-            if (selectedBmdResultRefs?.length === 1 && rawData.rawCategoryAnalysisItems) {
-                const singleRefKey = selectedBmdResultRefs[0];
-                tempCategoryItemsMap.set(singleRefKey, rawData.rawCategoryAnalysisItems);
-            }
+            console.log(`${logPrefix} Created tempBmdResultMap with size: ${tempBmdResultMap.size}`);
+        } else {
+            console.log(`${logPrefix} Skipping map creation (rawSuccess=${rawSuccess}, rawData=${!!rawData})`);
         }
-        // Return the populated temporary maps
-        return { bmdResultMap: tempBmdResultMap, categoryItemsMap: tempCategoryItemsMap };
-    }, [rawSuccess, rawData, selectedBmdResultRefs]); // Correct dependencies
 
-    // Log arguments before calling the hook
-    useEffect(() => {
-        console.log('[GOUmapAnalysisUnit] Preparing arguments for usePreparedPlotData:', {
-            selectedBmdResultRefs, isLoading, hasError: !!queryError,
-            referenceDataExists: !!referenceData, referenceDataMapExists: !!referenceDataMap,
-            colorByOption, shapeByOption, sizeByOption,
-            hiddenColorLabelsSize: hiddenColorLabels?.size,
-            hiddenShapeLabelsSize: hiddenShapeLabels?.size,
-            hiddenSizeLabelsSize: hiddenSizeLabels?.size,
-            goIdFilterList, highlightMode, selectedGoIdsSetSize: selectedGoIdsSet?.size,
-            bmdResultMapSize: bmdResultMap?.size, // Use the destructured map
-            categoryItemsMapSize: categoryItemsMap?.size, // Use the destructured map
-        });
-    }, [
-        selectedBmdResultRefs, isLoading, queryError, referenceData, referenceDataMap,
-        colorByOption, shapeByOption, sizeByOption, hiddenColorLabels, hiddenShapeLabels,
-        hiddenSizeLabels, goIdFilterList, highlightMode, selectedGoIdsSet,
-        bmdResultMap, categoryItemsMap // Add maps to dependency array
-    ]);
+        // --- Return ONLY the bmdResultMap ---
+        return { bmdResultMap: tempBmdResultMap };
+        // ------------------------------------
 
+    }, [rawSuccess, rawData]); // <<< Remove selectedBmdResultRefs dependency if only used for old map logic
+
+    // --- REMOVE the dummy categoryItemsMap ---
+    // const categoryItemsMap = useMemo(() => new Map<string, CategoryAnalysisItem[]>(), []);
+    // ----------------------------------------
 
     // === Prepare Plot Data ===
-    const { analysisPoints } = usePreparedPlotData({
+    const { analysisPoints } = usePreparedPlotData({ // <<< Make sure args match new signature
         selectedBmdResultRefs: selectedBmdResultRefs || [],
         isLoadingDetails: isLoading,
         detailsError: queryError ? new Error(String(queryError)) : null,
-        referenceDataMap: referenceDataMap, // Pass the selected map
+        referenceDataMap: referenceDataMap,
         referenceData: referenceData,
         colorByOption,
         shapeByOption,
@@ -143,16 +134,40 @@ const GOUmapAnalysisUnit: React.FC = () => {
         highlightMode,
         selectedGoIdsSet,
         committedRankSliderValue: [1, 100], // Use default/state
-        bmdResultMap, // Pass the destructured map
-        categoryItemsMap, // Pass the destructured map
-        bmdRefToExperimentNameMap: null,
-        bmdRefShapeMap: null,
+        bmdResultMap, // Pass the map created above
+        // --- REMOVE categoryItemsMap argument ---
+        // categoryItemsMap,
+        // --- ADD rawCategoryAnalysisItems argument ---
+        rawCategoryAnalysisItems: rawData?.rawCategoryAnalysisItems || null, // <<< ADDED
+        bmdRefToExperimentNameMap: null, // Keep placeholders for now
+        bmdRefShapeMap: null, // Keep placeholders for now
     });
 
     // Log analysisPoints when it changes
+    // Log arguments before calling the hook
     useEffect(() => {
-        console.log('[GOUmapAnalysisUnit] analysisPoints updated:', analysisPoints ? `Array(${analysisPoints.length})` : analysisPoints);
-    }, [analysisPoints]);
+        // --- Log the actual raw items being passed ---
+        const rawItems = rawData?.rawCategoryAnalysisItems;
+        const rawItemCount = Array.isArray(rawItems) ? rawItems.length : (rawItems ? 1 : 0);
+        // -------------------------------------------
+        console.log('[GOUmapAnalysisUnit] Preparing arguments for usePreparedPlotData:', { // <<< CORRECTED LOG OBJECT
+            selectedBmdResultRefs, isLoading, hasError: !!queryError,
+            referenceDataExists: !!referenceData, referenceDataMapExists: !!referenceDataMap,
+            colorByOption, shapeByOption, sizeByOption,
+            hiddenColorLabelsSize: hiddenColorLabels?.size,
+            hiddenShapeLabelsSize: hiddenShapeLabels?.size,
+            hiddenSizeLabelsSize: hiddenSizeLabels?.size,
+            goIdFilterList, highlightMode, selectedGoIdsSetSize: selectedGoIdsSet?.size,
+            bmdResultMapSize: bmdResultMap?.size,
+            rawCategoryAnalysisItemsCount: rawItemCount, // Log the count instead
+        });
+    }, [ // <<< CORRECTED DEPENDENCY ARRAY
+        selectedBmdResultRefs, isLoading, queryError, referenceData, referenceDataMap,
+        colorByOption, shapeByOption, sizeByOption, hiddenColorLabels, hiddenShapeLabels,
+        hiddenSizeLabels, goIdFilterList, highlightMode, selectedGoIdsSet,
+        bmdResultMap,
+        rawData?.rawCategoryAnalysisItems // Depend on the raw data itself
+    ]);
 
 
     // === Render Logic ===
@@ -160,7 +175,12 @@ const GOUmapAnalysisUnit: React.FC = () => {
     if (isLoading) { /* ... */ }
     if (queryError) { /* ... */ }
     if (!selectedBmdResultRefs || selectedBmdResultRefs.length === 0) { /* ... */ }
-    if (rawSuccess && (bmdResultMap.size === 0 || categoryItemsMap.size === 0)) { /* ... */ }
+    // Check if data fetching succeeded but resulted in empty relevant data
+    if (rawSuccess && (bmdResultMap.size === 0 || !rawData?.rawCategoryAnalysisItems || rawData.rawCategoryAnalysisItems.length === 0)) {
+        console.warn('[GOUmapAnalysisUnit] Render check: rawSuccess is true, but bmdResultMap or rawCategoryAnalysisItems are empty.');
+        return <Alert message="No Data Found" description="Successfully queried the project, but no matching BMD results or category analysis items were found for the selection." type="warning" showIcon />;
+    }
+
     if (!isLoading && (!analysisPoints || analysisPoints.length === 0)) {
         if (rawSuccess) {
             console.warn('[GOUmapAnalysisUnit] Render check: rawSuccess is true, but analysisPoints is null or empty.');

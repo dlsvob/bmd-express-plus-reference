@@ -1,116 +1,90 @@
 // src/store/apis/experimentsApi.ts
 import { createApi } from '@reduxjs/toolkit/query/react';
-// Import the specific types from idbBaseQuery
-import { idbBaseQuery, IdbQueryData, IdbRawDataQueryArgs } from './idbBaseQuery';
+import { idbBaseQuery, IdbQueryData, IdbRawDataQueryArgs } from './idbBaseQuery'; // Ensure correct path
 import {
     ProjectDB,
     BMD_RESULT_STORE,
     CAT_ANALYSIS_STORE,
-} from '../../utils/myIDB';
+} from '../../utils/myIDB'; // Ensure correct path
 import {
     BMDResult,
-    // Assuming CategoryAnalysisItem is the type within the filtered array
     CategoryAnalysisItem,
-} from '../../models/BMDxExported';
-import { SelectableAnalysisInfo } from '../../models/ApplicationModel'; // Keep this
+} from '../../models/BMDxExported'; // Ensure correct path
+import { SelectableAnalysisInfo } from '../../models/ApplicationModel'; // Ensure correct path
 
 // --- Type Definitions ---
 
-// Args type for the RAW DATA endpoint needs selectedBmdResultRefs
 export interface RawDataQueryArgs {
     projectName: string | null;
-    // Make selectedBmdResultRefs optional as it might not always be passed
     selectedBmdResultRefs?: string[];
 }
 
-// Return type for the LIST endpoint
 type SelectableAnalysesQueryResult = SelectableAnalysisInfo[];
 
-// Return type for the RAW DATA endpoint
+// --- UPDATE RawDataQueryResult ---
 export interface RawDataQueryResult {
-    // Ensure this is always an array
     rawBmdResults: BMDResult[];
-    // This should be the filtered list of items
-    rawCategoryAnalysisItems: CategoryAnalysisItem[];
-    // Keep this if needed downstream, though maybe redundant now
-    selectedBmdResultRefs?: string[];
+    // This should be the array of { ref, item } objects
+    rawCategoryAnalysisItems: Array<{ bmdResultRef: number | string; item: CategoryAnalysisItem }>;
+    selectedBmdResultRefs?: number[]; // Parsed numeric refs
 }
+// -----------------------------
 
-// Stores needed only for the selectable list
 const SELECTABLE_LIST_STORES: ReadonlyArray<keyof ProjectDB> = [BMD_RESULT_STORE] as const;
-
-// Stores needed for the full raw data
 const RAW_DATA_STORES: ReadonlyArray<keyof ProjectDB> = [
     BMD_RESULT_STORE, CAT_ANALYSIS_STORE
 ] as const;
 
-
-// --- API Slice Definition ---
 export const experimentsApi = createApi({
     reducerPath: 'experimentsApi',
     baseQuery: idbBaseQuery,
     tagTypes: ['SelectableList', 'RawData'],
     endpoints: (builder) => ({
 
-        // --- Endpoint 1: Fetch ONLY the Selectable List ---
         getSelectableAnalyses: builder.query<SelectableAnalysesQueryResult, RawDataQueryArgs>({
             query: ({ projectName }) => ({
                 projectName: projectName ?? '',
-                stores: ['bMDResult'], // Request only bMDResult store as arg name
-                selectedBmdResultRefs: [], // Explicitly empty for list view
+                stores: ['bMDResult'],
+                selectedBmdResultRefs: [],
             } as IdbRawDataQueryArgs),
-            // *** CORRECTED transformResponse ***
             transformResponse: (response: IdbQueryData | undefined, meta, arg): SelectableAnalysisInfo[] => {
-                const logPrefix = '[experimentsApi getSelectableAnalyses transform v2]'; // New version log
+                const logPrefix = '[experimentsApi getSelectableAnalyses transform v2]'; // Keep version consistent if only this part was correct
                 console.log(`${logPrefix} Transforming data for ${arg.projectName}`);
-
                 const rawBmdResultsInput = response?.bMDResult || [];
                 const rawBmdResults = Array.isArray(rawBmdResultsInput) ? rawBmdResultsInput : [];
-
                 console.log(`${logPrefix} Found ${rawBmdResults.length} raw BMD results.`);
-
                 const selectable: SelectableAnalysisInfo[] = [];
-
                 rawBmdResults.forEach((bmdRes) => {
-                    // *** FIX: Access '@ref' instead of 'id' ***
-                    const bmdKey = bmdRes?.['@ref']; // Use bracket notation for '@ref'
+                    const bmdKey = bmdRes?.['@ref'];
                     const bmdName = bmdRes?.name;
-
-                    // Check for null/undefined for both key and name
                     if (bmdKey == null || bmdName == null) {
-                        // Update warning message slightly
                         console.warn(`${logPrefix} Skipping BMD result due to missing @ref or name:`, bmdRes);
                         return;
                     }
-
-                    // Key '@ref' seems to be numeric based on logs (e.g., 566940)
-                    // Ensure it's treated as a number
                     if (typeof bmdKey !== 'number' || isNaN(bmdKey)) {
                         console.warn(`${logPrefix} Skipping BMD result due to non-numeric or missing @ref:`, bmdRes);
                         return;
                     }
-
                     selectable.push({
-                        bmdResultRef: bmdKey, // Use the numeric key directly
+                        bmdResultRef: bmdKey,
                         bmdResultName: bmdName || 'Unnamed BMD Result',
                     });
                 });
-
                 selectable.sort((a, b) => a.bmdResultName.localeCompare(b.bmdResultName));
-
                 console.log(`${logPrefix} Complete. Selectable: ${selectable.length}`);
                 return selectable;
             },
-            keepUnusedDataFor: 60 * 60 * 24 * 7,
+            // --- ADDED BACK MISSING CONFIG ---
+            keepUnusedDataFor: 60 * 60 * 24 * 7, // Keep list data cached for a week
             refetchOnFocus: false,
             refetchOnReconnect: false,
             providesTags: (result, error, args) =>
                 args.projectName
                     ? [{ type: 'SelectableList', id: args.projectName }]
                     : [],
+            // ---------------------------------
         }),
 
-        // --- Endpoint 2: Fetch ONLY the Raw Data Arrays ---
         getRawAnalysisData: builder.query<RawDataQueryResult, RawDataQueryArgs>({
             query: ({ projectName, selectedBmdResultRefs }) => ({
                 projectName: projectName ?? '',
@@ -118,48 +92,45 @@ export const experimentsApi = createApi({
                 selectedBmdResultRefs: selectedBmdResultRefs
             } as IdbRawDataQueryArgs),
             transformResponse: (response: IdbQueryData | undefined, meta, arg): RawDataQueryResult => {
-                // --- LOGGING POINT 6: Data Received by Transform ---
-                const logPrefix = '[experimentsApi getRawAnalysisData transform v22 Multi-Fetch]';
+                const logPrefix = '[experimentsApi getRawAnalysisData transform v24 Multi-Fetch]'; // Use latest version
                 console.log(`${logPrefix} Received response from idbBaseQuery for project ${arg.projectName}, refs [${arg.selectedBmdResultRefs?.join(', ')}]:`);
-                console.log(`${logPrefix} -> bMDResult type: ${typeof response?.bMDResult}, isArray: ${Array.isArray(response?.bMDResult)}, length: ${Array.isArray(response?.bMDResult) ? response.bMDResult.length : (response?.bMDResult ? 1 : 0)}`);
-                console.log(`${logPrefix} -> categoryAnalysisResults type: ${typeof response?.categoryAnalysisResults}, isArray: ${Array.isArray(response?.categoryAnalysisResults)}, length: ${Array.isArray(response?.categoryAnalysisResults) ? response.categoryAnalysisResults.length : 0}`);
-                // Optional: Log the actual response object if needed for deep inspection, but be mindful of size
-                // console.log(`${logPrefix} Full response object:`, response);
-                // ----------------------------------------------------
 
-                // --- Existing transformation logic (slightly adapted) ---
+                const catItemsReceived = response?.categoryAnalysisResults;
+                const catItemCount = Array.isArray(catItemsReceived) ? catItemsReceived.length : 0;
+                console.log(`${logPrefix} -> categoryAnalysisResults type: ${typeof catItemsReceived}, isArray: ${Array.isArray(catItemsReceived)}, length: ${catItemCount}`);
+                if (Array.isArray(catItemsReceived) && catItemsReceived.length > 0) {
+                    console.log(`${logPrefix} -> First categoryAnalysisResults item sample:`, catItemsReceived[0]);
+                }
                 const bmdResultInput = response?.bMDResult;
-                const categoryAnalysisItemsInput = response?.categoryAnalysisResults || []; // Use the already filtered items
+                console.log(`${logPrefix} -> bMDResult type: ${typeof bmdResultInput}, isArray: ${Array.isArray(bmdResultInput)}, length: ${Array.isArray(bmdResultInput) ? bmdResultInput.length : (bmdResultInput ? 1 : 0)}`);
 
-                // Ensure bMDResult is always an array in the final output
+                const categoryAnalysisItemsInput = response?.categoryAnalysisResults || [];
                 const normalizedBmdResults: BMDResult[] = Array.isArray(bmdResultInput)
                     ? bmdResultInput
                     : (bmdResultInput ? [bmdResultInput] : []);
-
-                // categoryAnalysisItemsInput should already be the filtered array from idbBaseQuery
-                const normalizedCategoryItems = categoryAnalysisItemsInput;
+                const normalizedCategoryItems = categoryAnalysisItemsInput as Array<{ bmdResultRef: number | string; item: CategoryAnalysisItem }>;
 
                 const rawData: RawDataQueryResult = {
                     rawBmdResults: normalizedBmdResults,
                     rawCategoryAnalysisItems: normalizedCategoryItems,
-                    // Keep selected refs if needed downstream, ensure they are numbers if parsed
                     selectedBmdResultRefs: arg.selectedBmdResultRefs?.map(ref => parseInt(ref, 10)).filter(num => !isNaN(num)),
                 };
 
-                console.log(`${logPrefix} Complete. Final Bmd count: ${rawData.rawBmdResults.length}, Final Cat count: ${rawData.rawCategoryAnalysisItems.length}`);
+                console.log(`${logPrefix} Complete. Final Bmd count: ${rawData.rawBmdResults.length}, Final Cat object count: ${rawData.rawCategoryAnalysisItems.length}`);
                 return rawData;
             },
-            keepUnusedDataFor: 60 * 60 * 24 * 7,
+            // --- ADDED BACK MISSING CONFIG ---
+            keepUnusedDataFor: 60 * 60 * 24 * 7, // Keep raw data cached for a week
             refetchOnFocus: false,
             refetchOnReconnect: false,
             providesTags: (result, error, args) =>
                 args.projectName
                     ? [{ type: 'RawData', id: args.projectName }]
                     : [],
+            // ---------------------------------
         }),
 
     }),
 });
 
-// Export hooks for both endpoints
 export const { useGetSelectableAnalysesQuery, useGetRawAnalysisDataQuery } = experimentsApi;
