@@ -38,13 +38,14 @@ import AnalysisDataTable from './placeholders/AnalysisDataTable';
 
 // --- Border Colors & Helper ---
 const BORDER_COLORS = {
-    level1: 'red', level2: 'orange', level3: 'yellow', level4: 'green',
+    level1: 'red', level2: 'orange', level3: 'black', level4: 'green',
     level5: 'blue', level6: 'indigo', level7: 'violet',
 };
 const borderStyle = (color: string, level: number = 1) => ({
-    border: `${level * 2}px solid ${color}`,
-    padding: `${level * 4}px`,
-    marginBottom: '10px',
+    border: `${level * 3}px solid ${color}`,
+    padding: `${level * 6}px`,
+    marginBottom: '24px',
+    borderRadius: '8px',
 });
 // --------------------------
 

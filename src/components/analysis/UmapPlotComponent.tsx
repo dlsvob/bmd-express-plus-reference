@@ -84,23 +84,30 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
 
     // --- Define Plotly Layout ---
     const layout: Partial<Layout> = useMemo(() => ({
-        // title: title, // Title handled by Card
+        // title: title, // Title handled by Card or parent
         xaxis: {
-            title: 'UMAP 1', zeroline: false, range: [0, 10],
+            // title: 'UMAP 1', // Removed title
+            zeroline: false,
+            range: [0, 10],
+            visible: false, // <<< Hide X axis
         },
         yaxis: {
-            title: 'UMAP 2', zeroline: false, range: [0, 10],
-            scaleanchor: 'x', scaleratio: 1,
+            // title: 'UMAP 2', // Removed title
+            zeroline: false,
+            range: [0, 10],
+            scaleanchor: 'x',
+            scaleratio: 1,
+            visible: false, // <<< Hide Y axis
         },
         hovermode: 'closest',
-        showlegend: true,
-        legend: {
-            yanchor: "top", y: 0.99, xanchor: "left", x: 0.01,
-            bgcolor: 'rgba(255,255,255,0.7)'
-        },
-        paper_bgcolor: 'rgba(0,0,0,0)',
-        plot_bgcolor: 'rgba(248, 248, 248, 1)',
-        margin: { l: 50, r: 20, t: 10, b: 40 },
+        showlegend: false, // <<< Hide legend
+        // legend: { // Removed legend config block
+        //     yanchor: "top", y: 0.99, xanchor: "left", x: 0.01,
+        //     bgcolor: 'rgba(255,255,255,0.7)'
+        // },
+        paper_bgcolor: 'rgba(0,0,0,0)', // Transparent background
+        plot_bgcolor: 'rgba(248, 248, 248, 1)', // Light background for plot area
+        margin: { l: 5, r: 5, t: 5, b: 5 }, // Reduced margins as axes are hidden
         // autosize: true, // Keep default or set explicitly
 
     }), [/* No changing dependencies */]);
