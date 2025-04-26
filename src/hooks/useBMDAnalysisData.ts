@@ -10,7 +10,7 @@ import {
     BMDAnalysisHookData,
     SelectableAnalysisInfo,
     DetailedAnalysisData,
-} from '../models/ApplicationModel';
+} from '../models/applicationModel';
 import {
     EXP_STORE,
     BMD_RESULT_STORE,

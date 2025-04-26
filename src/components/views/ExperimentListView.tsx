@@ -12,7 +12,7 @@ import {
     setSelectedAnalysisRefs,
     selectSelectedAnalysisRefs
 } from '../../store/slices/selectedAnalysisSlice';
-import { SelectableAnalysisInfo } from '../../models/ApplicationModel'; // Need this type again
+import { SelectableAnalysisInfo } from '../../models/applicationModel'; // Need this type again
 
 const { Title, Text } = Typography;
 

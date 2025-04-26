@@ -9,7 +9,7 @@ import { HighlightMode } from '../store/slices/analysisUISlice'; // Adjust path 
 import type {
   BaseCategoryAnalysisDataPoint,
   UmapAnalysisDataPoint,
-} from '../models/ApplicationModelCompositional'; // Adjust path if needed
+} from '../models/applicationModel'; // Adjust path if needed
 import {
   DEFAULT_MARKER_COLOR,
   DEFAULT_MARKER_SHAPE,

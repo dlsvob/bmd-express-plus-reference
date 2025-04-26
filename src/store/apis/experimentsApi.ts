@@ -10,7 +10,7 @@ import {
     BMDResult,
     CategoryAnalysisItem,
 } from '../../models/BMDxExported'; // Ensure correct path
-import { SelectableAnalysisInfo } from '../../models/ApplicationModel'; // Ensure correct path
+import { SelectableAnalysisInfo } from '../../models/applicationModel'; // Ensure correct path
 
 // --- Type Definitions ---
 

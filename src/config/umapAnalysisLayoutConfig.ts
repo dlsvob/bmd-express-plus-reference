@@ -1,6 +1,6 @@
 // src/config/umapAnalysisLayoutConfig.ts
 import React from 'react';
-import { OverlayPlotPoint } from '../models/ApplicationModel'; // Adjust path
+import { OverlayPlotPoint } from '../models/applicationModel'; // Adjust path
 import { ReferenceUmapItem } from '../data/referenceUmapData'; // Adjust path
 import { HighlightMode } from '../store/slices/analysisUISlice'; // Adjust path
 import type { RadioChangeEvent } from 'antd';

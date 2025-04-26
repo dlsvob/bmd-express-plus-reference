@@ -1,5 +1,5 @@
 // src/utils/plotUtils.ts
-import { BaseCategoryAnalysisDataPoint } from '../models/ApplicationModel'; // Adjust path as needed
+import { BaseCategoryAnalysisDataPoint } from '../models/applicationModel'; // Adjust path as needed
 
 /**
  * Filters an array of plot items based on GO ID list and rank range.

@@ -2,7 +2,7 @@
 // src/config/tableColumnDefinitions.ts
 import type { TableColumnType } from 'antd';
 // Use the specific data type alias for the table rows
-import { AnalysisTableRow } from '../models/ApplicationModel'; // Adjust path
+import { AnalysisTableRow } from '../models/applicationModel'; // Adjust path
 
 // Define reusable column objects for Ant Design Tables displaying AnalysisTableRow data
 // Ensure keys are unique within the set of columns used in any single table instance.

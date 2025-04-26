@@ -2,29 +2,31 @@
  * src/components/analysis/UmapPlotComponent.tsx
  *
  * Renders a Plotly scatter plot showing overlay data points
- * on top of the reference UMAP data.
+ * on top of the reference UMAP data. Uses Partial<ScatterData> internally
+ * for clarity and casts only when passing data to the Plot component.
  */
 import React, { useMemo, useEffect } from 'react';
 import Plot from 'react-plotly.js';
-import type { Data, Layout } from 'plotly.js';
+// --- Import Plotly types ---
+import type { Layout, ScatterData } from 'plotly.js';
+// --- Import the Plotly namespace for the general Data type needed for the final cast ---
+import type * as Plotly from 'plotly.js';
 
-// --- Import data point types ---
-import type { UmapAnalysisDataPoint } from '../../models/ApplicationModelCompositional'; // Adjust path
-import type { ReferenceUmapItem } from '../../data/referenceUmapData'; // Adjust path
+// --- Import application model types ---
+import type { UmapAnalysisDataPoint } from '../../models/applicationModel';
+import type { ReferenceUmapItem } from '../../data/referenceUmapData';
 
 // --- Import CSS Module ---
-import styles from './UmapPlotComponent.module.css'; // Adjust path if needed
+import styles from './UmapPlotComponent.module.css';
 
 interface UmapPlotComponentProps {
     data: UmapAnalysisDataPoint[] | null;
     referenceData: ReferenceUmapItem[] | null;
-    title?: string;
 }
 
 const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
     data = null,
     referenceData = null,
-    title = '',
 }) => {
 
     useEffect(() => {
@@ -33,34 +35,39 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
     }, [referenceData, data]);
 
     // --- Transform data for Plotly Traces ---
-    const plotData: Data[] = useMemo(() => {
-        const traces: Data[] = [];
+    // useMemo returns an array of objects that are *intended* as Scatter plots,
+    // potentially missing some optional ScatterData properties.
+    const plotData = useMemo((): Partial<ScatterData>[] => {
+        // Type the internal array explicitly as holding Partial<ScatterData>
+        const traces: Partial<ScatterData>[] = [];
 
         // 1. Create Reference Trace
         if (referenceData && referenceData.length > 0) {
-            // console.log(`[UmapPlotComponent useMemo] Creating reference trace with ${referenceData.length} points.`); // Less verbose log
-            const referenceTrace: Plotly.ScatterglData = {
+            // Explicitly type the trace object as Partial<ScatterData>
+            const referenceTrace: Partial<ScatterData> = {
                 x: referenceData.map(p => p.UMAP_1),
                 y: referenceData.map(p => p.UMAP_2),
-                mode: 'markers', type: 'scattergl', name: 'Reference Data',
+                mode: 'markers', // 'as const' optional here, but good practice
+                type: 'scattergl', // 'as const' optional here
+                name: 'Reference Data',
                 marker: { color: '#b0b0b0', size: 4, opacity: 0.5, symbol: 'circle' },
-                hoverinfo: 'text',
+                hoverinfo: 'text', // 'as const' optional here
                 text: referenceData.map(p => `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Cluster: ${p.cluster_id}`),
-                customdata: referenceData.map(p => ({ goId: p.go_id })),
+                customdata: referenceData.map(p => [p.go_id]) as string[][],
             };
-            // *** UNCOMMENT THIS LINE TO ADD THE TRACE ***
-            traces.push(referenceTrace);
-            // ******************************************
+            traces.push(referenceTrace); // Push the correctly typed object
         } else {
             console.log('[UmapPlotComponent useMemo] No reference data to create trace.');
         }
 
         // 2. Create Overlay Trace
         if (data && data.length > 0) {
-            // console.log(`[UmapPlotComponent useMemo] Creating overlay trace with ${data.length} points (DYNAMIC STYLES).`); // Less verbose log
-            const overlayTrace: Plotly.ScatterglData = {
+            // Explicitly type the trace object as Partial<ScatterData>
+            const overlayTrace: Partial<ScatterData> = {
                 x: data.map(p => p.UMAP_1), y: data.map(p => p.UMAP_2),
-                mode: 'markers', type: 'scattergl', name: 'Selected Analysis',
+                mode: 'markers',
+                type: 'scattergl',
+                name: 'Selected Analysis',
                 marker: {
                     color: data.map(p => p.finalColor),
                     size: data.map(p => p.finalSize ?? 8),
@@ -70,47 +77,29 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
                 },
                 hoverinfo: 'text',
                 text: data.map(p => `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Experiment: ${p.bmdResultName}<br>UMAP: (${p.UMAP_1?.toFixed(2)}, ${p.UMAP_2?.toFixed(2)})<br>Cluster: ${p.cluster_id}`),
-                customdata: data.map(p => ({ goId: p.go_id, bmdRef: p.bmdResultRef })),
+                customdata: data.map(p => [p.go_id, p.bmdResultRef]) as (string | number)[][],
             };
-            traces.push(overlayTrace);
+            traces.push(overlayTrace); // Push the correctly typed object
         } else {
             console.log('[UmapPlotComponent useMemo] No overlay data to create trace.');
         }
 
-        // console.log(`[UmapPlotComponent useMemo] Final plotData contains ${traces.length} traces.`); // Less verbose log
+        // Return the array typed as Partial<ScatterData>[]
         return traces;
 
     }, [data, referenceData]);
 
-    // --- Define Plotly Layout ---
+    // --- Define Plotly Layout (remains the same) ---
     const layout: Partial<Layout> = useMemo(() => ({
-        // title: title, // Title handled by Card or parent
-        xaxis: {
-            // title: 'UMAP 1', // Removed title
-            zeroline: false,
-            range: [0, 10],
-            visible: false, // <<< Hide X axis
-        },
-        yaxis: {
-            // title: 'UMAP 2', // Removed title
-            zeroline: false,
-            range: [0, 10],
-            scaleanchor: 'x',
-            scaleratio: 1,
-            visible: false, // <<< Hide Y axis
-        },
+        xaxis: { visible: false, /* ... */ },
+        yaxis: { visible: false, scaleanchor: 'x', scaleratio: 1, /* ... */ },
         hovermode: 'closest',
-        showlegend: false, // <<< Hide legend
-        // legend: { // Removed legend config block
-        //     yanchor: "top", y: 0.99, xanchor: "left", x: 0.01,
-        //     bgcolor: 'rgba(255,255,255,0.7)'
-        // },
-        paper_bgcolor: 'rgba(0,0,0,0)', // Transparent background
-        plot_bgcolor: 'rgba(248, 248, 248, 1)', // Light background for plot area
-        margin: { l: 5, r: 5, t: 5, b: 5 }, // Reduced margins as axes are hidden
-        // autosize: true, // Keep default or set explicitly
-
-    }), [/* No changing dependencies */]);
+        showlegend: false,
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(248, 248, 248, 1)',
+        margin: { l: 5, r: 5, t: 5, b: 5 },
+        autosize: true,
+    }), []);
 
     // --- Render the Plot ---
     if (plotData.length === 0) {
@@ -120,7 +109,10 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
     return (
         <div className={styles.plotContainer}>
             <Plot
-                data={plotData}
+                // --- Cast the Partial<ScatterData>[] to Plotly.Data[] HERE ---
+                // This is the single point where we tell TS "trust me"
+                data={plotData as Plotly.Data[]}
+                // -------------------------------------------------------------
                 layout={layout}
                 style={{ width: '100%', height: '100%' }}
                 useResizeHandler={true}

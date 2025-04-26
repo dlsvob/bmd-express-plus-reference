@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import {
   UmapAnalysisDataValue,
   BaseCategoryAnalysisDataPoint,
-} from '../models/ApplicationModelCompositional';
+} from '../models/applicationModel';
 import { HighlightMode } from '../store/slices/analysisUISlice';
 import { calculateOverlayStyles } from '../utils/styleUtils';
 import { generateHaltonColors } from '../utils/colorUtils';

@@ -2,7 +2,7 @@
 
 import { BMDResult, CategoryAnalysisItem } from '../models/BMDxExported'
 // *** USE CORRECT TYPE ***
-import { BaseCategoryAnalysisDataPoint } from '../models/ApplicationModelCompositional' // Adjusted path/type
+import { BaseCategoryAnalysisDataPoint } from '../models/applicationModel' // Adjusted path/type
 
 /**
  * Groups raw category‐analysis items into the basic overlay points,
@@ -71,7 +71,7 @@ export function prepareGroupedOverlayData(
           bmdResultRef: bmd['@ref'], // Store the original numeric ref
           bmdResultName: bmd.name || 'Unnamed BMD Result',
 
-          // Data Fields (ensure names match ApplicationModelCompositional)
+          // Data Fields (ensure names match applicationModel)
           direction: direction,
           percentage: percentage,
           bmdFifthPercentileTotalGenes: bmdFifthPercentileTotalGenes, // Field for ranking/accumulation

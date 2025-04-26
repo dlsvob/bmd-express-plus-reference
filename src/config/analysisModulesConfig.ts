@@ -1,6 +1,6 @@
 // src/config/analysisModulesConfig.ts
 import React from 'react';
-import { DetailedAnalysisData, UmapAnalysisDataValue } from '../models/ApplicationModel'; // Use correct type
+import { DetailedAnalysisData, UmapAnalysisDataValue } from '../models/applicationModel'; // Use correct type
 import { ReferenceUmapItem } from '../data/referenceUmapData';
 import { HighlightMode } from '../store/slices/analysisUISlice';
 import type { RadioChangeEvent } from 'antd';

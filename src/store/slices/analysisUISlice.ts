@@ -27,7 +27,7 @@ export interface AnalysisUIState {
 // Define initial state directly with defaults
 const initialState: AnalysisUIState = {
   colorBy: 'cluster_id',
-  shapeBy: 'none',
+  shapeBy: 'bmdResultName',
   sizeBy: 'percentage',
   hiddenColorLabels: [], // Default to empty array
   hiddenShapeLabels: [], // Default to empty array
