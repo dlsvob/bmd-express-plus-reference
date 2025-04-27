@@ -10,6 +10,7 @@ import type {
   BaseCategoryAnalysisDataPoint,
   UmapAnalysisDataPoint,
 } from '../models/applicationModel'; // Adjust path if needed
+// --- Import UNCLUSTERED_COLOR ---
 import {
   DEFAULT_MARKER_COLOR,
   DEFAULT_MARKER_SHAPE,
@@ -22,18 +23,20 @@ import {
   getDirectionLegendName,
   DEFAULT_SHAPE_LABEL,
   DEFAULT_SIZE_LABEL,
-  // UNKNOWN_CLUSTER_COLOR, // Removed as per previous step
+  UNCLUSTERED_COLOR, // <<< IMPORTED
 } from './legendUtils'; // Adjust path if needed
+// -----------------------------
 import type { ReferenceUmapItem } from '../data/referenceUmapData'; // Adjust path if needed
 
 // Define input/output Map types
 type BaseGroupedData = Map<string, BaseCategoryAnalysisDataPoint[]>;
 type StyledUmapGroupedData = Map<string, UmapAnalysisDataPoint[]>;
 
-// Constants for Opacity
-const VISIBLE_OPACITY = 0.9;
-const HIDDEN_OPACITY = 0.0;
-const DIM_OPACITY = 0.4;
+// --- EXPORT Opacity Constants ---
+export const VISIBLE_OPACITY = 0.9;
+export const HIDDEN_OPACITY = 0.0;
+export const DIM_OPACITY = 0.4;
+// --------------------------------
 
 // --- Helper Functions ---
 function getBinnedSize(percentage: number | null | undefined): number {
@@ -59,167 +62,176 @@ function getDirectionColor(direction: string | null | undefined): string {
 export function calculateOverlayStyles(
   baseGroupedData: BaseGroupedData | null,
   stylingOptions: { colorBy: string; shapeBy: string; sizeBy: string },
-  hiddenColorLabels: Set<string> | string[],
-  hiddenShapeLabels: Set<string> | string[],
-  hiddenSizeLabels: Set<string> | string[],
+  hiddenColorLabels: Set<string>,
+  hiddenShapeLabels: Set<string>,
+  hiddenSizeLabels: Set<string>,
   goIdFilterList: string[],
   highlightMode: HighlightMode,
   bmdRefToExperimentNameMap: Map<number, string> | null,
   selectedGoIdsFromAccumulation: Set<string>,
   referenceMap: Map<string, ReferenceUmapItem> | null,
-  clusterColorMap: Map<string, string> | null,
-  bmdRefShapeMap: Map<number, string> | null, // Keep receiving this
-  rankRange?: [number, number] | null
+  clusterColorMap: Map<string | number, string>,
+  bmdRefShapeMap: Map<number, string>,
+  bmdRefColorMap: Map<number, string>,
+  committedRankSliderValue: [number, number]
 ): StyledUmapGroupedData | null {
-  const styleLogPrefix = '[StyleUtils v7]'; // <<< Updated version prefix
+  const styleLogPrefix = '[StyleUtils v13 - Unclustered Color]'; // Version Bump
 
-  console.log(`${styleLogPrefix} Received stylingOptions:`, stylingOptions);
-  console.log(`${styleLogPrefix} Received clusterColorMap size:`, clusterColorMap?.size ?? 'null');
-  console.log(`${styleLogPrefix} Received referenceMap size:`, referenceMap?.size ?? 'null');
-  console.log(`${styleLogPrefix} Received bmdRefShapeMap size:`, bmdRefShapeMap?.size ?? 'null'); // Log received shape map
-
-  // ... (Diagnostic logging, Guard Clauses, Set creation remain the same) ...
   if (!baseGroupedData || baseGroupedData.size === 0 || !referenceMap) {
-    console.warn(
-      `${styleLogPrefix} Skipping: Missing or empty baseGroupedData or missing referenceMap.`
-    );
     return null;
   }
-  const hiddenColorSet = hiddenColorLabels instanceof Set ? hiddenColorLabels : new Set(hiddenColorLabels);
-  const hiddenShapeSet = hiddenShapeLabels instanceof Set ? hiddenShapeLabels : new Set(hiddenShapeLabels);
-  const hiddenSizeSet = hiddenSizeLabels instanceof Set ? hiddenSizeLabels : new Set(hiddenSizeLabels);
+
+  const hiddenColorSet = hiddenColorLabels;
+  const hiddenShapeSet = hiddenShapeLabels;
+  const hiddenSizeSet = hiddenSizeLabels;
+
   const styledGroupedData = new Map<string, UmapAnalysisDataPoint[]>();
   let pointsProcessed = 0;
   let pointsSkippedMissingRef = 0;
   let pointsOutput = 0;
   const failedKeysSample = new Set<string>();
-  console.log(
-    `${styleLogPrefix} Starting styling calculation for ${baseGroupedData.size} analysis groups...`
-  );
-  // ... (Highlighting pre-calculation logic remains the same) ...
-  const exactMatchGoIds = new Set(goIdFilterList.map((id) => (id ?? '').toUpperCase()));
-  const clusterMatchClusterIds = new Set<string | number>();
-  if (highlightMode === HighlightMode.CLUSTER && exactMatchGoIds.size > 0) { /* ... */ }
 
-  // Main Styling Loop
+  const exactMatchGoIds = new Set(
+    goIdFilterList.map((id) => (id ?? '').toUpperCase())
+  );
+  const clusterMatchClusterIds = new Set<string | number>();
+  if (highlightMode === HighlightMode.CLUSTER && exactMatchGoIds.size > 0) {
+    exactMatchGoIds.forEach((goId) => {
+      const refItem = referenceMap.get(goId);
+      if (refItem?.cluster_id != null) {
+        clusterMatchClusterIds.add(String(refItem.cluster_id));
+      }
+    });
+  }
+
   baseGroupedData.forEach((basePoints, refStringKey) => {
     const styledPoints = basePoints
       .map((basePoint) => {
         pointsProcessed++;
-
         const goIdSource = basePoint.go_id;
-        const lookupKey = typeof goIdSource === 'string' ? goIdSource.trim().toUpperCase() : null;
+        const lookupKey =
+          typeof goIdSource === 'string'
+            ? goIdSource.trim().toUpperCase()
+            : null;
         const refDataItem = lookupKey ? referenceMap.get(lookupKey) : undefined;
 
         if (!refDataItem) {
           pointsSkippedMissingRef++;
-          if (lookupKey && failedKeysSample.size < 20) {
-            if (!failedKeysSample.has(lookupKey)) {
-              failedKeysSample.add(lookupKey);
-            }
-          }
+          if (lookupKey && failedKeysSample.size < 20)
+            failedKeysSample.add(lookupKey);
           return null;
         }
 
         const { colorBy, shapeBy, sizeBy } = stylingOptions;
-        const experimentNameForLabel = bmdRefToExperimentNameMap?.get(basePoint.bmdResultRef) || basePoint.bmdResultName;
-        const numericBmdRef = basePoint.bmdResultRef; // Get numeric ref once
+        const experimentNameForLabel =
+          bmdRefToExperimentNameMap?.get(basePoint.bmdResultRef) ||
+          basePoint.bmdResultName;
+        const numericBmdRef = basePoint.bmdResultRef;
 
-        // --- COLOR LOGIC (Using DEFAULT_MARKER_COLOR fallback) ---
+        // --- Color Calculation ---
         let baseFinalColor = DEFAULT_MARKER_COLOR;
         let colorLabel = experimentNameForLabel;
         switch (colorBy) {
           case 'cluster_id':
-            const clusterIdValue = refDataItem.cluster_id;
-            const clusterIdString = String(clusterIdValue);
-            const retrievedColor = clusterIdValue != null ? clusterColorMap?.get(clusterIdString) : undefined;
-            baseFinalColor = retrievedColor || DEFAULT_MARKER_COLOR; // Use default if not found
-            colorLabel = clusterIdValue != null ? `Cluster ${clusterIdValue}` : 'Unknown Cluster';
-            console.log(
-              `${styleLogPrefix} ColorByCluster: go_id=${basePoint.go_id}, ref_cluster_id=${clusterIdValue}, ` +
-              `lookup_key='${clusterIdString}', map_has_key=${clusterColorMap?.has(clusterIdString)}, ` +
-              `retrieved_color=${retrievedColor}, final_color=${baseFinalColor}`
-            );
+            const clusterId = refDataItem.cluster_id;
+            // --- Explicitly check for -1 ---
+            if (clusterId === -1 || clusterId === '-1') {
+              baseFinalColor = UNCLUSTERED_COLOR; // Assign specific gray
+              colorLabel = `Unclustered`; // Or "Cluster -1" if preferred
+            } else if (clusterId != null) {
+              // Only lookup if ID is valid and not -1
+              const clusterIdKey = String(clusterId);
+              const lookedUpColor = clusterColorMap.get(clusterIdKey);
+              baseFinalColor = lookedUpColor || DEFAULT_MARKER_COLOR; // Fallback if lookup fails unexpectedly
+              colorLabel = `Cluster ${clusterId}`;
+              if (!lookedUpColor) {
+                console.warn(`${styleLogPrefix} Cluster ID '${clusterIdKey}' (from point GO:${basePoint.go_id}) not found in clusterColorMap (size: ${clusterColorMap.size}). Using default color.`);
+              }
+            } else {
+              // Handle null/undefined cluster IDs if they occur
+              console.warn(`${styleLogPrefix} Point GO:${basePoint.go_id} has null/undefined cluster ID. Using default color.`);
+              baseFinalColor = DEFAULT_MARKER_COLOR;
+              colorLabel = `Unknown Cluster`;
+            }
+            // ---------------------------------
             break;
           case 'direction':
             baseFinalColor = getDirectionColor(basePoint.direction);
-            colorLabel = getDirectionLegendName(getDirectionShape(basePoint.direction));
+            colorLabel = getDirectionLegendName(
+              getDirectionShape(basePoint.direction)
+            );
             break;
-          // default 'bmdResultName': Keep default color/label
+          case 'bmdResultName':
+            baseFinalColor = bmdRefColorMap.get(numericBmdRef) || DEFAULT_MARKER_COLOR;
+            colorLabel = experimentNameForLabel;
+            if (!bmdRefColorMap.has(numericBmdRef)) {
+              // console.warn(`${styleLogPrefix} BMD Ref ${numericBmdRef} not found in bmdRefColorMap. Using default.`);
+            }
+            break;
+          default:
+            baseFinalColor = DEFAULT_MARKER_COLOR;
+            colorLabel = experimentNameForLabel;
+            break;
         }
 
-        // --- UPDATED SHAPE LOGIC ---
-        let baseFinalShape = DEFAULT_MARKER_SHAPE; // Default
-        let shapeLabel = DEFAULT_SHAPE_LABEL; // Default
+        // Shape Calculation
+        let baseFinalShape = DEFAULT_MARKER_SHAPE;
+        let shapeLabel = DEFAULT_SHAPE_LABEL;
         switch (shapeBy) {
-          case 'direction':
-            const directionKey = basePoint.direction?.toLowerCase() ?? 'none';
-            if (directionKey === 'up') {
-              baseFinalShape = 'triangle-up';
-            } else if (directionKey === 'down') {
-              baseFinalShape = 'triangle-down';
-            } else {
-              baseFinalShape = 'square'; // Use square for conflict/none/other
-            }
-            shapeLabel = getDirectionLegendName(baseFinalShape);
-            console.log(
-              `${styleLogPrefix} ShapeByDirection: Direction=${directionKey}, final_shape=${baseFinalShape}`
-            );
-            break;
-
           case 'bmdResultName':
-            // Use the map generated and passed from the hook
-            const retrievedShape = bmdRefShapeMap?.get(numericBmdRef);
-            baseFinalShape = retrievedShape || DEFAULT_MARKER_SHAPE; // Fallback
-            shapeLabel = experimentNameForLabel; // Use experiment name for label
-            console.log(
-              `${styleLogPrefix} ShapeByBmdName: Ref=${numericBmdRef}, ` +
-              `map_has_key=${bmdRefShapeMap?.has(numericBmdRef)}, ` +
-              `retrieved_shape=${retrievedShape}, final_shape=${baseFinalShape}`
-            );
+            baseFinalShape =
+              bmdRefShapeMap.get(numericBmdRef) || DEFAULT_MARKER_SHAPE;
+            shapeLabel = experimentNameForLabel;
             break;
-
+          case 'direction':
+            baseFinalShape = getDirectionShape(basePoint.direction);
+            shapeLabel = getDirectionLegendName(baseFinalShape);
+            break;
           case 'none':
           default:
-            // Explicitly handle 'none' or any other case by using defaults
             baseFinalShape = DEFAULT_MARKER_SHAPE;
             shapeLabel = DEFAULT_SHAPE_LABEL;
             break;
         }
-        // --- END UPDATED SHAPE LOGIC ---
 
-        // --- SIZE LOGIC (Remains unchanged) ---
+        // Size Calculation
         let baseFinalSize = DEFAULT_MARKER_SIZE;
         let sizeLabel = DEFAULT_SIZE_LABEL;
         switch (sizeBy) {
           case 'percentage':
             baseFinalSize = getBinnedSize(basePoint.percentage);
-            try {
-              sizeLabel = SIZE_BIN_LABELS && SIZE_BIN_LABELS[baseFinalSize] ? SIZE_BIN_LABELS[baseFinalSize] : DEFAULT_SIZE_LABEL;
-            } catch (e) { sizeLabel = DEFAULT_SIZE_LABEL; }
+            sizeLabel =
+              SIZE_BIN_LABELS[baseFinalSize] || `${baseFinalSize} px`;
             break;
-          // default 'none': Keep defaults
+          case 'none':
+          default:
+            baseFinalSize = DEFAULT_MARKER_SIZE;
+            sizeLabel = DEFAULT_SIZE_LABEL;
+            break;
         }
 
-        // --- Legend Toggles & Highlighting (Remains unchanged) ---
+        // Opacity/Highlighting
         const isHiddenByLegend =
           hiddenColorSet.has(colorLabel) ||
           hiddenShapeSet.has(shapeLabel) ||
           hiddenSizeSet.has(sizeLabel);
+
         let finalSize = baseFinalSize;
         let finalOpacity = isHiddenByLegend ? HIDDEN_OPACITY : VISIBLE_OPACITY;
-        const currentGoIdUpper = lookupKey;
-        const isExactMatch = currentGoIdUpper && exactMatchGoIds.has(currentGoIdUpper);
-        const clusterIdForHighlight = refDataItem.cluster_id;
-        const isInHighlightCluster =
-          highlightMode === HighlightMode.CLUSTER &&
-          clusterIdForHighlight != null &&
-          clusterMatchClusterIds.has(clusterIdForHighlight);
-        const isSelectedFromAccumulation =
-          currentGoIdUpper &&
-          selectedGoIdsFromAccumulation.has(currentGoIdUpper);
 
         if (!isHiddenByLegend) {
+          const currentGoIdUpper = lookupKey;
+          const isExactMatch =
+            currentGoIdUpper && exactMatchGoIds.has(currentGoIdUpper);
+          const clusterIdForHighlight = refDataItem.cluster_id;
+          const isInHighlightCluster =
+            highlightMode === HighlightMode.CLUSTER &&
+            clusterIdForHighlight != null &&
+            clusterMatchClusterIds.has(String(clusterIdForHighlight));
+          const isSelectedFromAccumulation =
+            currentGoIdUpper &&
+            selectedGoIdsFromAccumulation.has(currentGoIdUpper);
+
           if (isSelectedFromAccumulation) {
             finalSize = baseFinalSize * 1.5;
             finalOpacity = 1.0;
@@ -244,20 +256,7 @@ export function calculateOverlayStyles(
         } else {
           finalOpacity = HIDDEN_OPACITY;
         }
-        if (finalOpacity === HIDDEN_OPACITY) { return null; }
-        // ---------------------------------------------------------
 
-        // --- Final Logging ---
-        console.log(
-          `${styleLogPrefix} Point ${basePoint.go_id} (Ref: ${basePoint.bmdResultRef}): ` +
-          `baseSize=${baseFinalSize}, finalSize=${finalSize}, ` +
-          `baseColor=${baseFinalColor}, finalColor=${baseFinalColor}, ` +
-          `baseShape=${baseFinalShape}, finalShape=${baseFinalShape}, ` + // Log determined shape
-          `opacity=${finalOpacity}`
-        );
-        // -------------------
-
-        // Create Point
         pointsOutput++;
         const styledPoint: UmapAnalysisDataPoint = {
           ...basePoint,
@@ -265,37 +264,24 @@ export function calculateOverlayStyles(
           UMAP_2: refDataItem.UMAP_2,
           cluster_id: refDataItem.cluster_id,
           finalColor: baseFinalColor,
-          finalShape: baseFinalShape, // Assign determined shape
+          finalShape: baseFinalShape,
           finalSize: finalSize,
           finalOpacity: finalOpacity,
           colorLabel,
-          shapeLabel, // Assign determined label
+          shapeLabel,
           sizeLabel,
         };
         return styledPoint;
       })
       .filter((p): p is UmapAnalysisDataPoint => p !== null);
 
-    if (styledPoints.length > 0) {
-      styledGroupedData.set(refStringKey, styledPoints);
-    }
-  }); // End baseGroupedData.forEach
+    styledGroupedData.set(refStringKey, styledPoints);
+  });
 
-  // --- Final Summary Logging ---
   if (pointsSkippedMissingRef > 0) {
-    console.warn(
-      `${styleLogPrefix} Total points skipped due to missing reference data: ${pointsSkippedMissingRef} out of ${pointsProcessed}`
-    );
-    if (failedKeysSample.size > 0) {
-      console.warn(
-        `${styleLogPrefix} Sample of missing keys (normalized, uppercase):`,
-        Array.from(failedKeysSample)
-      );
-    }
+    // console.warn(...)
   }
-  console.log(
-    `${styleLogPrefix} Finished styling. Output Points: ${pointsOutput}. Result map size: ${styledGroupedData.size}`
-  );
+  // console.log(...)
 
   return styledGroupedData;
 }

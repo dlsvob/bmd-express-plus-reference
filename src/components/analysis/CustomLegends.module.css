@@ -1,0 +1,130 @@
+/* src/components/analysis/CustomLegend.module.css */
+
+.legendCard {
+    /* Allow content to scroll if it overflows the fixed height */
+    height: 100%;
+    /* Make card try to fill parent height */
+    display: flex;
+    /* Enable flexbox for vertical layout */
+    flex-direction: column;
+    overflow: hidden;
+    /* Hide overflow at the card level initially */
+}
+
+.legendCard :global(.ant-card-head) {
+    /* Style the card header if needed */
+    padding: 8px 12px;
+    /* Adjust padding */
+    min-height: auto;
+    font-size: 0.9em;
+    font-weight: bold;
+}
+
+.legendCard :global(.ant-card-body) {
+    padding: 8px 12px;
+    /* Adjust padding */
+    flex-grow: 1;
+    /* Allow body to take remaining space */
+    overflow-y: auto;
+    /* Enable vertical scrolling ONLY for the body */
+    min-height: 0;
+    /* Important for flexbox scrolling */
+}
+
+.legendSection {
+    margin-bottom: 12px;
+    /* Space between Color/Shape/Size sections */
+}
+
+.legendSection:last-child {
+    margin-bottom: 0;
+}
+
+.legendItem {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1px;
+    /* Minimal space between items */
+    padding: 2px 0;
+    /* Add slight vertical padding */
+    /* cursor: pointer; */
+    /* Remove cursor if only checkbox is clickable */
+    transition: opacity 0.2s ease-in-out;
+    width: 100%;
+    /* Ensure item takes full width */
+}
+
+/* Style for items marked as hidden */
+.legendItem.hidden {
+    opacity: 0.4;
+}
+
+/* Optional: Add hover effect */
+/* .legendItem:hover {
+  background-color: #f0f0f0;
+} */
+
+.legendCheckbox {
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+
+.visualCue {
+    margin-right: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    min-width: 16px;
+    /* Ensure minimum width for cues */
+}
+
+.colorSwatch {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #ccc;
+    display: inline-block;
+    vertical-align: middle;
+    flex-shrink: 0;
+    /* Prevent shrinking */
+}
+
+.shapeText {
+    font-size: 0.8em;
+    color: #555;
+    font-style: italic;
+    min-width: 40px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.sizeCircle {
+    background-color: #888;
+    border-radius: 50%;
+    display: inline-block;
+    vertical-align: middle;
+    border: 1px solid #555;
+    flex-shrink: 0;
+}
+
+.label {
+    font-size: 0.9em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-grow: 1;
+    min-width: 0;
+    /* Crucial for ellipsis to work in flex */
+    line-height: 1.2;
+    /* Adjust line height for better alignment */
+    padding-left: 2px;
+    /* Small space after visual cue */
+}
+
+.noItems {
+    font-style: italic;
+    color: #888;
+    font-size: 0.9em;
+    padding: 10px;
+    text-align: center;
+}

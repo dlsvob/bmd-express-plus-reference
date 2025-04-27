@@ -1,28 +1,49 @@
-// src/hooks/usePreparedPlotData.ts
-
+/**
+ * src/hooks/usePreparedPlotData.ts
+ */
 import { useMemo } from 'react';
+import { useAppSelector } from '../store/hooks';
+import { useGetRawAnalysisDataQuery } from '../store/apis/experimentsApi';
 import {
-  UmapAnalysisDataValue,
+  UmapAnalysisDataPoint,
   BaseCategoryAnalysisDataPoint,
+  PreparedPlotHookData,
+  SelectableAnalysisInfo,
+  DetailedAnalysisData,
 } from '../models/applicationModel';
 import { HighlightMode } from '../store/slices/analysisUISlice';
-import { calculateOverlayStyles } from '../utils/styleUtils';
+import {
+  calculateOverlayStyles,
+  HIDDEN_OPACITY,
+} from '../utils/styleUtils';
 import { generateHaltonColors } from '../utils/colorUtils';
 import { BMDResult, CategoryAnalysisItem } from '../models/BMDxExported';
 import { ReferenceUmapItem } from '../data/referenceUmapData';
-import { SHAPE_PALETTE } from '../config/analysisConstants'; // <<< Import SHAPE_PALETTE
+import {
+  SHAPE_PALETTE,
+  DEFAULT_PLOT_COLORS,
+} from '../config/analysisConstants';
+import {
+  DEFAULT_SHAPE_LABEL,
+  DEFAULT_SIZE_LABEL,
+  SIZE_BIN_LABELS,
+  DIRECTION_LABELS,
+  getDirectionLegendName,
+  DEFAULT_MARKER_COLOR,
+  DEFAULT_MARKER_SHAPE,
+  DEFAULT_MARKER_SIZE,
+  UNCLUSTERED_COLOR,
+} from '../utils/legendUtils';
+import { prepareGroupedOverlayData } from '../utils/analysisUtils';
+import { selectSelectedProjectName } from '../store/selectors/projectSelectors';
 
-const DEFAULT_MARKER_COLOR = '#cccccc'; // Keep for potential future use or remove if definitely not needed
-
-// --- Args Interface (bmdRefShapeMap REMOVED) ---
+// Args Interface
 export interface UsePreparedPlotDataArgs {
   selectedBmdResultRefs: string[];
-  isLoadingDetails: boolean;
-  detailsError: Error | null;
-  referenceDataMap: Map<string, ReferenceUmapItem> | null; // Use specific type
+  referenceDataMap: Map<string, ReferenceUmapItem> | null;
   referenceData: ReferenceUmapItem[] | null;
   colorByOption: string;
-  shapeByOption: string; // Needed for conditional map generation
+  shapeByOption: string;
   sizeByOption: string;
   hiddenColorLabels: Set<string>;
   hiddenShapeLabels: Set<string>;
@@ -31,26 +52,98 @@ export interface UsePreparedPlotDataArgs {
   highlightMode: HighlightMode;
   selectedGoIdsSet: Set<string>;
   committedRankSliderValue: [number, number];
-  bmdResultMap: Map<number, BMDResult>;
-  rawCategoryAnalysisItems: Array<{ bmdResultRef: number | string; item: CategoryAnalysisItem }> | null;
-  bmdRefToExperimentNameMap: Map<number, string> | null;
-  // bmdRefShapeMap is removed from args, generated internally
-}
-// ---------------------------------------------
-
-export interface UsePreparedPlotDataReturn {
-  analysisPoints: UmapAnalysisDataValue[] | null;
-  styledGroupedData: Map<string, UmapAnalysisDataValue[]> | null;
 }
 
+// Legend Derivation Helper
+interface LegendItems {
+  colorItems: [string, string][];
+  shapeItems: [string, string][];
+  sizeItems: [string, number][];
+}
+
+// --- UPDATED deriveLegendItemsInternal with Custom Sort ---
+function deriveLegendItemsInternal(
+  allStyledPoints: UmapAnalysisDataPoint[] | null | undefined,
+  colorBy: string,
+  shapeBy: string,
+  sizeBy: string,
+  bmdRefToExperimentNameMap: Map<number, string> | null
+): LegendItems {
+  const defaultResult: LegendItems = { colorItems: [], shapeItems: [], sizeItems: [] };
+  if (!allStyledPoints || allStyledPoints.length === 0) {
+    return defaultResult;
+  }
+
+  const uniqueLabelsAndColors = new Map<string, string>();
+  const uniqueLabelsAndShapes = new Map<string, string>();
+  const uniqueLabelsAndSizes = new Map<string, number>();
+
+  // Populate the maps (relies on labels from calculateOverlayStyles)
+  allStyledPoints.forEach((point) => {
+    const { colorLabel, shapeLabel, sizeLabel, finalColor, finalShape, finalSize } = point;
+    if (colorLabel && !uniqueLabelsAndColors.has(colorLabel)) {
+      uniqueLabelsAndColors.set(colorLabel, finalColor || DEFAULT_MARKER_COLOR);
+    }
+    if (shapeBy !== 'none' || !uniqueLabelsAndShapes.has(DEFAULT_SHAPE_LABEL)) {
+      if (shapeLabel && !uniqueLabelsAndShapes.has(shapeLabel)) {
+        uniqueLabelsAndShapes.set(shapeLabel, finalShape || DEFAULT_MARKER_SHAPE);
+      }
+    }
+    if (sizeBy !== 'none' || !uniqueLabelsAndSizes.has(DEFAULT_SIZE_LABEL)) {
+      if (sizeLabel && !uniqueLabelsAndSizes.has(sizeLabel)) {
+        uniqueLabelsAndSizes.set(sizeLabel, finalSize || DEFAULT_MARKER_SIZE);
+      }
+    }
+  });
+
+  // --- Custom Sort for Color Items ---
+  const sortedColorItems: [string, string][] = Array.from(uniqueLabelsAndColors.entries())
+    .sort((a, b) => {
+      const labelA = a[0];
+      const labelB = b[0];
+
+      const isAUnclustered = labelA === 'Unclustered';
+      const isBUnclustered = labelB === 'Unclustered';
+
+      if (isAUnclustered && !isBUnclustered) return -1; // Unclustered comes first
+      if (!isAUnclustered && isBUnclustered) return 1;  // Unclustered comes first
+      if (isAUnclustered && isBUnclustered) return 0;   // Should not happen
+
+      // Try to parse cluster numbers if applicable
+      const numA = parseInt(labelA.replace('Cluster ', ''), 10);
+      const numB = parseInt(labelB.replace('Cluster ', ''), 10);
+
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB; // Numeric sort for clusters
+      }
+
+      // Fallback to localeCompare for non-cluster labels (e.g., bmdResultName, direction)
+      return labelA.localeCompare(labelB);
+    });
+  // --- End Custom Sort ---
+
+  // Keep original sorting for shape and size (or adjust if needed)
+  const sortedShapeItems: [string, string][] = Array.from(uniqueLabelsAndShapes.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]));
+  const sortedSizeItems: [string, number][] = Array.from(uniqueLabelsAndSizes.entries())
+    .sort((a, b) => a[1] - b[1]);
+
+  return {
+    colorItems: sortedColorItems,
+    shapeItems: sortedShapeItems,
+    sizeItems: sortedSizeItems,
+  };
+}
+// --- END HELPER FUNCTION ---
+
+
+// --- Main Hook ---
 export const usePreparedPlotData = ({
   selectedBmdResultRefs,
-  isLoadingDetails,
-  detailsError,
   referenceDataMap,
   referenceData,
   colorByOption,
-  shapeByOption, // <<< Destructure shapeByOption
+  shapeByOption,
   sizeByOption,
   hiddenColorLabels,
   hiddenShapeLabels,
@@ -59,226 +152,139 @@ export const usePreparedPlotData = ({
   highlightMode,
   selectedGoIdsSet,
   committedRankSliderValue,
-  bmdResultMap,
-  rawCategoryAnalysisItems,
-  bmdRefToExperimentNameMap,
-  // bmdRefShapeMap, // <<< REMOVED from destructuring
-}: UsePreparedPlotDataArgs): UsePreparedPlotDataReturn => {
-  const hookLogPrefix = '[usePreparedPlotData v6]'; // <<< Updated version prefix
+}: UsePreparedPlotDataArgs): PreparedPlotHookData => {
+  const hookLogPrefix = '[usePreparedPlotData v16 - Legend Sort Fix]'; // Re-applying Version
 
-  // --- Log received props ---
-  console.log(`${hookLogPrefix} Hook rendered/re-rendered. Args received:`);
-  console.log(`${hookLogPrefix} -> isLoadingDetails: ${isLoadingDetails}`);
-  console.log(`${hookLogPrefix} -> detailsError: ${detailsError}`);
-  console.log(`${hookLogPrefix} -> selectedBmdResultRefs: [${selectedBmdResultRefs?.join(', ')}]`);
-  console.log(`${hookLogPrefix} -> bmdResultMap size: ${bmdResultMap?.size}`);
-  const rawItemCount = Array.isArray(rawCategoryAnalysisItems) ? rawCategoryAnalysisItems.length : (rawCategoryAnalysisItems ? 1 : 0);
-  console.log(`${hookLogPrefix} -> rawCategoryAnalysisItems: Type=${typeof rawCategoryAnalysisItems}, IsArray=${Array.isArray(rawCategoryAnalysisItems)}, Count=${rawItemCount}`);
-  if (Array.isArray(rawCategoryAnalysisItems) && rawCategoryAnalysisItems.length > 0) {
-    console.log(`${hookLogPrefix} -> First rawCategoryAnalysisItem object sample:`, rawCategoryAnalysisItems[0]);
-  }
-  console.log(`${hookLogPrefix} -> shapeByOption: ${shapeByOption}`); // Log shape option
-  // --------------------------
+  const projectName = useAppSelector(selectSelectedProjectName);
+  const {
+    data: rawData,
+    isLoading: isLoadingRaw,
+    error: rawError,
+    isSuccess: rawSuccess,
+    isFetching: isFetchingRaw,
+  } = useGetRawAnalysisDataQuery(
+    { projectName, selectedBmdResultRefs },
+    { skip: !projectName || !selectedBmdResultRefs || selectedBmdResultRefs.length === 0 }
+  );
 
-  // 1) Determine if we can proceed
-  const canProceed = useMemo(() => {
-    const proceed =
-      !isLoadingDetails &&
-      !detailsError &&
-      selectedBmdResultRefs.length > 0 &&
-      bmdResultMap.size > 0 &&
-      Array.isArray(rawCategoryAnalysisItems) && rawCategoryAnalysisItems.length > 0;
-    console.log(`${hookLogPrefix} canProceed evaluated to: ${proceed}`);
-    return proceed;
-  }, [
-    isLoadingDetails,
-    detailsError,
-    selectedBmdResultRefs,
-    bmdResultMap,
-    rawCategoryAnalysisItems,
-  ]);
+  const canProcess = useMemo(() => {
+    return !isLoadingRaw && !rawError && rawSuccess && !!rawData && !!referenceDataMap && selectedBmdResultRefs && selectedBmdResultRefs.length > 0;
+  }, [isLoadingRaw, rawError, rawSuccess, rawData, referenceDataMap, selectedBmdResultRefs]);
 
-  // 2) Prepare baseGroupedData (Grouping logic implemented)
-  const baseGroupedData = useMemo(() => {
-    const logPrefix = '[usePreparedPlotData baseGroupedData v6]'; // <<< Updated version prefix
-    if (!canProceed) {
-      console.log(`${logPrefix} Skipping grouping: canProceed is false.`);
-      return new Map<string, BaseCategoryAnalysisDataPoint[]>();
-    }
-
-    console.log(`${logPrefix} Grouping ${rawCategoryAnalysisItems?.length} raw items...`);
-    const grouped = new Map<string, BaseCategoryAnalysisDataPoint[]>();
-
-    rawCategoryAnalysisItems!.forEach(refItemPair => {
-      const itemBmdRef = refItemPair?.bmdResultRef;
-      const item = refItemPair?.item;
-
-      if (itemBmdRef == null || !item) {
-        console.warn(`${logPrefix} Skipping item with missing bmdResultRef or item data:`, refItemPair);
-        return;
-      }
-
-      const numericBmdRef = Number(itemBmdRef);
-      const refStringKey = String(itemBmdRef);
-      const bmd = bmdResultMap.get(numericBmdRef);
-
-      if (!bmd) {
-        console.warn(`${logPrefix} Skipping item, BMD Result not found in map for ref ${numericBmdRef}`);
-        return;
-      }
-
-      const goId = item?.categoryIdentifier?.id;
-      const goTerm = item?.categoryIdentifier?.title;
-      const direction = item?.overallDirection;
-      const percentage = item?.percentage;
-      const bmdFifthPercentileTotalGenes = item?.bmdFifthPercentileTotalGenes;
-      const geneAllCount = item?.geneAllCount;
-      const genesPassed = item?.genesThatPassedAllFilters;
-
-      if (!goId) { return; }
-
-      const basePoint: BaseCategoryAnalysisDataPoint = {
-        go_id: goId,
-        go_term: goTerm || 'Unknown Term',
-        bmdResultRef: numericBmdRef,
-        bmdResultName: bmd.name || 'Unnamed BMD Result',
-        direction: direction,
-        percentage: percentage,
-        bmdFifthPercentileTotalGenes: bmdFifthPercentileTotalGenes,
-        geneAllCount: geneAllCount,
-        genesThatPassedAllFilters: genesPassed,
-        finalColor: '', finalShape: '', finalSize: 0, finalOpacity: 0,
+  // Ensure the memo ALWAYS returns the expected object structure
+  const { baseGroupedData, bmdResultMap, bmdRefToExperimentNameMap } = useMemo(() => {
+    const logPrefix = `${hookLogPrefix} [Memo Base Data]`;
+    if (!canProcess || !rawData?.rawBmdResults || !rawData?.rawCategoryAnalysisItems) {
+      return {
+        baseGroupedData: new Map<string, BaseCategoryAnalysisDataPoint[]>(),
+        bmdResultMap: new Map<number, BMDResult>(),
+        bmdRefToExperimentNameMap: new Map<number, string>()
       };
-
-      if (!grouped.has(refStringKey)) {
-        grouped.set(refStringKey, []);
+    }
+    const tempBmdResultMap = new Map<number, BMDResult>();
+    const tempBmdRefToNameMap = new Map<number, string>();
+    rawData.rawBmdResults.forEach(r => {
+      if (r && r['@ref'] != null) {
+        tempBmdResultMap.set(Number(r['@ref']), r);
+        tempBmdRefToNameMap.set(Number(r['@ref']), r.name || `BMD Result ${r['@ref']}`);
       }
-      grouped.get(refStringKey)!.push(basePoint);
     });
-
-    console.log(`${logPrefix} Finished grouping. Map size: ${grouped.size}. Keys: [${Array.from(grouped.keys()).join(', ')}]`);
-    grouped.forEach((points, key) => {
-      console.log(`${logPrefix} -> Group ${key} count: ${points.length}`);
+    const categoryItemsMap = new Map<string, CategoryAnalysisItem[]>();
+    rawData.rawCategoryAnalysisItems.forEach(entry => {
+      const refStr = String(entry.bmdResultRef);
+      if (!categoryItemsMap.has(refStr)) {
+        categoryItemsMap.set(refStr, []);
+      }
+      categoryItemsMap.get(refStr)?.push(entry.item);
     });
+    const groupedData = prepareGroupedOverlayData(tempBmdResultMap, categoryItemsMap);
+    return { baseGroupedData: groupedData, bmdResultMap: tempBmdResultMap, bmdRefToExperimentNameMap: tempBmdRefToNameMap };
+  }, [canProcess, rawData]);
 
-    return grouped;
-  }, [canProceed, rawCategoryAnalysisItems, bmdResultMap]);
-
-  // 3) build clusterColorMap from referenceData
+  // Build clusterColorMap (use string keys)
   const clusterColorMap = useMemo(() => {
-    const m = new Map<string, string>();
-    const logPrefix = '[usePreparedPlotData clusterColorMap v6]'; // <<< Updated version prefix
-    if (!canProceed || !referenceData) {
-      console.log(`${logPrefix} Skipping map creation (canProceed=${canProceed}, hasReferenceData=${!!referenceData}).`);
-      return m;
-    }
-    try {
-      console.log(`${logPrefix} Generating map from ${referenceData.length} reference items.`);
-      const clusterIds = Array.from(
-        new Set(referenceData.map((r: ReferenceUmapItem) => String(r.cluster_id)))
-      );
-      console.log(`${logPrefix} Unique cluster IDs found:`, clusterIds);
-      const colors = generateHaltonColors(clusterIds.length);
-      clusterIds.forEach((cidString, i) => {
-        m.set(cidString, colors[i % colors.length]);
+    const logPrefix = `${hookLogPrefix} [Memo Cluster Colors]`;
+    if (!referenceData) return new Map<string | number, string>();
+    const uniqueClusterIds = Array.from(new Set(referenceData.map(item => item.cluster_id).filter(id => id != null && id !== -1 && id !== '-1')));
+    if (uniqueClusterIds.length === 0) return new Map<string | number, string>();
+    const colors = generateHaltonColors(uniqueClusterIds.length);
+    const map = new Map<string | number, string>();
+    uniqueClusterIds.forEach((id, index) => map.set(String(id), colors[index % colors.length]));
+    return map;
+  }, [referenceData]);
+
+  // Generate bmdRefColorMap
+  const bmdRefColorMap = useMemo(() => {
+    const map = new Map<number, string>();
+    if (selectedBmdResultRefs.length > 0) {
+      selectedBmdResultRefs.forEach((refStr, index) => {
+        const numericRef = parseInt(refStr, 10);
+        if (!isNaN(numericRef)) map.set(numericRef, DEFAULT_PLOT_COLORS[index % DEFAULT_PLOT_COLORS.length]);
       });
-      console.log(`${logPrefix} Generated clusterColorMap. Map size: ${m.size}`);
-    } catch (error) {
-      console.error(`${logPrefix} Error during map generation:`, error);
     }
-    return m;
-  }, [canProceed, referenceData]);
+    return map;
+  }, [selectedBmdResultRefs]);
 
-  // --- NEW: Generate bmdRefShapeMap conditionally ---
+  // Generate bmdRefShapeMap conditionally
   const bmdRefShapeMap = useMemo(() => {
-    const logPrefix = '[usePreparedPlotData bmdRefShapeMap v6]';
-    const shapeMap = new Map<number, string>();
-    // Only generate if shapeBy is bmdResultName AND we can proceed
-    if (!canProceed || shapeByOption !== 'bmdResultName') {
-      console.log(`${logPrefix} Skipping shape map generation: canProceed=${canProceed}, shapeByOption=${shapeByOption}`);
-      return shapeMap; // Return empty map if not needed
+    const map = new Map<number, string>();
+    if (shapeByOption === 'bmdResultName' && selectedBmdResultRefs.length > 0) {
+      selectedBmdResultRefs.forEach((refStr, index) => {
+        const numericRef = parseInt(refStr, 10);
+        if (!isNaN(numericRef)) map.set(numericRef, SHAPE_PALETTE[index % SHAPE_PALETTE.length]);
+      });
     }
-    console.log(`${logPrefix} Generating shape map for ${selectedBmdResultRefs.length} selected refs (shapeBy=bmdResultName).`);
+    return map;
+  }, [shapeByOption, selectedBmdResultRefs]);
 
-    // Define the desired order using indices from SHAPE_PALETTE
-    const desiredShapeIndices = [0, 1, 8, 9, 2, 3]; // circle, square, triangle-up, triangle-down, diamond, cross
-
-    selectedBmdResultRefs.forEach((refStr, index) => {
-      const numericRef = Number(refStr);
-      if (!isNaN(numericRef)) {
-        const shapeOrderIndex = Math.min(index, desiredShapeIndices.length - 1);
-        const paletteIndex = desiredShapeIndices[shapeOrderIndex];
-        const shape = SHAPE_PALETTE[paletteIndex]; // Use the imported SHAPE_PALETTE
-
-        shapeMap.set(numericRef, shape);
-        console.log(`${logPrefix} -> Mapping Ref ${numericRef} to Shape '${shape}' (index ${index}, paletteIdx ${paletteIndex})`);
-      } else {
-        console.warn(`${logPrefix} Invalid numeric ref found: ${refStr}`);
-      }
-    });
-    console.log(`${logPrefix} Finished shape map generation. Size: ${shapeMap.size}`);
-    return shapeMap;
-  }, [canProceed, selectedBmdResultRefs, shapeByOption]); // <<< ADD shapeByOption dependency
-  // ------------------------------------
-
-  // 4) style each overlay point
-  const styledGroupedData = useMemo(() => {
-    const logPrefix = '[usePreparedPlotData styledGroupedData v6]'; // <<< Updated version prefix
-    if (!canProceed || baseGroupedData.size === 0 || !referenceDataMap) {
-      console.log(`${logPrefix} Skipping styling: canProceed=${canProceed}, baseGroupedData size=${baseGroupedData.size}, hasRefMap=${!!referenceDataMap}`);
+  // Calculate ALL styled points using calculateOverlayStyles
+  const allStyledGroupedData = useMemo(() => {
+    const logPrefix = `${hookLogPrefix} [Memo Styling]`;
+    if (!canProcess || baseGroupedData.size === 0 || !referenceDataMap) {
       return null;
     }
-    console.log(`${logPrefix} Preparing to call calculateOverlayStyles with ${baseGroupedData.size} groups...`);
     return calculateOverlayStyles(
       baseGroupedData,
       { colorBy: colorByOption, shapeBy: shapeByOption, sizeBy: sizeByOption },
-      hiddenColorLabels,
-      hiddenShapeLabels,
-      hiddenSizeLabels,
-      goIdFilterList,
-      highlightMode,
-      bmdRefToExperimentNameMap,
-      selectedGoIdsSet,
-      referenceDataMap,
-      clusterColorMap,
-      bmdRefShapeMap, // <<< Pass the generated map
-      committedRankSliderValue
+      hiddenColorLabels, hiddenShapeLabels, hiddenSizeLabels,
+      goIdFilterList, highlightMode, bmdRefToExperimentNameMap,
+      selectedGoIdsSet, referenceDataMap, clusterColorMap,
+      bmdRefShapeMap, bmdRefColorMap, committedRankSliderValue
     );
   }, [
-    canProceed,
-    baseGroupedData,
-    referenceDataMap,
-    clusterColorMap,
-    colorByOption,
-    shapeByOption, // Keep dependency
-    sizeByOption,
-    hiddenColorLabels,
-    hiddenShapeLabels,
-    hiddenSizeLabels,
-    goIdFilterList,
-    highlightMode,
-    bmdRefToExperimentNameMap,
-    selectedGoIdsSet,
-    bmdRefShapeMap, // <<< Add generated map to dependencies
-    committedRankSliderValue,
+    canProcess, baseGroupedData, referenceDataMap, clusterColorMap,
+    bmdRefShapeMap, bmdRefColorMap, bmdRefToExperimentNameMap, colorByOption, shapeByOption,
+    sizeByOption, hiddenColorLabels, hiddenShapeLabels, hiddenSizeLabels,
+    goIdFilterList, highlightMode, selectedGoIdsSet, committedRankSliderValue,
   ]);
 
-  // 5) flatten into a single array
-  const analysisPoints = useMemo(() => {
-    const logPrefix = '[usePreparedPlotData analysisPoints v6]'; // <<< Updated version prefix
-    if (!styledGroupedData) {
-      console.log(`${logPrefix} No styledGroupedData to flatten.`);
-      return null;
+  // Derive Legend Items and Filter Plot Points
+  const finalPlotDataAndLegends = useMemo((): PreparedPlotHookData => {
+    const logPrefix = `${hookLogPrefix} [Memo Legends & Filtering]`;
+    if (!allStyledGroupedData) {
+      return { analysisPoints: null, styledGroupedData: null, colorItems: [], shapeItems: [], sizeItems: [] };
     }
-    const flattened = Array.from(styledGroupedData.values()).flat();
-    console.log(`${logPrefix} Flattened data. Point count: ${flattened.length}`);
-    return flattened;
-  }, [styledGroupedData]);
+    const flattenedStyledPoints: UmapAnalysisDataPoint[] = [];
+    allStyledGroupedData.forEach(pointsArray => flattenedStyledPoints.push(...pointsArray));
 
-  if (isLoadingDetails || detailsError) {
-    console.log(`${hookLogPrefix} Returning null due to loading/error state.`);
-    return { analysisPoints: null, styledGroupedData: null };
-  }
-  console.log(`${hookLogPrefix} Returning analysisPoints (count: ${analysisPoints?.length ?? 0}) and styledGroupedData (size: ${styledGroupedData?.size ?? 0})`);
-  return { analysisPoints, styledGroupedData };
+    // --- Call the UPDATED deriveLegendItemsInternal ---
+    const { colorItems, shapeItems, sizeItems } = deriveLegendItemsInternal(
+      flattenedStyledPoints, colorByOption, shapeByOption, sizeByOption, bmdRefToExperimentNameMap
+    );
+    // -------------------------------------------------
+
+    const analysisPointsForPlot = flattenedStyledPoints.filter(
+      point => point.finalOpacity !== HIDDEN_OPACITY
+    );
+    return {
+      analysisPoints: analysisPointsForPlot,
+      styledGroupedData: allStyledGroupedData,
+      colorItems: colorItems, // Use the correctly sorted items
+      shapeItems: shapeItems,
+      sizeItems: sizeItems,
+    };
+  }, [allStyledGroupedData, colorByOption, shapeByOption, sizeByOption, bmdRefToExperimentNameMap]);
+
+  // --- Final Return ---
+  return finalPlotDataAndLegends;
 };

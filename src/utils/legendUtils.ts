@@ -4,11 +4,11 @@
 
 export const DEFAULT_MARKER_SHAPE = 'circle';
 export const DEFAULT_MARKER_SIZE = 8;
-export const DEFAULT_MARKER_COLOR = '#7f7f7f'; // Ensure this is exported
+export const DEFAULT_MARKER_COLOR = '#7f7f7f'; // General default/fallback
 
-// --- REMOVE THIS LINE ---
-// export const UNKNOWN_CLUSTER_COLOR = '#cccccc';
-// -----------------------
+// --- ADD Constant for Unclustered Points ---
+export const UNCLUSTERED_COLOR = '#cccccc'; // Specific light gray for cluster -1
+// -----------------------------------------
 
 // *** COLOR MAP DEFINITION ***
 export const DIRECTION_COLOR_MAP: Record<string, string> = {
@@ -23,8 +23,8 @@ export const DIRECTION_COLOR_MAP: Record<string, string> = {
 export const DIRECTION_SHAPE_MAP: Record<string, string> = {
   'up': 'triangle-up',
   'down': 'triangle-down',
-  'conflict': 'square', // Use square for conflict/none
-  'none': DEFAULT_MARKER_SHAPE, // Use default circle for none
+  'conflict': 'square',
+  'none': DEFAULT_MARKER_SHAPE,
 };
 // ***************************
 
@@ -45,11 +45,14 @@ export const DEFAULT_SIZE_LABEL = "Fixed Size";
 export const DIRECTION_LABELS: Record<string, string> = {
   'triangle-up': 'Up',
   'triangle-down': 'Down',
-  'square': 'Conflict/None', // Updated label for square
+  'square': 'Conflict/None',
   'circle': 'None/Other',
 };
 export const DEFAULT_SHAPE_LABEL = "Circle";
 
 export const getDirectionLegendName = (shapeSymbol: string): string => DIRECTION_LABELS[shapeSymbol] || shapeSymbol;
+
+// --- Opacity Constant (Moved to styleUtils, remove if still here) ---
+// export const HIDDEN_OPACITY = 0.0; // Should be in styleUtils.ts
 
 // --- End Exports ---
