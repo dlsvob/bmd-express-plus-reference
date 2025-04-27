@@ -7,14 +7,16 @@ import { useGetRawAnalysisDataQuery } from '../store/apis/experimentsApi';
 import {
   UmapAnalysisDataPoint,
   BaseCategoryAnalysisDataPoint,
-  PreparedPlotHookData,
+  PreparedPlotHookData, // Updated interface
   SelectableAnalysisInfo,
   DetailedAnalysisData,
-} from '../models/applicationModel';
+} from '../models/applicationModel'; // Updated import
 import { HighlightMode } from '../store/slices/analysisUISlice';
 import {
   calculateOverlayStyles,
   HIDDEN_OPACITY,
+  VISIBLE_OPACITY,
+  DIM_OPACITY,
 } from '../utils/styleUtils';
 import { generateHaltonColors } from '../utils/colorUtils';
 import { BMDResult, CategoryAnalysisItem } from '../models/BMDxExported';
@@ -36,8 +38,9 @@ import {
 } from '../utils/legendUtils';
 import { prepareGroupedOverlayData } from '../utils/analysisUtils';
 import { selectSelectedProjectName } from '../store/selectors/projectSelectors';
+// import { filterPlotItems } from '../utils/plotUtils'; // Not needed for rank
 
-// Args Interface
+// Args Interface (Unchanged)
 export interface UsePreparedPlotDataArgs {
   selectedBmdResultRefs: string[];
   referenceDataMap: Map<string, ReferenceUmapItem> | null;
@@ -51,7 +54,7 @@ export interface UsePreparedPlotDataArgs {
   goIdFilterList: string[];
   highlightMode: HighlightMode;
   selectedGoIdsSet: Set<string>;
-  committedRankSliderValue: [number, number];
+  committedRankSliderValue: [number, number]; // Rank window [start_rank, end_rank]
 }
 
 // Legend Derivation Helper
@@ -61,7 +64,6 @@ interface LegendItems {
   sizeItems: [string, number][];
 }
 
-// --- UPDATED deriveLegendItemsInternal with Custom Sort ---
 function deriveLegendItemsInternal(
   allStyledPoints: UmapAnalysisDataPoint[] | null | undefined,
   colorBy: string,
@@ -78,7 +80,6 @@ function deriveLegendItemsInternal(
   const uniqueLabelsAndShapes = new Map<string, string>();
   const uniqueLabelsAndSizes = new Map<string, number>();
 
-  // Populate the maps (relies on labels from calculateOverlayStyles)
   allStyledPoints.forEach((point) => {
     const { colorLabel, shapeLabel, sizeLabel, finalColor, finalShape, finalSize } = point;
     if (colorLabel && !uniqueLabelsAndColors.has(colorLabel)) {
@@ -96,33 +97,21 @@ function deriveLegendItemsInternal(
     }
   });
 
-  // --- Custom Sort for Color Items ---
   const sortedColorItems: [string, string][] = Array.from(uniqueLabelsAndColors.entries())
     .sort((a, b) => {
       const labelA = a[0];
       const labelB = b[0];
-
       const isAUnclustered = labelA === 'Unclustered';
       const isBUnclustered = labelB === 'Unclustered';
-
-      if (isAUnclustered && !isBUnclustered) return -1; // Unclustered comes first
-      if (!isAUnclustered && isBUnclustered) return 1;  // Unclustered comes first
-      if (isAUnclustered && isBUnclustered) return 0;   // Should not happen
-
-      // Try to parse cluster numbers if applicable
+      if (isAUnclustered && !isBUnclustered) return -1;
+      if (!isAUnclustered && isBUnclustered) return 1;
+      if (isAUnclustered && isBUnclustered) return 0;
       const numA = parseInt(labelA.replace('Cluster ', ''), 10);
       const numB = parseInt(labelB.replace('Cluster ', ''), 10);
-
-      if (!isNaN(numA) && !isNaN(numB)) {
-        return numA - numB; // Numeric sort for clusters
-      }
-
-      // Fallback to localeCompare for non-cluster labels (e.g., bmdResultName, direction)
+      if (!isNaN(numA) && !isNaN(numB)) { return numA - numB; }
       return labelA.localeCompare(labelB);
     });
-  // --- End Custom Sort ---
 
-  // Keep original sorting for shape and size (or adjust if needed)
   const sortedShapeItems: [string, string][] = Array.from(uniqueLabelsAndShapes.entries())
     .sort((a, b) => a[0].localeCompare(b[0]));
   const sortedSizeItems: [string, number][] = Array.from(uniqueLabelsAndSizes.entries())
@@ -153,7 +142,7 @@ export const usePreparedPlotData = ({
   selectedGoIdsSet,
   committedRankSliderValue,
 }: UsePreparedPlotDataArgs): PreparedPlotHookData => {
-  const hookLogPrefix = '[usePreparedPlotData v16 - Legend Sort Fix]'; // Re-applying Version
+  const hookLogPrefix = '[usePreparedPlotData v19.2 - Complete Code]'; // Version Bump
 
   const projectName = useAppSelector(selectSelectedProjectName);
   const {
@@ -171,15 +160,11 @@ export const usePreparedPlotData = ({
     return !isLoadingRaw && !rawError && rawSuccess && !!rawData && !!referenceDataMap && selectedBmdResultRefs && selectedBmdResultRefs.length > 0;
   }, [isLoadingRaw, rawError, rawSuccess, rawData, referenceDataMap, selectedBmdResultRefs]);
 
-  // Ensure the memo ALWAYS returns the expected object structure
+  // Memoize Base Data (Includes rankValue)
   const { baseGroupedData, bmdResultMap, bmdRefToExperimentNameMap } = useMemo(() => {
     const logPrefix = `${hookLogPrefix} [Memo Base Data]`;
     if (!canProcess || !rawData?.rawBmdResults || !rawData?.rawCategoryAnalysisItems) {
-      return {
-        baseGroupedData: new Map<string, BaseCategoryAnalysisDataPoint[]>(),
-        bmdResultMap: new Map<number, BMDResult>(),
-        bmdRefToExperimentNameMap: new Map<number, string>()
-      };
+      return { baseGroupedData: new Map(), bmdResultMap: new Map(), bmdRefToExperimentNameMap: new Map() };
     }
     const tempBmdResultMap = new Map<number, BMDResult>();
     const tempBmdRefToNameMap = new Map<number, string>();
@@ -197,13 +182,72 @@ export const usePreparedPlotData = ({
       }
       categoryItemsMap.get(refStr)?.push(entry.item);
     });
-    const groupedData = prepareGroupedOverlayData(tempBmdResultMap, categoryItemsMap);
+    const groupedData = prepareGroupedOverlayData(tempBmdResultMap, categoryItemsMap); // This adds rankValue
     return { baseGroupedData: groupedData, bmdResultMap: tempBmdResultMap, bmdRefToExperimentNameMap: tempBmdRefToNameMap };
   }, [canProcess, rawData]);
 
-  // Build clusterColorMap (use string keys)
+  // --- Calculate Ranks and Min/Max ---
+  // This memo calculates the rank for each point globally and determines N (maxRank)
+  const rankedBaseGroupedData = useMemo(() => {
+    const logPrefix = `${hookLogPrefix} [Memo Ranking]`;
+    if (!baseGroupedData || baseGroupedData.size === 0) {
+      // console.log(`${logPrefix} No base data to rank.`); // Keep logs minimal
+      return { rankedData: new Map<string, BaseCategoryAnalysisDataPoint[]>(), maxRank: 0 };
+    }
+
+    // 1. Flatten all points and filter those with a valid rankValue
+    const allPointsWithRankValue: BaseCategoryAnalysisDataPoint[] = [];
+    baseGroupedData.forEach(points => {
+      points.forEach(point => {
+        if (point.rankValue != null && isFinite(point.rankValue)) {
+          allPointsWithRankValue.push(point);
+        }
+      });
+    });
+
+    if (allPointsWithRankValue.length === 0) {
+      // console.log(`${logPrefix} No points with valid rankValue found.`); // Keep logs minimal
+      return { rankedData: baseGroupedData, maxRank: 0 }; // Return original data, maxRank 0
+    }
+
+    // 2. Sort points by rankValue (ascending)
+    allPointsWithRankValue.sort((a, b) => (a.rankValue ?? Infinity) - (b.rankValue ?? Infinity));
+
+    // 3. Assign ranks (1-based index) and store in a temporary map for lookup
+    const rankMap = new Map<string, number>(); // Key: unique identifier (e.g., ref + go_id), Value: rank
+    const N = allPointsWithRankValue.length;
+    allPointsWithRankValue.forEach((point, index) => {
+      // Use a combination of ref and go_id as a unique key for each point across experiments
+      const uniqueKey = `${point.bmdResultRef}-${point.go_id}`;
+      rankMap.set(uniqueKey, index + 1); // Assign rank (1-based)
+    });
+    console.log(`${logPrefix} Assigned ranks 1 to ${N}.`); // Log N
+
+    // 4. Create the new grouped map with the 'rank' property added
+    const newRankedGroupedData = new Map<string, BaseCategoryAnalysisDataPoint[]>();
+    baseGroupedData.forEach((originalPoints, refKey) => {
+      const newPoints = originalPoints.map(point => {
+        const uniqueKey = `${point.bmdResultRef}-${point.go_id}`;
+        const calculatedRank = rankMap.get(uniqueKey);
+        return {
+          ...point,
+          rank: calculatedRank ?? null, // Add the rank property
+        };
+      });
+      newRankedGroupedData.set(refKey, newPoints);
+    });
+
+    return { rankedData: newRankedGroupedData, maxRank: N };
+
+  }, [baseGroupedData]);
+  // ------------------------------------
+
+  // Extract maxRank for convenience
+  const maxRank = rankedBaseGroupedData.maxRank;
+  const minRank = maxRank > 0 ? 1 : 0; // Min rank is always 1 if there are points
+
+  // Build Color/Shape Maps (Unchanged)
   const clusterColorMap = useMemo(() => {
-    const logPrefix = `${hookLogPrefix} [Memo Cluster Colors]`;
     if (!referenceData) return new Map<string | number, string>();
     const uniqueClusterIds = Array.from(new Set(referenceData.map(item => item.cluster_id).filter(id => id != null && id !== -1 && id !== '-1')));
     if (uniqueClusterIds.length === 0) return new Map<string | number, string>();
@@ -212,8 +256,6 @@ export const usePreparedPlotData = ({
     uniqueClusterIds.forEach((id, index) => map.set(String(id), colors[index % colors.length]));
     return map;
   }, [referenceData]);
-
-  // Generate bmdRefColorMap
   const bmdRefColorMap = useMemo(() => {
     const map = new Map<number, string>();
     if (selectedBmdResultRefs.length > 0) {
@@ -224,8 +266,6 @@ export const usePreparedPlotData = ({
     }
     return map;
   }, [selectedBmdResultRefs]);
-
-  // Generate bmdRefShapeMap conditionally
   const bmdRefShapeMap = useMemo(() => {
     const map = new Map<number, string>();
     if (shapeByOption === 'bmdResultName' && selectedBmdResultRefs.length > 0) {
@@ -238,52 +278,75 @@ export const usePreparedPlotData = ({
   }, [shapeByOption, selectedBmdResultRefs]);
 
   // Calculate ALL styled points using calculateOverlayStyles
+  // Pass the *ranked* data and the rank window to the styling function
   const allStyledGroupedData = useMemo(() => {
     const logPrefix = `${hookLogPrefix} [Memo Styling]`;
-    if (!canProcess || baseGroupedData.size === 0 || !referenceDataMap) {
+    // Use rankedBaseGroupedData.rankedData here
+    if (!canProcess || rankedBaseGroupedData.rankedData.size === 0 || !referenceDataMap) {
       return null;
     }
     return calculateOverlayStyles(
-      baseGroupedData,
+      rankedBaseGroupedData.rankedData, // <<< Pass data with ranks
       { colorBy: colorByOption, shapeBy: shapeByOption, sizeBy: sizeByOption },
       hiddenColorLabels, hiddenShapeLabels, hiddenSizeLabels,
-      goIdFilterList, highlightMode, bmdRefToExperimentNameMap,
+      goIdFilterList, highlightMode,
+      bmdRefToExperimentNameMap, // <<< Pass the map
       selectedGoIdsSet, referenceDataMap, clusterColorMap,
-      bmdRefShapeMap, bmdRefColorMap, committedRankSliderValue
+      bmdRefShapeMap, bmdRefColorMap,
+      committedRankSliderValue // Pass the rank window [start_rank, end_rank]
     );
   }, [
-    canProcess, baseGroupedData, referenceDataMap, clusterColorMap,
-    bmdRefShapeMap, bmdRefColorMap, bmdRefToExperimentNameMap, colorByOption, shapeByOption,
+    canProcess, rankedBaseGroupedData, referenceDataMap, clusterColorMap,
+    bmdRefShapeMap, bmdRefColorMap,
+    bmdRefToExperimentNameMap, // <<< ADDED AS DEPENDENCY
+    colorByOption, shapeByOption,
     sizeByOption, hiddenColorLabels, hiddenShapeLabels, hiddenSizeLabels,
     goIdFilterList, highlightMode, selectedGoIdsSet, committedRankSliderValue,
-  ]);
+  ]); // <<< Ensure bmdRefToExperimentNameMap is in the dependency array
 
   // Derive Legend Items and Filter Plot Points
   const finalPlotDataAndLegends = useMemo((): PreparedPlotHookData => {
     const logPrefix = `${hookLogPrefix} [Memo Legends & Filtering]`;
+    const defaultReturn: PreparedPlotHookData = {
+      analysisPoints: null,
+      allStyledPoints: null,
+      styledGroupedData: null,
+      colorItems: [],
+      shapeItems: [],
+      sizeItems: [],
+      minRank: 1,
+      maxRank: 100,
+    };
+
     if (!allStyledGroupedData) {
-      return { analysisPoints: null, styledGroupedData: null, colorItems: [], shapeItems: [], sizeItems: [] };
+      // Return defaults but use the calculated min/max rank if available
+      return { ...defaultReturn, minRank: minRank || 1, maxRank: maxRank || 100 };
     }
+
     const flattenedStyledPoints: UmapAnalysisDataPoint[] = [];
     allStyledGroupedData.forEach(pointsArray => flattenedStyledPoints.push(...pointsArray));
 
-    // --- Call the UPDATED deriveLegendItemsInternal ---
+    // Derive legends from ALL styled points (before opacity filter)
     const { colorItems, shapeItems, sizeItems } = deriveLegendItemsInternal(
       flattenedStyledPoints, colorByOption, shapeByOption, sizeByOption, bmdRefToExperimentNameMap
     );
-    // -------------------------------------------------
 
+    // Filter points based on finalOpacity for the actual plot
     const analysisPointsForPlot = flattenedStyledPoints.filter(
       point => point.finalOpacity !== HIDDEN_OPACITY
     );
+
     return {
-      analysisPoints: analysisPointsForPlot,
-      styledGroupedData: allStyledGroupedData,
-      colorItems: colorItems, // Use the correctly sorted items
+      analysisPoints: analysisPointsForPlot, // Points visible on plot
+      allStyledPoints: flattenedStyledPoints, // All points after styling
+      styledGroupedData: allStyledGroupedData, // Grouped version of all styled points
+      colorItems: colorItems,
       shapeItems: shapeItems,
       sizeItems: sizeItems,
+      minRank: minRank, // Return calculated min/max rank (1 and N)
+      maxRank: maxRank,
     };
-  }, [allStyledGroupedData, colorByOption, shapeByOption, sizeByOption, bmdRefToExperimentNameMap]);
+  }, [allStyledGroupedData, colorByOption, shapeByOption, sizeByOption, bmdRefToExperimentNameMap, minRank, maxRank]);
 
   // --- Final Return ---
   return finalPlotDataAndLegends;

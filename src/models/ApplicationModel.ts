@@ -27,13 +27,17 @@ import type { ReferenceUmapItem } from '../data/referenceUmapData'; // Adjust pa
  * These represent the core data attributes associated with an enriched category.
  */
 type AnalysisPoint_FromCategory = {
-  go_id: string; // From CategoryAnalysisItem['categoryIdentifier']['id']
-  go_term: string; // From CategoryAnalysisItem['categoryIdentifier']['title']
-  direction?: string | null; // From CategoryAnalysisItem['overallDirection']
-  percentage?: number | null; // From CategoryAnalysisItem['percentage']
-  bmdFifthPercentileTotalGenes?: number | null; // From CategoryAnalysisItem['bmdFifthPercentileTotalGenes'] (used for ranking/accumulation)
-  geneAllCount?: number | null; // Example from CategoryAnalysisItem
-  genesThatPassedAllFilters?: number | null; // Example from CategoryAnalysisItem
+  go_id: string;
+  go_term: string;
+  direction?: string | null;
+  percentage?: number | null;
+  bmdFifthPercentileTotalGenes?: number | null;
+  geneAllCount?: number | null;
+  genesThatPassedAllFilters?: number | null;
+  rankValue?: number | null; // The value used for sorting/ranking
+  // --- ADD rank ---
+  rank?: number | null; // The calculated rank (1 to N)
+  // --------------
 };
 
 /**
@@ -133,14 +137,14 @@ export interface BMDAnalysisHookData {
 
 /** Return type for the usePreparedPlotData hook. */
 export interface PreparedPlotHookData {
-  // Grouped data, keyed by BMD Result Ref (as string for Map keys)
   styledGroupedData: Map<string, UmapAnalysisDataPoint[]> | null;
-  // Flattened array of all styled points for direct use in plots/tables
-  analysisPoints: UmapAnalysisDataPoint[] | null;
-  // Derived legend items
+  analysisPoints: UmapAnalysisDataPoint[] | null; // Points filtered by opacity
+  allStyledPoints: UmapAnalysisDataPoint[] | null; // All points after styling, before opacity filter
   colorItems: [string, string][];
   shapeItems: [string, string][];
   sizeItems: [string, number][];
+  minRank: number; // Will be 1
+  maxRank: number; // Will be N (total ranked points)
 }
 
 // --- (Optional) Discriminated Union for Different Analysis Result Types ---

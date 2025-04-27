@@ -234,7 +234,7 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
             (showSize && sizeItems.length === 0)) {
             // Optionally return null or a placeholder message
             return (
-                <Card size="small" title={cardTitle} bodyStyle={{ padding: '10px', maxHeight: '500px', overflowY: 'auto' }}>
+                <Card size="small" title={cardTitle} styles={{ body: { padding: '10px', maxHeight: '500px', overflowY: 'auto'} }}>
                     <Text type="secondary">No legend items to display.</Text>
                 </Card>
             );
@@ -242,7 +242,7 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
 
 
         return (
-            <Card size="small" title={cardTitle} bodyStyle={{ padding: '10px', maxHeight: '500px', overflowY: 'auto' }}>
+            <Card size="small" title={cardTitle} styles={{ body: { padding: '10px', maxHeight: '500px', overflowY: 'auto'} }}>
                 {renderColorItems()}
                 {renderShapeItems()}
                 {renderSizeItems()}

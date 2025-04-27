@@ -1,0 +1,7 @@
+/* src/components/SlidingWindow.css */
+
+/* Target the inner input element within the InputNumber
+   that has our custom class */
+.sliding-window-width-input .ant-input-number-input {
+    text-align: right;
+}

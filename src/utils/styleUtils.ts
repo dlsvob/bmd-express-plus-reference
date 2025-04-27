@@ -7,10 +7,9 @@
 
 import { HighlightMode } from '../store/slices/analysisUISlice'; // Adjust path if needed
 import type {
-  BaseCategoryAnalysisDataPoint,
+  BaseCategoryAnalysisDataPoint, // Now includes rank? : number | null
   UmapAnalysisDataPoint,
 } from '../models/applicationModel'; // Adjust path if needed
-// --- Import UNCLUSTERED_COLOR ---
 import {
   DEFAULT_MARKER_COLOR,
   DEFAULT_MARKER_SHAPE,
@@ -23,20 +22,17 @@ import {
   getDirectionLegendName,
   DEFAULT_SHAPE_LABEL,
   DEFAULT_SIZE_LABEL,
-  UNCLUSTERED_COLOR, // <<< IMPORTED
+  UNCLUSTERED_COLOR,
 } from './legendUtils'; // Adjust path if needed
-// -----------------------------
 import type { ReferenceUmapItem } from '../data/referenceUmapData'; // Adjust path if needed
 
 // Define input/output Map types
 type BaseGroupedData = Map<string, BaseCategoryAnalysisDataPoint[]>;
 type StyledUmapGroupedData = Map<string, UmapAnalysisDataPoint[]>;
 
-// --- EXPORT Opacity Constants ---
 export const VISIBLE_OPACITY = 0.9;
 export const HIDDEN_OPACITY = 0.0;
 export const DIM_OPACITY = 0.4;
-// --------------------------------
 
 // --- Helper Functions ---
 function getBinnedSize(percentage: number | null | undefined): number {
@@ -50,7 +46,7 @@ function getBinnedSize(percentage: number | null | undefined): number {
 }
 function getDirectionShape(direction: string | null | undefined): string {
   const key = direction?.toLowerCase() ?? 'none';
-  return DIRECTION_SHAPE_MAP[key] || DEFAULT_MARKER_SHAPE; // Fallback to default shape
+  return DIRECTION_SHAPE_MAP[key] || DEFAULT_MARKER_SHAPE;
 }
 function getDirectionColor(direction: string | null | undefined): string {
   const key = direction?.toLowerCase() ?? 'none';
@@ -58,9 +54,10 @@ function getDirectionColor(direction: string | null | undefined): string {
 }
 // ------------------------------------
 
-// --- Main Styling Function ---
+// --- Main Styling Function (Updated for rank property) ---
 export function calculateOverlayStyles(
-  baseGroupedData: BaseGroupedData | null,
+  // Expects data points to potentially have the 'rank' property calculated
+  rankedBaseGroupedData: Map<string, BaseCategoryAnalysisDataPoint[]> | null,
   stylingOptions: { colorBy: string; shapeBy: string; sizeBy: string },
   hiddenColorLabels: Set<string>,
   hiddenShapeLabels: Set<string>,
@@ -73,11 +70,11 @@ export function calculateOverlayStyles(
   clusterColorMap: Map<string | number, string>,
   bmdRefShapeMap: Map<number, string>,
   bmdRefColorMap: Map<number, string>,
-  committedRankSliderValue: [number, number]
+  committedRankWindow: [number, number] // This is [start_rank, end_rank]
 ): StyledUmapGroupedData | null {
-  const styleLogPrefix = '[StyleUtils v13 - Unclustered Color]'; // Version Bump
+  const styleLogPrefix = '[StyleUtils v15 - Rank Property Filter]'; // Version Bump
 
-  if (!baseGroupedData || baseGroupedData.size === 0 || !referenceMap) {
+  if (!rankedBaseGroupedData || rankedBaseGroupedData.size === 0 || !referenceMap) {
     return null;
   }
 
@@ -85,9 +82,16 @@ export function calculateOverlayStyles(
   const hiddenShapeSet = hiddenShapeLabels;
   const hiddenSizeSet = hiddenSizeLabels;
 
+  // --- Destructure committed rank window ---
+  const [startRank, endRank] = committedRankWindow;
+  // Check if the range is valid (min <= max and both are finite, start >= 1)
+  const isRankFilterActive = isFinite(startRank) && isFinite(endRank) && startRank <= endRank && startRank >= 1;
+  // ----------------------------------------
+
   const styledGroupedData = new Map<string, UmapAnalysisDataPoint[]>();
   let pointsProcessed = 0;
   let pointsSkippedMissingRef = 0;
+  let pointsSkippedByRank = 0;
   let pointsOutput = 0;
   const failedKeysSample = new Set<string>();
 
@@ -104,7 +108,7 @@ export function calculateOverlayStyles(
     });
   }
 
-  baseGroupedData.forEach((basePoints, refStringKey) => {
+  rankedBaseGroupedData.forEach((basePoints, refStringKey) => {
     const styledPoints = basePoints
       .map((basePoint) => {
         pointsProcessed++;
@@ -122,6 +126,19 @@ export function calculateOverlayStyles(
           return null;
         }
 
+        // --- Rank Filtering based on point.rank ---
+        const currentRank = basePoint.rank; // Use the pre-calculated rank
+        const isOutsideRankRange = isRankFilterActive && (
+          currentRank == null || // Treat null/undefined rank as outside
+          currentRank < startRank ||
+          currentRank > endRank
+        );
+
+        if (isOutsideRankRange) {
+          pointsSkippedByRank++;
+        }
+        // ------------------------------------------
+
         const { colorBy, shapeBy, sizeBy } = stylingOptions;
         const experimentNameForLabel =
           bmdRefToExperimentNameMap?.get(basePoint.bmdResultRef) ||
@@ -134,26 +151,18 @@ export function calculateOverlayStyles(
         switch (colorBy) {
           case 'cluster_id':
             const clusterId = refDataItem.cluster_id;
-            // --- Explicitly check for -1 ---
             if (clusterId === -1 || clusterId === '-1') {
-              baseFinalColor = UNCLUSTERED_COLOR; // Assign specific gray
-              colorLabel = `Unclustered`; // Or "Cluster -1" if preferred
+              baseFinalColor = UNCLUSTERED_COLOR;
+              colorLabel = `Unclustered`;
             } else if (clusterId != null) {
-              // Only lookup if ID is valid and not -1
               const clusterIdKey = String(clusterId);
               const lookedUpColor = clusterColorMap.get(clusterIdKey);
-              baseFinalColor = lookedUpColor || DEFAULT_MARKER_COLOR; // Fallback if lookup fails unexpectedly
+              baseFinalColor = lookedUpColor || DEFAULT_MARKER_COLOR;
               colorLabel = `Cluster ${clusterId}`;
-              if (!lookedUpColor) {
-                console.warn(`${styleLogPrefix} Cluster ID '${clusterIdKey}' (from point GO:${basePoint.go_id}) not found in clusterColorMap (size: ${clusterColorMap.size}). Using default color.`);
-              }
             } else {
-              // Handle null/undefined cluster IDs if they occur
-              console.warn(`${styleLogPrefix} Point GO:${basePoint.go_id} has null/undefined cluster ID. Using default color.`);
               baseFinalColor = DEFAULT_MARKER_COLOR;
               colorLabel = `Unknown Cluster`;
             }
-            // ---------------------------------
             break;
           case 'direction':
             baseFinalColor = getDirectionColor(basePoint.direction);
@@ -164,9 +173,6 @@ export function calculateOverlayStyles(
           case 'bmdResultName':
             baseFinalColor = bmdRefColorMap.get(numericBmdRef) || DEFAULT_MARKER_COLOR;
             colorLabel = experimentNameForLabel;
-            if (!bmdRefColorMap.has(numericBmdRef)) {
-              // console.warn(`${styleLogPrefix} BMD Ref ${numericBmdRef} not found in bmdRefColorMap. Using default.`);
-            }
             break;
           default:
             baseFinalColor = DEFAULT_MARKER_COLOR;
@@ -174,7 +180,7 @@ export function calculateOverlayStyles(
             break;
         }
 
-        // Shape Calculation
+        // --- Shape Calculation ---
         let baseFinalShape = DEFAULT_MARKER_SHAPE;
         let shapeLabel = DEFAULT_SHAPE_LABEL;
         switch (shapeBy) {
@@ -194,7 +200,7 @@ export function calculateOverlayStyles(
             break;
         }
 
-        // Size Calculation
+        // --- Size Calculation ---
         let baseFinalSize = DEFAULT_MARKER_SIZE;
         let sizeLabel = DEFAULT_SIZE_LABEL;
         switch (sizeBy) {
@@ -210,16 +216,22 @@ export function calculateOverlayStyles(
             break;
         }
 
-        // Opacity/Highlighting
+        // --- Opacity/Highlighting (Uses isOutsideRankRange) ---
         const isHiddenByLegend =
           hiddenColorSet.has(colorLabel) ||
           hiddenShapeSet.has(shapeLabel) ||
           hiddenSizeSet.has(sizeLabel);
 
         let finalSize = baseFinalSize;
-        let finalOpacity = isHiddenByLegend ? HIDDEN_OPACITY : VISIBLE_OPACITY;
+        let finalOpacity = VISIBLE_OPACITY; // Start assuming visible
 
-        if (!isHiddenByLegend) {
+        // Apply filters sequentially: Rank -> Legend -> Highlighting
+        if (isOutsideRankRange) {
+          finalOpacity = HIDDEN_OPACITY; // Hide if outside rank range
+        } else if (isHiddenByLegend) {
+          finalOpacity = HIDDEN_OPACITY; // Hide if toggled off in legend
+        } else {
+          // Only apply highlighting logic if the point is potentially visible
           const currentGoIdUpper = lookupKey;
           const isExactMatch =
             currentGoIdUpper && exactMatchGoIds.has(currentGoIdUpper);
@@ -253,9 +265,9 @@ export function calculateOverlayStyles(
               }
             }
           }
-        } else {
-          finalOpacity = HIDDEN_OPACITY;
+          // If no highlighting applies, finalOpacity remains VISIBLE_OPACITY
         }
+        // --- End Opacity Logic ---
 
         pointsOutput++;
         const styledPoint: UmapAnalysisDataPoint = {
@@ -266,10 +278,11 @@ export function calculateOverlayStyles(
           finalColor: baseFinalColor,
           finalShape: baseFinalShape,
           finalSize: finalSize,
-          finalOpacity: finalOpacity,
+          finalOpacity: finalOpacity, // Use the calculated finalOpacity
           colorLabel,
           shapeLabel,
           sizeLabel,
+          // rank property is already on basePoint if added correctly
         };
         return styledPoint;
       })
@@ -279,9 +292,12 @@ export function calculateOverlayStyles(
   });
 
   if (pointsSkippedMissingRef > 0) {
-    // console.warn(...)
+    console.warn(`${styleLogPrefix} Skipped ${pointsSkippedMissingRef} points due to missing reference data. Sample failed keys:`, Array.from(failedKeysSample));
   }
-  // console.log(...)
+  // if (pointsSkippedByRank > 0) { // Keep logs minimal
+  //   console.log(`${styleLogPrefix} Skipped ${pointsSkippedByRank} points due to rank filter [${startRank}-${endRank}].`);
+  // }
+  // console.log(`${styleLogPrefix} Processed ${pointsProcessed} points, output ${pointsOutput} styled points.`); // Keep logs minimal
 
   return styledGroupedData;
 }
