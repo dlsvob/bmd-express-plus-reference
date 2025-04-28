@@ -5,6 +5,8 @@ import { PyodideInterface } from 'pyodide'; // Assuming types are available
 // @ts-ignore - Assuming Vite handles this import type
 import categoryClusteringCode from '../py/categoryClustering.py?raw';
 
+console.log('[pyodideContextInitializer.ts] File loaded, starting execution...'); 
+
 // --- Helper Functions ---
 
 // Helper for delayed promise

@@ -5035,10 +5035,12 @@ const ShapeSizeLegend: React.FC = () => (
     </Card>
 );
 export default ShapeSizeLegend;// src/components/analysis/GOUmapAnalysisUnit.tsx
-// Corrected version integrating GoIdFilterUI and AccumulationPlot
+// Integrates GOUmapAnalysisTable, manages its state (sorting), handles row clicks.
+// Includes loading/error checks and passes all necessary props.
 
-import React, { useCallback, useMemo } from 'react'; // Removed useMemo, useEffect if not needed directly
-import { Row, Col, Spin, Alert, Space, RadioChangeEvent } from 'antd'; // Added RadioChangeEvent
+import React, { useCallback, useMemo, useState } from 'react';
+import { Row, Col, Spin, Alert, Space, RadioChangeEvent } from 'antd';
+import type { TableProps } from 'antd';
 import UmapPlotComponent from './UmapPlotComponent';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import {
@@ -5047,6 +5049,7 @@ import {
 } from '../../hooks/usePreparedPlotData'; // Adjust path if needed
 import {
     UmapAnalysisDataPoint,
+    AnalysisTableRow,
     BMDResult,
 } from '../../models/applicationModel'; // Adjust path
 import { ReferenceUmapItem } from '../../data/referenceUmapData'; // Adjust path
@@ -5056,21 +5059,20 @@ import {
     selectReferenceData,
 } from '../../store/selectors/referenceDataSelector';
 import {
-    HighlightMode, // Import Enum
+    HighlightMode,
     selectColorBy,
     selectShapeBy,
     selectSizeBy,
     selectHiddenColorLabels,
     selectHiddenShapeLabels,
     selectHiddenSizeLabels,
-    selectHiddenColorLabelsSet,
-    selectHiddenShapeLabelsSet,
-    selectHiddenSizeLabelsSet,
-    selectGoIdFilterList,
     selectHighlightMode,
-    selectAccumulationPlotSelectedGoIdsSet,
     selectCommittedSlidingWindowValue,
-    selectGoIdInputString, // Selector for input value
+    selectGoIdInputString,
+    selectGoIdFilterList,
+    selectAccumulationPlotSelectedGoIdsSet,
+    selectTableSelectedGoId, // Import selector for table selection
+    // Actions
     setCommittedRankSliderValue,
     setColorBy,
     setShapeBy,
@@ -5078,61 +5080,49 @@ import {
     toggleColorLabelVisibility,
     toggleShapeLabelVisibility,
     toggleSizeLabelVisibility,
-    setGoIdInputString, // Action for input value
-    setHighlightMode as setHighlightModeAction, // Action for highlight mode (aliased)
+    setGoIdInputString,
+    setHighlightMode as setHighlightModeAction,
+    setTableSelectedGoId, // Import action for table selection
 } from '../../store/slices/analysisUISlice'; // Adjust path if needed
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
-// Keep BMDResult type import if needed elsewhere, maybe bmdResultMap key type
-// import { BMDResult } from '../../models/BMDxExported';
 import { useGetRawAnalysisDataQuery } from '../../store/apis/experimentsApi';
 
-// --- Import Placeholders (Keep only needed ones) ---
-import AnalysisDataTable from './placeholders/AnalysisDataTable'; // Keep placeholder for now
-// --- Import the REAL Components ---
+// --- Import Table Component and Column Definitions ---
+import { GOUmapAnalysisTable } from '../GOUmapAnalysisTable'; // Adjust path if needed
+import { DEFAULT_GOUMAP_TABLE_COLUMNS } from '../../config/tableColumnDefinitions'; // Adjust path
+import type {
+    TablePaginationConfig,
+    TableColumnType,
+    SorterResult,
+    FilterValue,
+} from 'antd/es/table/interface'; // Import specific AntD table types
+// ----------------------------------------------------
+
+// --- Import Child Components ---
 import CustomLegends from './CustomLegends'; // Adjusted path
 import StylingSelectors from '../StylingSelectors'; // Adjusted path
 import SlidingWindowFilter from '../SlidingWindowFilter'; // Adjusted path
 import AccumulationPlot from './AccumulationPlot'; // Use the functional component
-import GoIdFilterUI from '../../components/GOUIdFilterUI'; // Use the functional component
-// ---------------------------------------------
+import GoIdFilterUI from '../GOUIdFilterUI'; // Use the functional component (Adjusted path)
+// -----------------------------
 import {
     COLOR_BY_OPTIONS,
     SHAPE_BY_OPTIONS,
     SIZE_BY_OPTIONS,
 } from '../../config/analysisConstants'; // Adjust path if needed
 
-// --- Define Props Interface (from parent App.tsx) ---
-// This component now gets most of its state via selectors
-// Props might be minimal if App.tsx doesn't need to pass much down anymore
-interface GOUmapAnalysisUnitProps {
-    // Potentially add props if App.tsx needs to pass specific things
-    // For now, assuming it gets project context implicitly via selectors
-}
+// --- Props Interface (if needed) ---
+interface GOUmapAnalysisUnitProps { }
 
-// --- Border Colors & Helper (Keep as is) ---
-const BORDER_COLORS = {
-    level1: 'rgba(255, 0, 0, 0.3)',
-    level2: 'rgba(0, 0, 255, 0.3)',
-    level3: 'rgba(0, 128, 0, 0.3)',
-    level4: 'rgba(255, 165, 0, 0.3)',
-    level5: 'rgba(128, 0, 128, 0.3)',
-    level6: 'rgba(255, 192, 203, 0.5)',
-    level7: 'rgba(0, 255, 255, 0.4)',
-};
-const borderStyle = () => ({
-    // border: `${level}px solid ${color}`,
-});
-// ------------------------------------------
+// --- Border Colors & Helper (Unchanged) ---
+const borderStyle = () => ({});
 
-const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
-    {
-        /* Destructure any props if added */
-    }
-) => {
+// --- GOUmapAnalysisUnit Component ---
+const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
     const dispatch = useAppDispatch();
 
-    // --- Selectors ---
-    const projectName = useAppSelector(selectSelectedProjectName); // Needed for query
+    // --- Selectors needed by THIS component or its direct children ---
+    const projectName = useAppSelector(selectSelectedProjectName);
     const selectedBmdResultRefs = useAppSelector(selectSelectedAnalysisRefs);
     const colorByOption = useAppSelector(selectColorBy);
     const shapeByOption = useAppSelector(selectShapeBy);
@@ -5140,18 +5130,31 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
     const hiddenColorLabelsArray = useAppSelector(selectHiddenColorLabels);
     const hiddenShapeLabelsArray = useAppSelector(selectHiddenShapeLabels);
     const hiddenSizeLabelsArray = useAppSelector(selectHiddenSizeLabels);
-    const hiddenColorLabelsSet = useAppSelector(selectHiddenColorLabelsSet);
-    const hiddenShapeLabelsSet = useAppSelector(selectHiddenShapeLabelsSet);
-    const hiddenSizeLabelsSet = useAppSelector(selectHiddenSizeLabelsSet);
-    const goIdFilterList = useAppSelector(selectGoIdFilterList); // Needed by usePreparedPlotData
-    const highlightMode = useAppSelector(selectHighlightMode); // Needed by usePreparedPlotData & GoIdFilterUI
-    const selectedGoIdsSet = useAppSelector(
+    const highlightMode = useAppSelector(selectHighlightMode);
+    const committedRankValue = useAppSelector(selectCommittedSlidingWindowValue);
+    const referenceData = useAppSelector(selectReferenceData);
+    const referenceDataMap = useAppSelector(selectReferenceDataMap);
+    const goIdInputString = useAppSelector(selectGoIdInputString);
+    const goIdFilterList = useAppSelector(selectGoIdFilterList);
+    const selectedAccumGoIdsSet = useAppSelector(
         selectAccumulationPlotSelectedGoIdsSet
-    ); // Needed by usePreparedPlotData
-    const committedRankValue = useAppSelector(selectCommittedSlidingWindowValue); // Needed by usePreparedPlotData & SlidingWindowFilter
-    const referenceData = useAppSelector(selectReferenceData); // Needed by usePreparedPlotData & UmapPlotComponent
-    const referenceDataMap = useAppSelector(selectReferenceDataMap); // Needed by usePreparedPlotData
-    const goIdInputString = useAppSelector(selectGoIdInputString); // Needed by GoIdFilterUI
+    );
+    const currentTableSelectedGoId = useAppSelector(selectTableSelectedGoId);
+
+    // --- State for Controlled Table ---
+    const [tableSorter, setTableSorter] = useState<
+        SorterResult<AnalysisTableRow> | SorterResult<AnalysisTableRow>[]
+    >({});
+    const [tablePagination, setTablePagination] = useState<TablePaginationConfig>(
+        {
+            current: 1,
+            pageSize: 50,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100', '500'],
+            position: ['bottomRight'],
+        }
+    );
+    // ---------------------------------
 
     // --- Data Fetching ---
     const {
@@ -5169,7 +5172,7 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
         }
     );
 
-    const isLoading = isLoadingRaw; // Combine loading states if more sources are added
+    const isLoading = isLoadingRaw;
     const queryError = rawError;
     const hasSelection = selectedBmdResultRefs && selectedBmdResultRefs.length > 0;
 
@@ -5200,10 +5203,10 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
         };
     }, [rawSuccess, rawData]);
 
-    // === Prepare Plot Data ===
+    // === Prepare Plot Data (Hook selects UI state internally) ===
     const {
-        analysisPoints,
-        allStyledPoints,
+        analysisPoints, // Filtered for plot
+        allStyledPoints, // All points after styling - USE THIS FOR TABLE
         colorItems,
         shapeItems,
         sizeItems,
@@ -5213,17 +5216,52 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
         selectedBmdResultRefs: selectedBmdResultRefs || [],
         referenceDataMap: referenceDataMap,
         referenceData: referenceData,
-        colorByOption,
-        shapeByOption,
-        sizeByOption,
-        hiddenColorLabels: hiddenColorLabelsSet,
-        hiddenShapeLabels: hiddenShapeLabelsSet,
-        hiddenSizeLabels: hiddenSizeLabelsSet,
-        goIdFilterList, // Pass the list derived from input string
-        highlightMode,
-        selectedGoIdsSet,
-        committedRankSliderValue: committedRankValue,
-    }) as PreparedPlotHookData;
+    });
+
+    // --- Create Highlight GO ID Set ---
+    const highlightGoIdsSet = useMemo(
+        () => new Set(goIdFilterList),
+        [goIdFilterList]
+    );
+
+    // --- Prepare Data Source for Table (Sort based on tableSorter state) ---
+    const tableDataSource = useMemo(() => {
+        const points = allStyledPoints || [];
+        if (!tableSorter || !('field' in tableSorter) || !tableSorter.order) {
+            return points; // No sorting needed
+        }
+        const { field, order } = tableSorter;
+        const sorterFn = DEFAULT_GOUMAP_TABLE_COLUMNS.find(
+            (col) => col.key === field
+        )?.sorter;
+        if (typeof sorterFn !== 'function') {
+            return points; // Column or sorter not found
+        }
+        const sortedPoints = [...points].sort((a, b) => {
+            const result = sorterFn(a, b, order);
+            return order === 'descend' ? -result : result;
+        });
+        return sortedPoints;
+    }, [allStyledPoints, tableSorter]);
+
+    // --- Prepare Columns for Table (Add sortOrder dynamically) ---
+    const tableColumns = useMemo(() => {
+        return DEFAULT_GOUMAP_TABLE_COLUMNS.map((col) => {
+            if (!col.key) return col;
+            let currentSortOrder: SorterResult<AnalysisTableRow>['order'] = false;
+            if (
+                tableSorter &&
+                'field' in tableSorter &&
+                tableSorter.field === col.key
+            ) {
+                currentSortOrder = tableSorter.order || false;
+            }
+            return {
+                ...col,
+                sortOrder: currentSortOrder,
+            };
+        });
+    }, [tableSorter]);
 
     // --- Define Callbacks ---
     const handleToggleColorVisibility = useCallback(
@@ -5268,7 +5306,6 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
         },
         [dispatch]
     );
-    // --- Callbacks for GoIdFilterUI ---
     const handleGoIdInputChange = useCallback(
         (e: React.ChangeEvent<HTMLTextAreaElement>) => {
             dispatch(setGoIdInputString(e.target.value));
@@ -5281,12 +5318,38 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
             if (Object.values(HighlightMode).includes(mode)) {
                 dispatch(setHighlightModeAction(mode));
             } else {
+                console.warn('Invalid highlight mode selected:', mode);
                 dispatch(setHighlightModeAction(HighlightMode.NONE));
             }
         },
         [dispatch]
     );
-    // ---------------------------------
+    const handleTableChange = useCallback(
+        (
+            pagination: TablePaginationConfig,
+            filters: Record<string, FilterValue | null>,
+            sorter: SorterResult<AnalysisTableRow> | SorterResult<AnalysisTableRow>[],
+            extra: { currentDataSource: AnalysisTableRow[]; action: string }
+        ) => {
+            console.log('[GOUmapAnalysisUnit] handleTableChange:', { pagination, filters, sorter, action: extra.action });
+            setTablePagination(pagination);
+            setTableSorter(sorter);
+        },
+        []
+    );
+    const handleTableRowClick = useCallback(
+        (record: AnalysisTableRow) => {
+            const clickedGoId = record?.go_id;
+            console.log('[GOUmapAnalysisUnit] Row clicked:', clickedGoId);
+            if (clickedGoId && clickedGoId === currentTableSelectedGoId) {
+                dispatch(setTableSelectedGoId(null));
+            } else {
+                dispatch(setTableSelectedGoId(clickedGoId || null));
+            }
+        },
+        [dispatch, currentTableSelectedGoId]
+    );
+    // --------------------------------------
 
     // === Render Logic Checks ===
     if (isLoading) {
@@ -5297,16 +5360,26 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
         );
     }
     if (queryError) {
+        const errorMessage =
+            typeof queryError === 'object' && queryError !== null && 'message' in queryError
+                ? String(queryError.message)
+                : String(queryError);
         return (
             <Alert
                 message="Error Loading Data"
-                description={String(queryError)}
+                description={errorMessage}
                 type="error"
                 showIcon
             />
         );
     }
-    // No need to check for project selection here, as App.tsx handles that
+
+    // --- Log Check Before Render ---
+    console.log('[GOUmapAnalysisUnit Prop Check]', {
+        handleToggleColorVisibility_Type: typeof handleToggleColorVisibility,
+        handleToggleShapeVisibility_Type: typeof handleToggleShapeVisibility,
+        handleToggleSizeVisibility_Type: typeof handleToggleSizeVisibility,
+    });
 
     // --- Render Layout ---
     return (
@@ -5316,7 +5389,6 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                 <div style={borderStyle()}>
                     <Row gutter={[16, 16]}>
                         <Col span={24}>
-                            {/* --- Use functional GoIdFilterUI --- */}
                             <GoIdFilterUI
                                 goIdInputString={goIdInputString}
                                 highlightMode={highlightMode}
@@ -5364,45 +5436,41 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                                 cardTitle="Color"
                                 colorItems={colorItems}
                                 hiddenColorLabels={hiddenColorLabelsArray}
-                                onToggleColorVisibility={handleToggleColorVisibility}
+                                onToggleColorVisibility={handleToggleColorVisibility} // Pass the function
+                                onToggleShapeVisibility={handleToggleShapeVisibility} // Pass the function
+                                onToggleSizeVisibility={handleToggleSizeVisibility}   // Pass the function
                                 showColor={true}
-                                onToggleShapeVisibility={handleToggleShapeVisibility}
-                                onToggleSizeVisibility={handleToggleSizeVisibility}
+                                showShape={false} // Explicitly false for this instance
+                                showSize={false}  // Explicitly false for this instance
                             />
                         </Col>
                         {/* Main Content Area */}
                         <Col flex="auto" style={borderStyle()}>
-                            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                            <Space
+                                direction="vertical"
+                                size="middle"
+                                style={{ width: '100%' }}
+                            >
                                 {/* Accumulation Plots Section */}
                                 <div style={borderStyle()}>
                                     <Row gutter={[16, 16]}>
                                         {selectedBmdResultRefs?.map((refStr) => {
                                             const numericRef = Number(refStr);
                                             if (isNaN(numericRef)) return null;
-
                                             const bmdInfo = bmdResultMap.get(numericRef);
                                             const analysisNameForPlot =
                                                 bmdInfo?.name || `Analysis ${numericRef}`;
-
                                             const pointsForThisAccumPlot = allStyledPoints
                                                 ? allStyledPoints.filter(
-                                                    (p: UmapAnalysisDataPoint) =>
-                                                        p.bmdResultRef === numericRef
+                                                    (p) => p.bmdResultRef === numericRef
                                                 )
                                                 : null;
-
-                                            console.log(
-                                                `[GOUmapAnalysisUnit] Preparing AccumPlot ${analysisNameForPlot}. Found ${pointsForThisAccumPlot?.length ?? 0
-                                                } points.`
-                                            );
-
                                             return (
                                                 <Col key={refStr} xs={24} sm={12} md={8} lg={6}>
                                                     <AccumulationPlot
                                                         analysisName={analysisNameForPlot}
                                                         styledPointsForPlot={pointsForThisAccumPlot}
                                                         bmdResultRef={numericRef}
-                                                    // Removed unused props
                                                     />
                                                 </Col>
                                             );
@@ -5412,7 +5480,7 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                                 {/* UMAP Plot Section */}
                                 <div style={borderStyle()}>
                                     <UmapPlotComponent
-                                        data={analysisPoints || []}
+                                        data={analysisPoints}
                                         referenceData={referenceData}
                                     />
                                 </div>
@@ -5426,11 +5494,12 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                                 sizeItems={sizeItems}
                                 hiddenShapeLabels={hiddenShapeLabelsArray}
                                 hiddenSizeLabels={hiddenSizeLabelsArray}
-                                onToggleShapeVisibility={handleToggleShapeVisibility}
-                                onToggleSizeVisibility={handleToggleSizeVisibility}
+                                onToggleColorVisibility={handleToggleColorVisibility} // Pass the function
+                                onToggleShapeVisibility={handleToggleShapeVisibility} // Pass the function
+                                onToggleSizeVisibility={handleToggleSizeVisibility}   // Pass the function
+                                showColor={false} // Explicitly false for this instance
                                 showShape={true}
                                 showSize={true}
-                                onToggleColorVisibility={handleToggleColorVisibility}
                             />
                         </Col>
                     </Row>
@@ -5440,8 +5509,20 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                 <div style={borderStyle()}>
                     <Row>
                         <Col span={24}>
-                            {/* --- TODO: Replace with functional AnalysisDataTable --- */}
-                            <AnalysisDataTable />
+                            <GOUmapAnalysisTable
+                                dataSource={tableDataSource}
+                                columns={tableColumns}
+                                loading={isLoading}
+                                highlightMode={highlightMode}
+                                highlightGoIdsSet={highlightGoIdsSet}
+                                selectedAccumGoIdsSet={selectedAccumGoIdsSet}
+                                size="small"
+                                bordered
+                                scroll={{ y: 400, x: 'max-content' }} // Example scroll
+                                pagination={tablePagination}
+                                onChange={handleTableChange}
+                                onRowClick={handleTableRowClick} // Pass the click handler
+                            />
                         </Col>
                     </Row>
                 </div>
@@ -6183,7 +6264,274 @@ const FilterableTable: React.FC<FilterableTableProps> = ({
     );
 };
 
-export default FilterableTable;// src/components/analysis/GroupFilterControl.tsx
+export default FilterableTable;// src/components/analysis/GOClusteringAnalysisUnit.tsx
+import React, { useMemo } from 'react';
+import { Card, Spin, Alert, Collapse, Table, Empty } from 'antd';
+import { useAppSelector } from '../../store/hooks';
+import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
+import { selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice';
+import { useGetRawAnalysisDataQuery } from '../../store/apis/experimentsApi';
+import {
+    transformDataForClustering, // Utility to format data for Python
+    CategoryRow,
+    SummaryRow,
+    ApiClusteringInputItem,
+} from '../../utils/clusteringUtils'; // Adjust path
+import {
+    usePyodideClustering, // Hook to run clustering
+    PyodideClusteringResult,
+} from '../../hooks/usePyodideClustering'; // Adjust path
+import {
+    useProcessedClusteringData, // Hook to process results
+} from '../../hooks/useProcessedClusteringData'; // Adjust path
+import { BMDResult } from '../../models/applicationModel'; // For title calculation
+
+const { Panel } = Collapse;
+
+// Define the primary color for the border
+const PRIMARY_COLOR = '#1677ff'; // Default Ant Design primary blue
+
+// Helper function (keep as is)
+const getErrorMessage = (error: unknown): string => {
+    if (!error) { return 'An unknown error occurred.'; }
+    if (typeof error === 'string') { return error; }
+    if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
+        return error.message;
+    }
+    try { return JSON.stringify(error); } catch { return 'Could not stringify error object.'; }
+};
+
+interface GOClusteringAnalysisUnitProps {
+    // Add any specific props needed later, e.g., clustering method override
+}
+
+const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => {
+    const logPrefix = '[GOClusteringAnalysisUnit]';
+
+    // --- Selectors ---
+    const projectName = useAppSelector(selectSelectedProjectName);
+    const selectedBmdResultRefs = useAppSelector(selectSelectedAnalysisRefs);
+
+    // --- Data Fetching ---
+    // Fetch raw data needed to prepare input for clustering
+    const {
+        data: rawData,
+        isLoading: isLoadingRaw,
+        error: rawError,
+        isSuccess: rawSuccess,
+    } = useGetRawAnalysisDataQuery(
+        { projectName, selectedBmdResultRefs },
+        { skip: !projectName || !selectedBmdResultRefs || selectedBmdResultRefs.length === 0 }
+    );
+
+    // --- Prepare Data for Clustering ---
+    const { rowDataForClustering, bmdRefToExperimentNameMap } = useMemo(() => {
+        console.log(`${logPrefix} Preparing rowDataForClustering...`);
+        const tempBmdRefToNameMap = new Map<number, string>();
+        let inputItems: ApiClusteringInputItem[] = [];
+
+        if (rawSuccess && rawData?.rawCategoryAnalysisItems && rawData?.rawBmdResults) {
+            // Build name map first
+            rawData.rawBmdResults.forEach(r => {
+                if (r && r['@ref'] != null) {
+                    const numericRef = Number(r['@ref']);
+                    if (!isNaN(numericRef)) {
+                        tempBmdRefToNameMap.set(numericRef, r.name || `BMD Result ${numericRef}`);
+                    }
+                }
+            });
+
+            // Now transform category items
+            // Assuming rawCategoryAnalysisItems is Array<{ bmdResultRef: number | string; item: CategoryAnalysisItem }>
+            // We need to flatten the 'item' part for transformDataForClustering
+            const itemsToTransform = rawData.rawCategoryAnalysisItems.map(entry => entry.item);
+            // The transformDataForClustering expects a slightly different input structure based on its definition.
+            // Let's adapt the input preparation here based on what transformDataForClustering expects.
+            // It expects { value: Partial<CategoryRow> }[]
+
+            // We need to map the raw CategoryAnalysisItem to the structure expected by transformDataForClustering
+            const sourceDataForTransform: { value: Partial<CategoryRow> }[] = itemsToTransform.map(item => ({
+                value: {
+                    // Map fields from CategoryAnalysisItem to CategoryRow keys expected by the util
+                    categoryId: item.categoryIdentifier?.id,
+                    categoryTitle: item.categoryIdentifier?.title,
+                    // Cluster BMD might not be directly available on CategoryAnalysisItem,
+                    // it might need calculation or be sourced differently depending on your exact data model.
+                    // Using a placeholder or null for now. Adjust as needed.
+                    clusterBMD: String(item.bmdFifthPercentileTotalGenes ?? ''), // Example: Using 5th percentile as placeholder
+                    upGenes: item.genesUp ?? '',
+                    downGenes: item.genesDown ?? '',
+                    allGenes: item.geneSymbolsPrivate ?? '', // Assuming this holds all genes; adjust if needed
+                }
+            }));
+
+            inputItems = transformDataForClustering(sourceDataForTransform);
+            console.log(`${logPrefix} Prepared ${inputItems.length} items for clustering.`);
+        } else {
+            console.log(`${logPrefix} Raw data not ready for clustering preparation.`);
+        }
+        return { rowDataForClustering: inputItems, bmdRefToExperimentNameMap: tempBmdRefToNameMap };
+    }, [rawSuccess, rawData]);
+
+    // --- Compute Cluster Count ---
+    const dataLength = rowDataForClustering?.length ?? 0;
+    const computedNumClusters = useMemo(
+        () => Math.max(2, Math.ceil(Math.sqrt(dataLength) / 2)),
+        [dataLength]
+    );
+
+    // --- Call Pyodide Clustering Hook ---
+    // Using 'average' method as default, can be made configurable via props later
+    const {
+        result: pyodideResult,
+        isLoading: isPyodideLoading,
+        error: pyodideError,
+    } = usePyodideClustering(
+        rowDataForClustering, // Pass the prepared data
+        'average', // Default method
+        computedNumClusters
+    );
+
+    // --- Process Clustering Results ---
+    const clustersForProcessingHook = pyodideResult ? [pyodideResult] : null;
+    const { categoryTableData, summaryTableData, processingError } =
+        useProcessedClusteringData(
+            clustersForProcessingHook,
+            pyodideError ? getErrorMessage(pyodideError) : null
+        );
+
+    // --- Define Table Columns (Copied from ClusteringDetails) ---
+    const categoryColumns = useMemo(() => { /* ... columns definition ... */
+        return [
+            { title: 'Group Size', dataIndex: 'groupSize', key: 'groupSize', width: 100, sorter: (a: CategoryRow, b: CategoryRow) => { const groupDiff = (a.groupSize ?? 0) - (b.groupSize ?? 0); if (groupDiff !== 0) return groupDiff; const aBMD = parseFloat(a.clusterBMD); const bBMD = parseFloat(b.clusterBMD); return (isNaN(aBMD) ? Infinity : aBMD) - (isNaN(bBMD) ? Infinity : bBMD); }, defaultSortOrder: 'descend' as const, },
+            { title: 'Category ID', dataIndex: 'categoryId', key: 'categoryId', width: 150, sorter: (a: CategoryRow, b: CategoryRow) => a.categoryId.localeCompare(b.categoryId) },
+            { title: 'Category Title', dataIndex: 'categoryTitle', key: 'categoryTitle', sorter: (a: CategoryRow, b: CategoryRow) => a.categoryTitle.localeCompare(b.categoryTitle), ellipsis: true },
+            { title: 'Cluster BMD', dataIndex: 'clusterBMD', key: 'clusterBMD', width: 120, sorter: (a: CategoryRow, b: CategoryRow) => (parseFloat(a.clusterBMD) || Infinity) - (parseFloat(b.clusterBMD) || Infinity), render: (text: string) => parseFloat(text)?.toFixed(4) ?? text },
+            { title: 'Up Genes (Count)', dataIndex: 'upGenesSize', key: 'upGenesSize', width: 100, sorter: (a: CategoryRow, b: CategoryRow) => a.upGenesSize - b.upGenesSize },
+            { title: 'Down Genes (Count)', dataIndex: 'downGenesSize', key: 'downGenesSize', width: 100, sorter: (a: CategoryRow, b: CategoryRow) => a.downGenesSize - b.downGenesSize },
+            { title: 'Cluster', dataIndex: 'cluster', key: 'cluster', width: 80, sorter: (a: CategoryRow, b: CategoryRow) => a.clusterValue - b.clusterValue },
+        ];
+    }, []);
+    const summaryColumns = useMemo(() => { /* ... columns definition ... */
+        return [
+            { title: 'Cluster', dataIndex: 'cluster', key: 'cluster' },
+            { title: 'Min Cluster BMD', dataIndex: 'minClusterBMD', key: 'minClusterBMD', render: (value: number) => isNaN(value) ? 'N/A' : value.toExponential(4) },
+            { title: 'Num Categories', dataIndex: 'numCategoryIDs', key: 'numCategoryIDs' },
+            { title: 'Rank', dataIndex: 'sort', key: 'sort' },
+        ];
+    }, []);
+
+    // --- Calculate Dynamic Card Title ---
+    const cardTitle = useMemo(() => {
+        const baseTitle = "GO Clustering Analysis";
+        if (!selectedBmdResultRefs || selectedBmdResultRefs.length === 0 || bmdRefToExperimentNameMap.size === 0) {
+            return baseTitle;
+        }
+        const names = selectedBmdResultRefs
+            .map(refStr => {
+                const numericRef = Number(refStr);
+                if (isNaN(numericRef)) return null;
+                return bmdRefToExperimentNameMap.get(numericRef) || `Ref ${numericRef}`;
+            })
+            .filter(name => name !== null);
+
+        if (names.length === 0) return baseTitle;
+
+        const maxNamesToShow = 2;
+        let nameString = names.slice(0, maxNamesToShow).join(' || ');
+        if (names.length > maxNamesToShow) {
+            nameString += ` || ${names.length - maxNamesToShow} more`;
+        }
+        return `${baseTitle} - ${nameString}`;
+    }, [selectedBmdResultRefs, bmdRefToExperimentNameMap]);
+
+    // --- Combined Loading/Error State ---
+    const isLoading = isLoadingRaw || isPyodideLoading;
+    const error = rawError || pyodideError || processingError;
+    const hasDataToCluster = rowDataForClustering && rowDataForClustering.length > 0;
+    const hasResults = categoryTableData.length > 0;
+
+    // === Render Logic ===
+    return (
+        <div style={{
+            border: `2px solid ${PRIMARY_COLOR}`,
+            borderRadius: '8px',
+            padding: '1px',
+            marginTop: '24px' // Add margin to separate from other units
+        }}>
+            <Card title={cardTitle} bordered={false}>
+                {/* Loading Indicator */}
+                {isLoading && (
+                    <div style={{ padding: '1rem', textAlign: 'center' }}>
+                        <Spin tip={isLoadingRaw ? "Loading data..." : "Running clustering..."} />
+                    </div>
+                )}
+
+                {/* Error Display */}
+                {!isLoading && error && (
+                    <Alert
+                        message="Clustering Analysis Error"
+                        description={getErrorMessage(error)}
+                        type="error"
+                        showIcon
+                        style={{ marginBottom: '1rem' }}
+                    />
+                )}
+
+                {/* Display Results */}
+                {!isLoading && !error && hasResults && (
+                    <Collapse defaultActiveKey={['cat_details']} accordion>
+                        <Panel
+                            header={`Category Details (${categoryTableData.length} items)`}
+                            key="cat_details"
+                        >
+                            <div style={{ marginTop: '0.5rem' }}>
+                                <Table<CategoryRow> // Explicit type for Table
+                                    dataSource={categoryTableData}
+                                    columns={categoryColumns}
+                                    rowKey="key"
+                                    pagination={{ pageSize: 15, showSizeChanger: true, size: 'small' }}
+                                    size="small"
+                                    scroll={{ x: 1000 }}
+                                />
+                            </div>
+                        </Panel>
+                        {summaryTableData.length > 0 && (
+                            <Panel
+                                header={`Cluster Summary (${summaryTableData.length} clusters)`}
+                                key="cat_summary"
+                            >
+                                <div style={{ marginTop: '0.5rem' }}>
+                                    <Table<SummaryRow> // Explicit type for Table
+                                        dataSource={summaryTableData}
+                                        columns={summaryColumns}
+                                        rowKey="key"
+                                        pagination={false}
+                                        size="small"
+                                    />
+                                </div>
+                            </Panel>
+                        )}
+                    </Collapse>
+                )}
+
+                {/* Empty States */}
+                {!isLoading && !error && !hasResults && pyodideResult && (
+                    <Empty description="No categories found after processing clustering results." />
+                )}
+                {!isLoading && !error && !hasDataToCluster && rawSuccess && ( // Show only if raw data loaded but was empty/filtered out
+                    <Empty description="No suitable data found in selected analyses for clustering." />
+                )}
+                {!isLoading && !error && !hasDataToCluster && !rawSuccess && !rawError && ( // Show if raw data query hasn't run/succeeded yet
+                    <Empty description="Select analyses from 'Experiments' to run clustering." />
+                )}
+            </Card>
+        </div>
+    );
+};
+
+export default GOClusteringAnalysisUnit;
+// src/components/analysis/GroupFilterControl.tsx
 import React from 'react';
 import { Card } from 'antd';
 import type { Experiment } from '../../store/apis/experimentsApi'; // Adjust path if needed
@@ -6526,6 +6874,147 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ projectSelected }) => {
 };
 
 export default AppSidebar;
+// src/components/GOUmapAnalysisTable.tsx
+import React from 'react';
+import { Table } from 'antd';
+import type { TableProps, TableColumnType } from 'antd';
+import { AnalysisTableRow } from '../models/applicationModel'; // Adjust path as needed
+import { HighlightMode } from '../store/slices/analysisUISlice'; // Adjust path as needed
+import { HIDDEN_OPACITY } from '../utils/styleUtils'; // Import HIDDEN_OPACITY
+
+// --- Helper function to convert HEX to RGBA ---
+function hexToRgba(hex: string, alpha: number): string {
+    const validAlpha = Math.max(0, Math.min(1, alpha));
+    if (!hex || typeof hex !== 'string') return `rgba(255, 255, 255, ${validAlpha})`; // Default to white with alpha
+    try {
+        let color = hex.startsWith('#') ? hex.substring(1) : hex;
+        if (color.length === 3) color = color[0] + color[0] + color[1] + color[1] + color[2] + color[2];
+        if (color.length !== 6) return `rgba(255, 255, 255, ${validAlpha})`; // Default if not 6 digits
+        const num = parseInt(color, 16);
+        const r = num >> 16;
+        const g = (num >> 8) & 0x00FF;
+        const b = num & 0x0000FF;
+        return `rgba(${r}, ${g}, ${b}, ${validAlpha})`;
+    } catch (e) {
+        console.error("Error converting hex to rgba:", hex, e);
+        return `rgba(255, 255, 255, ${validAlpha})`; // Default on error
+    }
+}
+
+// --- Constants ---
+const ANTD_CELL_COLOR_DEFAULT = '#FFFFFF'; // Fallback background (solid white)
+const HIGHLIGHT_COLOR_FILTER = '#e6f7ff'; // Light blue for GO ID filter highlight
+const HIGHLIGHT_COLOR_ACCUM = '#fffbe6';  // Light yellow for Accumulation plot highlight
+const HIGHLIGHT_COLOR_BOTH = '#e6fffb';   // Light cyan for both highlights
+const ROW_COLOR_ALPHA = 0.7; // Alpha for base marker color background
+const HIDDEN_ROW_STYLE: React.CSSProperties = {
+    backgroundColor: '#f5f5f5', // Light grey background
+    color: '#bfbfbf', // Dimmed text color
+};
+// --------------------------------
+
+// --- Component Props Interface ---
+interface GOUmapAnalysisTableProps extends Omit<TableProps<AnalysisTableRow>, 'columns' | 'dataSource' | 'onRow' | 'onChange'> {
+    dataSource: AnalysisTableRow[];
+    columns: TableColumnType<AnalysisTableRow>[];
+    loading?: boolean;
+    highlightMode: HighlightMode;
+    highlightGoIdsSet: Set<string>; // GO IDs from the text filter UI
+    selectedAccumGoIdsSet: Set<string>; // GO IDs selected from accumulation plots
+    scroll?: TableProps<AnalysisTableRow>['scroll'];
+    pagination?: TableProps<AnalysisTableRow>['pagination'];
+    size?: TableProps<AnalysisTableRow>['size'];
+    bordered?: boolean;
+    onChange?: TableProps<AnalysisTableRow>['onChange']; // Handler from parent for sort/page/filter
+    onRowClick?: (record: AnalysisTableRow) => void; // Handler from parent for row click
+}
+
+/**
+ * GOUmapAnalysisTable Component (Ant Design)
+ */
+export const GOUmapAnalysisTable: React.FC<GOUmapAnalysisTableProps> = React.memo(
+    function GOUmapAnalysisTable({
+        dataSource,
+        columns,
+        loading,
+        highlightMode,
+        highlightGoIdsSet,
+        selectedAccumGoIdsSet,
+        scroll,
+        pagination,
+        size,
+        bordered,
+        onChange,
+        onRowClick, // Destructure the row click handler
+        ...restTableProps
+    }) {
+
+        // --- Implement onRow to set background color AND attach onClick ---
+        const handleRow = (record: AnalysisTableRow, index?: number) => {
+            const rowStyle: React.CSSProperties = {};
+            const isHiddenOnPlot = record.finalOpacity === HIDDEN_OPACITY;
+
+            // Set base style (dimmed or colored)
+            if (isHiddenOnPlot) {
+                Object.assign(rowStyle, HIDDEN_ROW_STYLE);
+            } else {
+                const baseMarkerColorHex = record.finalColor;
+                rowStyle.backgroundColor = baseMarkerColorHex
+                    ? hexToRgba(baseMarkerColorHex, ROW_COLOR_ALPHA)
+                    : ANTD_CELL_COLOR_DEFAULT;
+            }
+
+            // Apply Highlights (override base/hidden styles)
+            if (record?.go_id && typeof record.go_id === 'string') {
+                const goIdUpper = record.go_id.toUpperCase();
+                const isFilterHighlight = highlightMode !== HighlightMode.NONE && highlightGoIdsSet.has(goIdUpper);
+                const isAccumHighlight = selectedAccumGoIdsSet.has(goIdUpper);
+
+                if (isFilterHighlight && isAccumHighlight) {
+                    rowStyle.backgroundColor = HIGHLIGHT_COLOR_BOTH;
+                    rowStyle.color = 'inherit'; // Reset text color
+                } else if (isFilterHighlight) {
+                    rowStyle.backgroundColor = HIGHLIGHT_COLOR_FILTER;
+                    rowStyle.color = 'inherit';
+                } else if (isAccumHighlight) {
+                    rowStyle.backgroundColor = HIGHLIGHT_COLOR_ACCUM;
+                    rowStyle.color = 'inherit';
+                }
+            }
+
+            // Return props for the <tr> element
+            return {
+                style: rowStyle,
+                onClick: () => { // Attach onClick handler
+                    if (onRowClick) {
+                        onRowClick(record);
+                    }
+                },
+                // Add cursor style to indicate clickability
+                className: onRowClick ? 'clickable-row' : '',
+            };
+        };
+
+        return (
+            // Add a CSS class if you want to style .clickable-row { cursor: pointer; }
+            <div className="goumap-analysis-table-wrapper">
+                <Table<AnalysisTableRow>
+                    columns={columns}
+                    dataSource={dataSource}
+                    loading={loading}
+                    rowKey={(record) => `${record.bmdResultRef}-${record.go_id}`} // Composite key
+                    onRow={handleRow} // Apply row styles and onClick
+                    scroll={scroll}
+                    pagination={pagination}
+                    size={size}
+                    bordered={bordered}
+                    onChange={onChange} // Pass AntD's handler
+                    {...restTableProps}
+                />
+            </div>
+        );
+    }
+);
 // src/components/SlidingWindowFilter.tsx
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -7243,7 +7732,8 @@ const MemoizedAccumulationPlotAnalysis = React.memo(AccumulationPlotAnalysisComp
 
 // Export the memoized component using a named export, aliased to the original name
 export { MemoizedAccumulationPlotAnalysis as AccumulationPlotAnalysis };
-// src/components/GoIdFilterUI.tsx (New File)
+// src/components/GoIdFilterUI.tsx (Corrected)
+
 import React from 'react';
 import { Typography, Input, Radio } from 'antd';
 import type { RadioChangeEvent } from 'antd';
@@ -7259,43 +7749,49 @@ interface GoIdFilterUIProps {
     onHighlightModeChange: (e: RadioChangeEvent) => void;
 }
 
-const GoIdFilterUI: React.FC<GoIdFilterUIProps> = React.memo(({
-    goIdInputString,
-    highlightMode,
-    onGoIdInputChange,
-    onHighlightModeChange,
-}) => {
-    return (
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '1rem' }}>
-            <div style={{ flexBasis: '33%', flexShrink: 0 }}>
-                <Paragraph strong style={{ marginBottom: '0.5rem' }}>
-                    Highlight GO IDs:
-                </Paragraph>
-                <TextArea
-                    rows={4}
-                    placeholder="Paste GO IDs..."
-                    value={goIdInputString}
-                    onChange={onGoIdInputChange}
-                />
+const GoIdFilterUI: React.FC<GoIdFilterUIProps> = React.memo(
+    ({
+        goIdInputString,
+        highlightMode,
+        onGoIdInputChange,
+        onHighlightModeChange,
+    }) => {
+        return (
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '1rem' }}>
+                <div style={{ flexBasis: '33%', flexShrink: 0 }}>
+                    <Paragraph strong style={{ marginBottom: '0.5rem' }}>
+                        Highlight GO IDs:
+                    </Paragraph>
+                    <TextArea
+                        rows={4}
+                        placeholder="Paste GO IDs..."
+                        value={goIdInputString}
+                        onChange={onGoIdInputChange}
+                    />
+                </div>
+                <div style={{ flexGrow: 1 }}>
+                    <Paragraph strong style={{ marginBottom: '0.5rem' }}>
+                        Highlight Mode:
+                    </Paragraph>
+                    {/* Ensure the value passed to Radio.Group matches the state */}
+                    <Radio.Group onChange={onHighlightModeChange} value={highlightMode}>
+                        {/* Use HighlightMode enum values for consistency */}
+                        <Radio value={HighlightMode.NONE}>Off</Radio>
+                        {/* *** FIX HERE: Change value from "exact" to HighlightMode.SELECTED *** */}
+                        <Radio value={HighlightMode.SELECTED}>Exact Match</Radio>
+                        {/* ******************************************************************** */}
+                        <Radio value={HighlightMode.CLUSTER}>Cluster Match</Radio>
+                    </Radio.Group>
+                    <Paragraph type="secondary" style={{ marginTop: '0.5rem' }}>
+                        Exact: Increase size of matching GO IDs. <br />
+                        Cluster: Increase size of exact matches, decrease size & dim others
+                        in the same cluster(s).
+                    </Paragraph>
+                </div>
             </div>
-            <div style={{ flexGrow: 1 }}>
-                <Paragraph strong style={{ marginBottom: '0.5rem' }}>
-                    Highlight Mode:
-                </Paragraph>
-                <Radio.Group onChange={onHighlightModeChange} value={highlightMode}>
-                    <Radio value="none">Off</Radio>
-                    <Radio value="exact">Exact Match</Radio>
-                    <Radio value="cluster">Cluster Match</Radio>
-                </Radio.Group>
-                <Paragraph type="secondary" style={{ marginTop: '0.5rem' }}>
-                    Exact: Increase size of matching GO IDs. <br />
-                    Cluster: Increase size of exact matches, decrease size & dim others
-                    in the same cluster(s).
-                </Paragraph>
-            </div>
-        </div>
-    );
-});
+        );
+    }
+);
 
 export default GoIdFilterUI;
 // src/components/StylingSelectors.tsx
@@ -7494,7 +7990,15 @@ const ExperimentListView: React.FC<ExperimentListViewProps> = ({ projectName }) 
     );
 };
 
-export default ExperimentListView;// src/components/ErrorBoundary.tsx
+export default ExperimentListView;/* Add this to your CSS */
+.clickable-row {
+    cursor: pointer;
+}
+
+.clickable-row:hover {
+    /* Optional: Add a subtle hover effect if desired */
+    /* background-color: rgba(0, 0, 0, 0.02) !important; */
+}// src/components/ErrorBoundary.tsx
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Alert } from 'antd'; // Use Ant Design for styling
 
@@ -8112,23 +8616,38 @@ export function useProjectDatabase(projectName: string | null): {
 }
 /**
  * src/hooks/usePreparedPlotData.ts
+ *
+ * Central hook to fetch raw data, process it, calculate ranks,
+ * apply styling and filtering (including rank and GO ID highlighting),
+ * and derive legend items for the UMAP analysis view.
+ * NOW SELECTS UI STATE INTERNALLY.
  */
 import { useMemo } from 'react';
-import { useAppSelector } from '../store/hooks';
+import { useAppSelector } from '../store/hooks'; // Keep this
 import { useGetRawAnalysisDataQuery } from '../store/apis/experimentsApi';
 import {
   UmapAnalysisDataPoint,
   BaseCategoryAnalysisDataPoint,
-  PreparedPlotHookData, // Updated interface
-  SelectableAnalysisInfo,
-  DetailedAnalysisData,
-} from '../models/applicationModel'; // Updated import
-import { HighlightMode } from '../store/slices/analysisUISlice';
+  PreparedPlotHookData,
+} from '../models/applicationModel';
+// --- Import selectors needed INTERNALLY ---
+import {
+  HighlightMode,
+  selectColorBy, // Selectors for UI state
+  selectShapeBy,
+  selectSizeBy,
+  selectHiddenColorLabelsSet,
+  selectHiddenShapeLabelsSet,
+  selectHiddenSizeLabelsSet,
+  selectGoIdFilterList,
+  selectHighlightMode,
+  selectAccumulationPlotSelectedGoIdsSet,
+  selectCommittedSlidingWindowValue,
+} from '../store/slices/analysisUISlice'; // Adjust path
+// --- End internal selector imports ---
 import {
   calculateOverlayStyles,
   HIDDEN_OPACITY,
-  VISIBLE_OPACITY,
-  DIM_OPACITY,
 } from '../utils/styleUtils';
 import { generateHaltonColors } from '../utils/colorUtils';
 import { BMDResult, CategoryAnalysisItem } from '../models/BMDxExported';
@@ -8141,7 +8660,6 @@ import {
   DEFAULT_SHAPE_LABEL,
   DEFAULT_SIZE_LABEL,
   SIZE_BIN_LABELS,
-  DIRECTION_LABELS,
   getDirectionLegendName,
   DEFAULT_MARKER_COLOR,
   DEFAULT_MARKER_SHAPE,
@@ -8150,48 +8668,39 @@ import {
 } from '../utils/legendUtils';
 import { prepareGroupedOverlayData } from '../utils/analysisUtils';
 import { selectSelectedProjectName } from '../store/selectors/projectSelectors';
-// import { filterPlotItems } from '../utils/plotUtils'; // Not needed for rank
 
-// Args Interface (Unchanged)
+// --- UPDATE Args Interface: Remove UI state props ---
 export interface UsePreparedPlotDataArgs {
   selectedBmdResultRefs: string[];
   referenceDataMap: Map<string, ReferenceUmapItem> | null;
   referenceData: ReferenceUmapItem[] | null;
-  colorByOption: string;
-  shapeByOption: string;
-  sizeByOption: string;
-  hiddenColorLabels: Set<string>;
-  hiddenShapeLabels: Set<string>;
-  hiddenSizeLabels: Set<string>;
-  goIdFilterList: string[];
-  highlightMode: HighlightMode;
-  selectedGoIdsSet: Set<string>;
-  committedRankSliderValue: [number, number]; // Rank window [start_rank, end_rank]
+  // REMOVED: colorByOption, shapeByOption, sizeByOption
+  // REMOVED: hiddenColorLabels, hiddenShapeLabels, hiddenSizeLabels
+  // REMOVED: goIdFilterList, highlightMode, selectedGoIdsSet
+  // REMOVED: committedRankSliderValue
 }
+// ----------------------------------------------------
 
-// Legend Derivation Helper
+// Legend Derivation Helper (Internal - unchanged)
 interface LegendItems {
   colorItems: [string, string][];
   shapeItems: [string, string][];
   sizeItems: [string, number][];
 }
-
 function deriveLegendItemsInternal(
   allStyledPoints: UmapAnalysisDataPoint[] | null | undefined,
   colorBy: string,
   shapeBy: string,
-  sizeBy: string,
-  bmdRefToExperimentNameMap: Map<number, string> | null
+  sizeBy: string
 ): LegendItems {
+    // ... (implementation remains the same)
   const defaultResult: LegendItems = { colorItems: [], shapeItems: [], sizeItems: [] };
   if (!allStyledPoints || allStyledPoints.length === 0) {
     return defaultResult;
   }
-
   const uniqueLabelsAndColors = new Map<string, string>();
   const uniqueLabelsAndShapes = new Map<string, string>();
   const uniqueLabelsAndSizes = new Map<string, number>();
-
   allStyledPoints.forEach((point) => {
     const { colorLabel, shapeLabel, sizeLabel, finalColor, finalShape, finalSize } = point;
     if (colorLabel && !uniqueLabelsAndColors.has(colorLabel)) {
@@ -8208,72 +8717,65 @@ function deriveLegendItemsInternal(
       }
     }
   });
-
   const sortedColorItems: [string, string][] = Array.from(uniqueLabelsAndColors.entries())
-    .sort((a, b) => {
-      const labelA = a[0];
-      const labelB = b[0];
-      const isAUnclustered = labelA === 'Unclustered';
-      const isBUnclustered = labelB === 'Unclustered';
-      if (isAUnclustered && !isBUnclustered) return -1;
-      if (!isAUnclustered && isBUnclustered) return 1;
-      if (isAUnclustered && isBUnclustered) return 0;
-      const numA = parseInt(labelA.replace('Cluster ', ''), 10);
-      const numB = parseInt(labelB.replace('Cluster ', ''), 10);
-      if (!isNaN(numA) && !isNaN(numB)) { return numA - numB; }
-      return labelA.localeCompare(labelB);
-    });
-
+    .sort((a, b) => { /* ... sort logic ... */
+        const labelA = a[0]; const labelB = b[0];
+        const isAUnclustered = labelA === 'Unclustered'; const isBUnclustered = labelB === 'Unclustered';
+        if (isAUnclustered && !isBUnclustered) return -1; if (!isAUnclustered && isBUnclustered) return 1; if (isAUnclustered && isBUnclustered) return 0;
+        const numA = parseInt(labelA.replace('Cluster ', ''), 10); const numB = parseInt(labelB.replace('Cluster ', ''), 10);
+        if (!isNaN(numA) && !isNaN(numB)) { return numA - numB; }
+        return labelA.localeCompare(labelB);
+     });
   const sortedShapeItems: [string, string][] = Array.from(uniqueLabelsAndShapes.entries())
     .sort((a, b) => a[0].localeCompare(b[0]));
   const sortedSizeItems: [string, number][] = Array.from(uniqueLabelsAndSizes.entries())
     .sort((a, b) => a[1] - b[1]);
-
-  return {
-    colorItems: sortedColorItems,
-    shapeItems: sortedShapeItems,
-    sizeItems: sortedSizeItems,
-  };
+  return { colorItems: sortedColorItems, shapeItems: sortedShapeItems, sizeItems: sortedSizeItems };
 }
 // --- END HELPER FUNCTION ---
 
 
 // --- Main Hook ---
-export const usePreparedPlotData = ({
+export const usePreparedPlotData = ({ // Destructure only the necessary props
   selectedBmdResultRefs,
   referenceDataMap,
   referenceData,
-  colorByOption,
-  shapeByOption,
-  sizeByOption,
-  hiddenColorLabels,
-  hiddenShapeLabels,
-  hiddenSizeLabels,
-  goIdFilterList,
-  highlightMode,
-  selectedGoIdsSet,
-  committedRankSliderValue,
 }: UsePreparedPlotDataArgs): PreparedPlotHookData => {
-  const hookLogPrefix = '[usePreparedPlotData v19.2 - Complete Code]'; // Version Bump
+  const hookLogPrefix = '[usePreparedPlotData v19.5 - Internal Selectors]'; // Version Bump
 
+  // --- Select UI state INTERNALLY ---
   const projectName = useAppSelector(selectSelectedProjectName);
+  const colorByOption = useAppSelector(selectColorBy);
+  const shapeByOption = useAppSelector(selectShapeBy);
+  const sizeByOption = useAppSelector(selectSizeBy);
+  const hiddenColorLabels = useAppSelector(selectHiddenColorLabelsSet);
+  const hiddenShapeLabels = useAppSelector(selectHiddenShapeLabelsSet);
+  const hiddenSizeLabels = useAppSelector(selectHiddenSizeLabelsSet);
+  const goIdFilterList = useAppSelector(selectGoIdFilterList);
+  const highlightMode = useAppSelector(selectHighlightMode);
+  const selectedGoIdsSet = useAppSelector(selectAccumulationPlotSelectedGoIdsSet);
+  const committedRankSliderValue = useAppSelector(selectCommittedSlidingWindowValue);
+  // ----------------------------------
+
+  // --- Step 1: Fetch Raw Data ---
   const {
     data: rawData,
     isLoading: isLoadingRaw,
     error: rawError,
     isSuccess: rawSuccess,
-    isFetching: isFetchingRaw,
   } = useGetRawAnalysisDataQuery(
     { projectName, selectedBmdResultRefs },
     { skip: !projectName || !selectedBmdResultRefs || selectedBmdResultRefs.length === 0 }
   );
 
+  // --- Step 2: Check if data is ready for processing ---
   const canProcess = useMemo(() => {
     return !isLoadingRaw && !rawError && rawSuccess && !!rawData && !!referenceDataMap && selectedBmdResultRefs && selectedBmdResultRefs.length > 0;
   }, [isLoadingRaw, rawError, rawSuccess, rawData, referenceDataMap, selectedBmdResultRefs]);
 
-  // Memoize Base Data (Includes rankValue)
+  // --- Step 3: Prepare Base Data and Maps ---
   const { baseGroupedData, bmdResultMap, bmdRefToExperimentNameMap } = useMemo(() => {
+    // ... (implementation remains the same)
     const logPrefix = `${hookLogPrefix} [Memo Base Data]`;
     if (!canProcess || !rawData?.rawBmdResults || !rawData?.rawCategoryAnalysisItems) {
       return { baseGroupedData: new Map(), bmdResultMap: new Map(), bmdRefToExperimentNameMap: new Map() };
@@ -8282,32 +8784,31 @@ export const usePreparedPlotData = ({
     const tempBmdRefToNameMap = new Map<number, string>();
     rawData.rawBmdResults.forEach(r => {
       if (r && r['@ref'] != null) {
-        tempBmdResultMap.set(Number(r['@ref']), r);
-        tempBmdRefToNameMap.set(Number(r['@ref']), r.name || `BMD Result ${r['@ref']}`);
+        const numericRef = Number(r['@ref']);
+        if (!isNaN(numericRef)) {
+          tempBmdResultMap.set(numericRef, r);
+          tempBmdRefToNameMap.set(numericRef, r.name || `BMD Result ${numericRef}`);
+        }
       }
     });
     const categoryItemsMap = new Map<string, CategoryAnalysisItem[]>();
     rawData.rawCategoryAnalysisItems.forEach(entry => {
       const refStr = String(entry.bmdResultRef);
-      if (!categoryItemsMap.has(refStr)) {
-        categoryItemsMap.set(refStr, []);
-      }
+      if (!categoryItemsMap.has(refStr)) { categoryItemsMap.set(refStr, []); }
       categoryItemsMap.get(refStr)?.push(entry.item);
     });
-    const groupedData = prepareGroupedOverlayData(tempBmdResultMap, categoryItemsMap); // This adds rankValue
+    const groupedData = prepareGroupedOverlayData(tempBmdResultMap, categoryItemsMap);
+    console.log(`${logPrefix} Prepared base data. Groups: ${groupedData.size}`);
     return { baseGroupedData: groupedData, bmdResultMap: tempBmdResultMap, bmdRefToExperimentNameMap: tempBmdRefToNameMap };
   }, [canProcess, rawData]);
 
-  // --- Calculate Ranks and Min/Max ---
-  // This memo calculates the rank for each point globally and determines N (maxRank)
-  const rankedBaseGroupedData = useMemo(() => {
+  // --- Step 4: Calculate Ranks ---
+  const { rankedData, minRank, maxRank } = useMemo(() => {
+    // ... (implementation remains the same)
     const logPrefix = `${hookLogPrefix} [Memo Ranking]`;
     if (!baseGroupedData || baseGroupedData.size === 0) {
-      // console.log(`${logPrefix} No base data to rank.`); // Keep logs minimal
-      return { rankedData: new Map<string, BaseCategoryAnalysisDataPoint[]>(), maxRank: 0 };
+      return { rankedData: new Map<string, BaseCategoryAnalysisDataPoint[]>(), minRank: 0, maxRank: 0 };
     }
-
-    // 1. Flatten all points and filter those with a valid rankValue
     const allPointsWithRankValue: BaseCategoryAnalysisDataPoint[] = [];
     baseGroupedData.forEach(points => {
       points.forEach(point => {
@@ -8316,50 +8817,31 @@ export const usePreparedPlotData = ({
         }
       });
     });
-
     if (allPointsWithRankValue.length === 0) {
-      // console.log(`${logPrefix} No points with valid rankValue found.`); // Keep logs minimal
-      return { rankedData: baseGroupedData, maxRank: 0 }; // Return original data, maxRank 0
+      return { rankedData: baseGroupedData, minRank: 0, maxRank: 0 };
     }
-
-    // 2. Sort points by rankValue (ascending)
     allPointsWithRankValue.sort((a, b) => (a.rankValue ?? Infinity) - (b.rankValue ?? Infinity));
-
-    // 3. Assign ranks (1-based index) and store in a temporary map for lookup
-    const rankMap = new Map<string, number>(); // Key: unique identifier (e.g., ref + go_id), Value: rank
+    const rankMap = new Map<string, number>();
     const N = allPointsWithRankValue.length;
     allPointsWithRankValue.forEach((point, index) => {
-      // Use a combination of ref and go_id as a unique key for each point across experiments
       const uniqueKey = `${point.bmdResultRef}-${point.go_id}`;
-      rankMap.set(uniqueKey, index + 1); // Assign rank (1-based)
+      rankMap.set(uniqueKey, index + 1);
     });
-    console.log(`${logPrefix} Assigned ranks 1 to ${N}.`); // Log N
-
-    // 4. Create the new grouped map with the 'rank' property added
+    console.log(`${logPrefix} Assigned ranks 1 to ${N}.`);
     const newRankedGroupedData = new Map<string, BaseCategoryAnalysisDataPoint[]>();
     baseGroupedData.forEach((originalPoints, refKey) => {
       const newPoints = originalPoints.map(point => {
         const uniqueKey = `${point.bmdResultRef}-${point.go_id}`;
-        const calculatedRank = rankMap.get(uniqueKey);
-        return {
-          ...point,
-          rank: calculatedRank ?? null, // Add the rank property
-        };
+        return { ...point, rank: rankMap.get(uniqueKey) ?? null };
       });
       newRankedGroupedData.set(refKey, newPoints);
     });
-
-    return { rankedData: newRankedGroupedData, maxRank: N };
-
+    return { rankedData: newRankedGroupedData, minRank: N > 0 ? 1 : 0, maxRank: N };
   }, [baseGroupedData]);
-  // ------------------------------------
 
-  // Extract maxRank for convenience
-  const maxRank = rankedBaseGroupedData.maxRank;
-  const minRank = maxRank > 0 ? 1 : 0; // Min rank is always 1 if there are points
-
-  // Build Color/Shape Maps (Unchanged)
+  // --- Step 5: Build Color/Shape Maps ---
   const clusterColorMap = useMemo(() => {
+    // ... (implementation remains the same)
     if (!referenceData) return new Map<string | number, string>();
     const uniqueClusterIds = Array.from(new Set(referenceData.map(item => item.cluster_id).filter(id => id != null && id !== -1 && id !== '-1')));
     if (uniqueClusterIds.length === 0) return new Map<string | number, string>();
@@ -8369,18 +8851,18 @@ export const usePreparedPlotData = ({
     return map;
   }, [referenceData]);
   const bmdRefColorMap = useMemo(() => {
+    // ... (implementation remains the same)
     const map = new Map<number, string>();
-    if (selectedBmdResultRefs.length > 0) {
-      selectedBmdResultRefs.forEach((refStr, index) => {
-        const numericRef = parseInt(refStr, 10);
-        if (!isNaN(numericRef)) map.set(numericRef, DEFAULT_PLOT_COLORS[index % DEFAULT_PLOT_COLORS.length]);
-      });
-    }
+    selectedBmdResultRefs.forEach((refStr, index) => {
+      const numericRef = parseInt(refStr, 10);
+      if (!isNaN(numericRef)) map.set(numericRef, DEFAULT_PLOT_COLORS[index % DEFAULT_PLOT_COLORS.length]);
+    });
     return map;
   }, [selectedBmdResultRefs]);
   const bmdRefShapeMap = useMemo(() => {
+    // ... (implementation remains the same)
     const map = new Map<number, string>();
-    if (shapeByOption === 'bmdResultName' && selectedBmdResultRefs.length > 0) {
+    if (shapeByOption === 'bmdResultName') {
       selectedBmdResultRefs.forEach((refStr, index) => {
         const numericRef = parseInt(refStr, 10);
         if (!isNaN(numericRef)) map.set(numericRef, SHAPE_PALETTE[index % SHAPE_PALETTE.length]);
@@ -8389,73 +8871,79 @@ export const usePreparedPlotData = ({
     return map;
   }, [shapeByOption, selectedBmdResultRefs]);
 
-  // Calculate ALL styled points using calculateOverlayStyles
-  // Pass the *ranked* data and the rank window to the styling function
+  // --- Step 6: Calculate ALL Styled Points (using internally selected state) ---
   const allStyledGroupedData = useMemo(() => {
     const logPrefix = `${hookLogPrefix} [Memo Styling]`;
-    // Use rankedBaseGroupedData.rankedData here
-    if (!canProcess || rankedBaseGroupedData.rankedData.size === 0 || !referenceDataMap) {
+    if (!canProcess || rankedData.size === 0 || !referenceDataMap) {
+      console.log(`${logPrefix} Skipping styling: Not ready or no ranked data/ref map.`);
       return null;
     }
+    // Log the values selected *inside* the hook, right before use
+    console.log(
+      `${logPrefix} Calling calculateOverlayStyles with internally selected highlightMode: ${highlightMode}, goIdFilterList size: ${goIdFilterList?.length}`
+    );
+    // Call the styling function using the internally selected state
     return calculateOverlayStyles(
-      rankedBaseGroupedData.rankedData, // <<< Pass data with ranks
+      rankedData,
       { colorBy: colorByOption, shapeBy: shapeByOption, sizeBy: sizeByOption },
       hiddenColorLabels, hiddenShapeLabels, hiddenSizeLabels,
-      goIdFilterList, highlightMode,
-      bmdRefToExperimentNameMap, // <<< Pass the map
+      goIdFilterList, highlightMode, // Use internally selected values
+      bmdRefToExperimentNameMap,
       selectedGoIdsSet, referenceDataMap, clusterColorMap,
       bmdRefShapeMap, bmdRefColorMap,
-      committedRankSliderValue // Pass the rank window [start_rank, end_rank]
+      committedRankSliderValue // Use internally selected value
     );
-  }, [
-    canProcess, rankedBaseGroupedData, referenceDataMap, clusterColorMap,
-    bmdRefShapeMap, bmdRefColorMap,
-    bmdRefToExperimentNameMap, // <<< ADDED AS DEPENDENCY
-    colorByOption, shapeByOption,
-    sizeByOption, hiddenColorLabels, hiddenShapeLabels, hiddenSizeLabels,
-    goIdFilterList, highlightMode, selectedGoIdsSet, committedRankSliderValue,
-  ]); // <<< Ensure bmdRefToExperimentNameMap is in the dependency array
+  }, [ // --- DEPENDENCY ARRAY for STYLING (Now uses internally selected state) ---
+    canProcess,
+    rankedData,
+    referenceDataMap,
+    clusterColorMap,
+    bmdRefShapeMap,
+    bmdRefColorMap,
+    bmdRefToExperimentNameMap,
+    // Include the selected state variables as dependencies
+    colorByOption,
+    shapeByOption,
+    sizeByOption,
+    hiddenColorLabels,
+    hiddenShapeLabels,
+    hiddenSizeLabels,
+    goIdFilterList,
+    highlightMode,
+    selectedGoIdsSet,
+    committedRankSliderValue,
+  ]); // --- END DEPENDENCY ARRAY ---
 
-  // Derive Legend Items and Filter Plot Points
+  // --- Step 7: Derive Legends and Filter Points for Plot ---
   const finalPlotDataAndLegends = useMemo((): PreparedPlotHookData => {
+    // ... (implementation remains the same)
     const logPrefix = `${hookLogPrefix} [Memo Legends & Filtering]`;
     const defaultReturn: PreparedPlotHookData = {
-      analysisPoints: null,
-      allStyledPoints: null,
-      styledGroupedData: null,
-      colorItems: [],
-      shapeItems: [],
-      sizeItems: [],
-      minRank: 1,
-      maxRank: 100,
+      analysisPoints: null, allStyledPoints: null, styledGroupedData: null,
+      colorItems: [], shapeItems: [], sizeItems: [],
+      minRank: 0, maxRank: 0,
     };
-
     if (!allStyledGroupedData) {
-      // Return defaults but use the calculated min/max rank if available
-      return { ...defaultReturn, minRank: minRank || 1, maxRank: maxRank || 100 };
+      return { ...defaultReturn, minRank: minRank, maxRank: maxRank };
     }
-
     const flattenedStyledPoints: UmapAnalysisDataPoint[] = [];
     allStyledGroupedData.forEach(pointsArray => flattenedStyledPoints.push(...pointsArray));
-
-    // Derive legends from ALL styled points (before opacity filter)
+    console.log(`${logPrefix} Total styled points before final filter: ${flattenedStyledPoints.length}`);
     const { colorItems, shapeItems, sizeItems } = deriveLegendItemsInternal(
-      flattenedStyledPoints, colorByOption, shapeByOption, sizeByOption, bmdRefToExperimentNameMap
+      flattenedStyledPoints, colorByOption, shapeByOption, sizeByOption
     );
-
-    // Filter points based on finalOpacity for the actual plot
     const analysisPointsForPlot = flattenedStyledPoints.filter(
       point => point.finalOpacity !== HIDDEN_OPACITY
     );
-
+    console.log(`${logPrefix} Points visible on plot after opacity filter: ${analysisPointsForPlot.length}`);
     return {
-      analysisPoints: analysisPointsForPlot, // Points visible on plot
-      allStyledPoints: flattenedStyledPoints, // All points after styling
-      styledGroupedData: allStyledGroupedData, // Grouped version of all styled points
+      analysisPoints: analysisPointsForPlot,
+      allStyledPoints: flattenedStyledPoints,
+      styledGroupedData: allStyledGroupedData,
       colorItems: colorItems,
       shapeItems: shapeItems,
       sizeItems: sizeItems,
-      minRank: minRank, // Return calculated min/max rank (1 and N)
+      minRank: minRank,
       maxRank: maxRank,
     };
   }, [allStyledGroupedData, colorByOption, shapeByOption, sizeByOption, bmdRefToExperimentNameMap, minRank, maxRank]);
@@ -29537,7 +30025,7 @@ export default uiSlice.reducer;
 // Selectors (can be in uiSelectors.ts)
 export const selectUIState = (state: RootState) => state.ui;
 export const selectIsAddProjectModalOpen = (state: RootState) => state.ui.isAddProjectModalOpen;// src/store/slices/analysisUISlice.ts
-// Setting default rank range in initialState
+// Manages UI state for analysis view, including filters, styling, and interactions.
 
 import { createSlice, PayloadAction, createSelector } from '@reduxjs/toolkit';
 import { RootState } from '../store'; // Adjust path if needed
@@ -29545,11 +30033,11 @@ import { RootState } from '../store'; // Adjust path if needed
 // Define HighlightMode enum
 export enum HighlightMode {
   NONE = 'none',
-  SELECTED = 'selected',
-  CLUSTER = 'cluster',
+  SELECTED = 'selected', // For GO ID Filter "Exact Match"
+  CLUSTER = 'cluster',   // For GO ID Filter "Cluster Match"
 }
 
-// Define the state interface directly
+// Define the state interface
 export interface AnalysisUIState {
   colorBy: string;
   shapeBy: string;
@@ -29558,13 +30046,14 @@ export interface AnalysisUIState {
   hiddenShapeLabels: string[];
   hiddenSizeLabels: string[];
   goIdInputString: string;
-  goIdFilterList: string[];
-  highlightMode: HighlightMode;
-  accumulationPlotSelectedGoIds: string[];
-  committedRankSliderValue: [number, number]; // [start_rank, end_rank]
+  goIdFilterList: string[]; // Derived from goIdInputString
+  highlightMode: HighlightMode; // For GO ID Filter/Highlight component
+  accumulationPlotSelectedGoIds: string[]; // GO IDs selected via Accumulation plots
+  committedRankSliderValue: [number, number]; // Current [minRank, maxRank] from SlidingWindowFilter
+  tableSelectedGoId: string | null; // GO ID selected by clicking a table row
 }
 
-// --- Define initial state with a default rank range ---
+// Define initial state
 const initialState: AnalysisUIState = {
   colorBy: 'cluster_id',
   shapeBy: 'bmdResultName',
@@ -29576,30 +30065,28 @@ const initialState: AnalysisUIState = {
   goIdFilterList: [],
   highlightMode: HighlightMode.NONE,
   accumulationPlotSelectedGoIds: [],
-  // --- SET DEFAULT RANK RANGE ---
-  committedRankSliderValue: [1, 5000], // Default to a wide range
-  // ----------------------------
+  committedRankSliderValue: [1, 5000], // Default wide range
+  tableSelectedGoId: null, // Initially nothing selected in table
 };
-// ----------------------------------------------------
 
 // --- Helper Functions ---
 const toggleItemInArray = (arr: string[], item: string): string[] => {
   const currentArr = arr || [];
   const index = currentArr.indexOf(item);
   if (index > -1) {
-    // console.log(`[toggleItemInArray] Removing item: ${item}`); // Keep logs minimal
     return [
       ...currentArr.slice(0, index),
       ...currentArr.slice(index + 1)
     ];
   } else {
-    // console.log(`[toggleItemInArray] Adding item: ${item}`); // Keep logs minimal
     return [...currentArr, item];
   }
 };
 
 const parseGoIdInput = (input: string): string[] => {
   if (!input) return [];
+  // Split by newline, comma, semicolon, or one or more spaces
+  // Trim whitespace, filter empty strings, convert to uppercase
   return input
     .split(/[\n,;\s]+/)
     .map(id => id.trim())
@@ -29613,11 +30100,37 @@ const analysisUISlice = createSlice({
   name: 'analysisUI',
   initialState,
   reducers: {
-    setColorBy(state, action: PayloadAction<string>) { state.colorBy = action.payload; state.hiddenColorLabels = []; },
-    setShapeBy(state, action: PayloadAction<string>) { state.shapeBy = action.payload; state.hiddenShapeLabels = []; },
-    setSizeBy(state, action: PayloadAction<string>) { state.sizeBy = action.payload; state.hiddenSizeLabels = []; },
-    resetStyling(state) { Object.assign(state, initialState); }, // Reset will now include the default range
+    // Styling Reducers
+    setColorBy(state, action: PayloadAction<string>) {
+      state.colorBy = action.payload;
+      state.hiddenColorLabels = []; // Reset hidden labels when changing category
+    },
+    setShapeBy(state, action: PayloadAction<string>) {
+      state.shapeBy = action.payload;
+      state.hiddenShapeLabels = []; // Reset hidden labels
+    },
+    setSizeBy(state, action: PayloadAction<string>) {
+      state.sizeBy = action.payload;
+      state.hiddenSizeLabels = []; // Reset hidden labels
+    },
+    resetStyling(state) {
+      // Reset to initial state, preserving potentially entered GO IDs?
+      // Or fully reset: Object.assign(state, initialState);
+      state.colorBy = initialState.colorBy;
+      state.shapeBy = initialState.shapeBy;
+      state.sizeBy = initialState.sizeBy;
+      state.hiddenColorLabels = [];
+      state.hiddenShapeLabels = [];
+      state.hiddenSizeLabels = [];
+      // Keep highlightMode, goIdInputString, goIdFilterList, selections?
+      // Decide if reset should clear everything or just visual styling.
+      // For now, let's keep selections/filters:
+      // state.highlightMode = initialState.highlightMode;
+      // state.accumulationPlotSelectedGoIds = [];
+      // state.tableSelectedGoId = null;
+    },
 
+    // Legend Visibility Reducers
     toggleColorLabelVisibility(state, action: PayloadAction<string>) {
       state.hiddenColorLabels = toggleItemInArray(state.hiddenColorLabels, action.payload);
     },
@@ -29628,25 +30141,34 @@ const analysisUISlice = createSlice({
       state.hiddenSizeLabels = toggleItemInArray(state.hiddenSizeLabels, action.payload);
     },
 
-    setGoIdInputString(state, action: PayloadAction<string>) { state.goIdInputString = action.payload; state.goIdFilterList = parseGoIdInput(action.payload); },
-    setHighlightMode(state, action: PayloadAction<HighlightMode>) { state.highlightMode = action.payload; },
-    setAccumulationPlotSelection(state, action: PayloadAction<string[]>) { state.accumulationPlotSelectedGoIds = action.payload || []; },
+    // GO ID Filter/Highlight Reducers
+    setGoIdInputString(state, action: PayloadAction<string>) {
+      state.goIdInputString = action.payload;
+      state.goIdFilterList = parseGoIdInput(action.payload); // Update derived list
+    },
+    setHighlightMode(state, action: PayloadAction<HighlightMode>) {
+      state.highlightMode = action.payload;
+    },
 
-    // --- Reducer for Rank ---
+    // Cross-component Interaction Reducers
+    setAccumulationPlotSelection(state, action: PayloadAction<string[]>) {
+      state.accumulationPlotSelectedGoIds = action.payload || [];
+    },
+    setTableSelectedGoId(state, action: PayloadAction<string | null>) {
+      state.tableSelectedGoId = action.payload;
+    },
+
+    // Rank Filter Reducer
     setCommittedRankSliderValue(state, action: PayloadAction<[number, number]>) {
-      // Basic validation
       if (Array.isArray(action.payload) && action.payload.length === 2 &&
         typeof action.payload[0] === 'number' && typeof action.payload[1] === 'number') {
-        // Only update if the value actually changed to prevent unnecessary re-renders
         if (state.committedRankSliderValue[0] !== action.payload[0] || state.committedRankSliderValue[1] !== action.payload[1]) {
-          // console.log(`[analysisUISlice] Reducer: setCommittedRankSliderValue - Payload: [${action.payload.join(', ')}]`); // Keep logs minimal
           state.committedRankSliderValue = action.payload;
         }
       } else {
         console.warn('[analysisUISlice] Invalid payload for setCommittedRankSliderValue:', action.payload);
       }
     },
-    // --------------------------
   },
 });
 
@@ -29655,9 +30177,8 @@ export const {
   setColorBy, setShapeBy, setSizeBy, resetStyling,
   toggleColorLabelVisibility, toggleShapeLabelVisibility, toggleSizeLabelVisibility,
   setGoIdInputString, setHighlightMode, setAccumulationPlotSelection,
-  // --- Export new action ---
+  setTableSelectedGoId, // Export new action
   setCommittedRankSliderValue,
-  // -------------------------
 } = analysisUISlice.actions;
 
 // Export the reducer function
@@ -29675,11 +30196,8 @@ export const selectGoIdInputString = (state: RootState): string => state.analysi
 export const selectGoIdFilterList = (state: RootState): string[] => state.analysisUI.goIdFilterList || [];
 export const selectHighlightMode = (state: RootState): HighlightMode => state.analysisUI.highlightMode;
 export const selectAccumulationPlotSelectedGoIds = (state: RootState): string[] => state.analysisUI.accumulationPlotSelectedGoIds || [];
-
-// --- RENAME Rank Selector ---
-// Renamed to reflect the UI component more accurately
 export const selectCommittedSlidingWindowValue = (state: RootState): [number, number] => state.analysisUI.committedRankSliderValue;
-// ----------------------------
+export const selectTableSelectedGoId = (state: RootState): string | null => state.analysisUI.tableSelectedGoId;
 
 // --- Memoized selectors returning Sets ---
 export const selectHiddenColorLabelsSet = createSelector(

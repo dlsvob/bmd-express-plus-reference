@@ -1,156 +1,266 @@
-[file: src / App.tsx]
 // src/App.tsx
-import React from 'react'; // Removed unused { useContext }
-import { Layout, Typography, Spin, Alert } from 'antd';
+import React, { useState, useCallback } from 'react';
+import {
+  Layout,
+  Drawer,
+  Button,
+  Menu,
+  Spin,
+  Alert,
+  Typography,
+} from 'antd';
+import {
+  MenuOutlined,
+  ExperimentOutlined,
+  BarChartOutlined,
+  SettingOutlined,
+} from '@ant-design/icons';
+import type { MenuProps } from 'antd';
+import { useAppSelector, useAppDispatch } from './store/hooks';
+import { useGetProjectsQuery } from './store/apis/projectsApi';
+import { selectSelectedProjectName } from './store/selectors/projectSelectors';
+import {
+  selectCurrentView,
+  setActiveView,
+} from './store/slices/navigationSlice';
+import ErrorBoundary from './components/ErrorBoundary';
+import PyodideErrorNotifier from './components/PyodideErrorNotifier';
+import ExperimentListView from './components/views/ExperimentListView';
+import GOUmapAnalysisUnit from './components/analysis/GOUmapAnalysisUnit';
+import GOClusteringAnalysisUnit from './components/analysis/GOClusteringAnalysisUnit';
+import AppHeader from './components/layout/AppHeader';
+import { PyodideProvider, usePyodide } from './contexts/PyodideProvider'; // Import Provider and hook
 
-// Import Providers and Hooks/Context
-import { PyodideProvider, usePyodide } from './contexts/PyodideProvider'; // Adjust path if needed
-import { useAppSelector } from './store/hooks'; // Adjust path if needed
-import { useGetProjectsQuery } from './store/apis/projectsApi'; // Adjust path if needed
+const { Content } = Layout;
 
-// Import necessary selectors
-import { selectSelectedProjectName } from './store/selectors/projectSelectors'; // Adjust path if needed
-import { selectCurrentView } from './store/slices/navigationSlice'; // Adjust path if needed
+// Define view keys type
+type AppViewKey =
+  | 'experiments'
+  | 'categoryAnalysis'
+  | 'goClustering'
+  | 'settings'
+  | string;
 
-// Import components
-import AppHeader from './components/layout/AppHeader'; // Adjust path if needed
-import AppSidebar from './components/layout/AppSidebar'; // Adjust path if needed
-import ErrorBoundary from './components/ErrorBoundary'; // Adjust path if needed
-import PyodideErrorNotifier from './components/PyodideErrorNotifier'; // Adjust path if needed
-import ExperimentListView from './components/views/ExperimentListView'; // Adjust path if needed
-// --- REMOVE Import for the old view ---
-// import GOUmapAnalysisView from './components/views/GOUmapAnalysisView'; // Adjust path if needed
-// --- ADD Import for the new container ---
-import AnalysisViewContainer from './components/views/AnalysisViewContainer'; // Adjust path if needed
+// Define the menu items (can be moved to a config file later)
+const menuItems: MenuProps['items'] = [
+  {
+    key: 'experiments',
+    icon: <ExperimentOutlined />,
+    label: 'Experiments',
+  },
+  {
+    key: 'analysis',
+    label: 'Analysis',
+    icon: <BarChartOutlined />,
+    children: [
+      {
+        key: 'categoryAnalysis',
+        label: 'Category Analysis (UMAP)',
+      },
+      {
+        key: 'goClustering',
+        label: 'GO Clustering',
+      },
+      // Add other analysis types here if needed
+    ],
+  },
+  {
+    key: 'settings',
+    icon: <SettingOutlined />,
+    label: 'Project Settings',
+  },
+];
 
+// --- AppContent Component (Renders the main view based on state) ---
+// This component assumes Pyodide is ready and a project might be selected.
+// It uses the usePyodide hook to check for Pyodide errors specifically.
+const AppContentInternal: React.FC = () => {
+  const { error: pyodideError } = usePyodide(); // Get Pyodide error state
 
-const { Title, Paragraph } = Typography;
-
-// Main app content rendering logic
-const AppContent: React.FC = () => {
-
-  // Use custom hook which handles undefined check
-  const { isLoading: pyodideLoading, error: pyodideError } = usePyodide();
-
-  // --- RTK Query hook for projects ---
-  const {
-    data: projectsData,
-    isLoading: isLoadingProjects,
-    error: projectsError, // Keep original error object here
-    isSuccess: projectsLoadSuccess
-  } = useGetProjectsQuery();
-
-  // --- Other Redux State ---
+  // Get project and navigation state
   const selectedProjectName = useAppSelector(selectSelectedProjectName);
-  const activeView = useAppSelector(selectCurrentView); // Ensure variable is used
+  const activeView = useAppSelector(selectCurrentView);
   const isProjectSelected = !!selectedProjectName;
 
-  // Log for debugging (Optional: remove when stable)
-  console.log(
-    `Rendering AppContent: selectedProjectName = "${selectedProjectName}", isProjectSelected = ${isProjectSelected}, activeView = "${activeView}"`
-  );
-
-  // Format error for passing as prop
-  const formattedProjectsError = projectsError ?
-    (
-      (typeof projectsError === 'object' && projectsError !== null && 'message' in projectsError)
-        ? String(projectsError.message)
-        : String(projectsError)
-    ) : null;
-
-  // --- Content Rendering Logic ---
+  // Variables to hold the main content view
   let mainContent: React.ReactNode;
 
-  if (pyodideLoading) {
-    mainContent = (
-      <Spin tip="Initializing Pyodide..." size="large" spinning={true}>
-        <div style={{ padding: '50px', background: 'rgba(0, 0, 0, 0.02)', minHeight: '200px', borderRadius: '4px' }} />
-      </Spin>
-    );
-  } else if (pyodideError) {
+  // Determine Main Content View
+  if (pyodideError) {
+    // If Pyodide failed, show an alert in the content area as well.
+    // The main error handling is via the modal, but this provides context.
     mainContent = (
       <Alert
         message="Pyodide Initialization Failed"
-        description="The core Python environment failed to load. Some application features will be unavailable. Please try refreshing the page."
+        description="The core Python environment failed to load. Some features are unavailable. See modal for details."
         type="error"
         showIcon
+        style={{ margin: '24px' }}
       />
     );
-  } else if (isLoadingProjects) {
+  } else if (!isProjectSelected) {
+    // Pyodide is OK, but no project selected
     mainContent = (
-      <Spin tip="Loading project list..." size="large" spinning={true}>
-        <div style={{ padding: '50px', background: 'rgba(0, 0, 0, 0.02)', minHeight: '200px', borderRadius: '4px' }} />
-      </Spin>
+      <div style={{ textAlign: 'center', marginTop: '50px', padding: '24px' }}>
+        <Typography.Title level={3}>Welcome to BMDx Plus</Typography.Title>
+        <Typography.Paragraph>
+          Please select or create a project using the controls in the header.
+        </Typography.Paragraph>
+      </div>
     );
-  } else if (projectsError) {
-    const errorMessage = formattedProjectsError || "An unknown error occurred loading projects.";
-    mainContent = <Alert message={`Error loading projects: ${errorMessage}`} type="error" showIcon />;
-  } else if (!isProjectSelected && projectsLoadSuccess) {
+  } else if (isProjectSelected && selectedProjectName) {
+    // Project selected, Pyodide OK - render based on activeView
+    switch (activeView) {
+      case 'experiments':
+      default: // Default to experiment list
+        mainContent = <ExperimentListView projectName={selectedProjectName} />;
+        break;
+      case 'categoryAnalysis':
+        mainContent = <GOUmapAnalysisUnit />;
+        break;
+      case 'goClustering':
+        mainContent = <GOClusteringAnalysisUnit />;
+        break;
+      case 'settings':
+        mainContent = (
+          <Alert message="Project Settings View (Not Implemented)" type="info" />
+        );
+        break;
+      // Handle potential unknown views explicitly if needed
+      // case 'someOtherView': ...
+    }
+  } else {
+    // Fallback loading state (should be less common now)
     mainContent = (
       <div style={{ textAlign: 'center', marginTop: '50px' }}>
-        <Title level={3}>Welcome to BMDx Plus</Title>
-        <Paragraph>Project list loaded ({projectsData?.length || 0} found). Please select a project or add a new one using the header.</Paragraph>
+        <Spin tip="Loading..." size="large" />
       </div>
-    );
-  } else if (isProjectSelected && selectedProjectName) { // Ensure selectedProjectName is truthy
-    // --- Project is selected - Render based on activeView ---
-    mainContent = (
-      <div>
-        <Title level={4} style={{ marginBottom: '20px' }}>Project: {selectedProjectName}</Title>
-
-        {/* Render Component based on activeView state */}
-        {(!activeView || activeView === 'experiments') && <ExperimentListView projectName={selectedProjectName} />}
-
-        {/* **** MODIFICATION START: Use AnalysisViewContainer **** */}
-        {activeView === 'categoryAnalysis' && <AnalysisViewContainer projectName={selectedProjectName} />}
-        {/* **** MODIFICATION END **** */}
-
-        {/* Placeholder for other potential views */}
-        {/* {activeView === 'settings' && <ProjectSettingsView projectName={selectedProjectName} />} */}
-
-        {/* Fallback for unknown/unexpected view key */}
-        {activeView && !['experiments', 'categoryAnalysis', 'settings' /* add other known keys */].includes(activeView) && (
-          <Alert message={`Error: Unknown view requested (${activeView})`} type="warning" showIcon />
-        )}
-      </div>
-    );
-  } else {
-    // Fallback (e.g. projects loaded but somehow selection state is invalid)
-    mainContent = (
-      <Spin tip="Loading..." size="large" spinning={true}>
-        <div style={{ padding: '50px', background: 'rgba(0, 0, 0, 0.02)', minHeight: '200px', borderRadius: '4px' }} />
-      </Spin>
     );
   }
 
+  // Render the content area itself
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <AppHeader
-        projectList={projectsData}
-        isLoading={isLoadingProjects}
-        error={formattedProjectsError} // Pass formatted error
-        disabled={!!pyodideError}
-      />
-      <Layout>
-        {/* Render sidebar only if a project is selected AND Pyodide is working */}
-        {isProjectSelected && !pyodideError && <AppSidebar />}
-
-        <Layout.Content style={{ padding: '24px', margin: '16px' }}>
-          {mainContent}
-        </Layout.Content>
-      </Layout>
-    </Layout>
+    <Content
+      style={{
+        padding: '24px',
+        margin: 0,
+        minHeight: 280,
+        background: '#fff', // Or Ant Design token: colorBgContainer
+        // Add overflow handling if content might exceed viewport height
+        overflow: 'auto',
+      }}
+    >
+      {mainContent}
+    </Content>
   );
 };
 
-// App component wraps everything
+// --- Main App Component (Handles Layout, Header, Drawer, Provider) ---
 const App: React.FC = () => {
+  console.log('[App.tsx] App component rendering...');
+  const dispatch = useAppDispatch();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  // --- Global State Needed for Layout/Header ---
+  // We need Pyodide state here primarily to show the global loading spinner
+  const { isLoading: pyodideLoading, error: pyodideError } = usePyodide();
+  const selectedProjectName = useAppSelector(selectSelectedProjectName);
+  const currentViewKey = useAppSelector(selectCurrentView);
+  const isProjectSelected = !!selectedProjectName;
+
+  // --- Fetch Project List (for Header Controls) ---
+  const {
+    data: projectsData,
+    isLoading: isLoadingProjects,
+    error: projectsError,
+  } = useGetProjectsQuery(); // Use the existing RTK Query hook
+
+  const formattedProjectsError = projectsError
+    ? typeof projectsError === 'object' &&
+      projectsError !== null &&
+      'message' in projectsError
+      ? String(projectsError.message)
+      : String(projectsError)
+    : null;
+
+  // --- Callbacks ---
+  const showDrawer = useCallback(() => {
+    setIsDrawerOpen(true);
+  }, []);
+
+  const closeDrawer = useCallback(() => {
+    setIsDrawerOpen(false);
+  }, []);
+
+  const handleMenuClick: MenuProps['onClick'] = useCallback(
+    (e) => {
+      console.log('Drawer menu clicked:', e.key);
+      dispatch(setActiveView(e.key as AppViewKey));
+      closeDrawer(); // Close drawer after selection
+    },
+    [dispatch, closeDrawer]
+  );
+
+  // --- Render Structure ---
   return (
     <ErrorBoundary>
-      {/* <PyodideProvider> */}
-        <AppContent />
-        {/* <PyodideErrorNotifier /> */}
-      {/* </PyodideProvider> */}
+      {/* PyodideProvider wraps the entire application */}
+      <PyodideProvider>
+        <Layout style={{ minHeight: '100vh' }}>
+          {/* AppHeader includes project selection and hamburger */}
+          <AppHeader
+            projectList={projectsData}
+            isLoading={isLoadingProjects}
+            error={formattedProjectsError}
+            // Disable header controls if Pyodide is broken
+            disabled={!!pyodideError}
+            projectSelected={isProjectSelected}
+            onMenuClick={showDrawer}
+          />
+          {/* Main Content Area Layout */}
+          <Layout>
+            {/* Conditionally render loading spinner or the main content */}
+            {pyodideLoading ? (
+              <Content style={{ padding: '50px', textAlign: 'center' }}>
+                <Spin tip="Initializing Pyodide..." size="large" />
+              </Content>
+            ) : (
+              // Render the internal content component once Pyodide is done loading (or failed)
+              <AppContentInternal />
+            )}
+          </Layout>
+
+          {/* Navigation Drawer */}
+          <Drawer
+            title="Navigation"
+            placement="left"
+            onClose={closeDrawer}
+            open={isDrawerOpen}
+            bodyStyle={{ padding: 0 }} // Remove body padding for Menu
+          >
+            <Menu
+              mode="inline"
+              // Determine default open keys based on the current view if it's nested
+              // This ensures the 'Analysis' submenu is open if 'categoryAnalysis' is selected
+              defaultOpenKeys={
+                currentViewKey &&
+                  ['categoryAnalysis', 'goClustering'].includes(currentViewKey)
+                  ? ['analysis']
+                  : []
+              }
+              selectedKeys={currentViewKey ? [currentViewKey] : []}
+              style={{ height: '100%', borderRight: 0 }}
+              items={menuItems}
+              onClick={handleMenuClick}
+              // Disable menu if no project is selected OR Pyodide failed
+              disabled={!isProjectSelected || !!pyodideError}
+            />
+          </Drawer>
+
+          {/* Pyodide Error Modal (rendered outside main layout flow) */}
+          <PyodideErrorNotifier />
+        </Layout>
+      </PyodideProvider>
     </ErrorBoundary>
   );
 };

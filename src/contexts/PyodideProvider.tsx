@@ -16,12 +16,15 @@ export const PyodideContext = createContext<PyodideContextState | undefined>(und
 
 // 3. Define the Provider component (keep your existing logic)
 export const PyodideProvider = ({ children }: { children: ReactNode }) => {
+    console.log('[PyodideProvider.tsx] PyodideProvider component rendering...'); 
     const [pyodideInstance, setPyodideInstance] = useState<PyodideInterface | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<Error | null>(null);
 
     useEffect(() => {
+        console.log('[PyodideProvider.tsx] useEffect running...');
         const init = async () => {
+            console.log('[PyodideProvider.tsx] init() function called...'); 
             // Check if already initialized or errored to avoid re-running unnecessarily
             // Although StrictMode will still cause double run in dev
             if (pyodideInstance || error) return;
