@@ -1,9 +1,10 @@
 // src/components/analysis/GOUmapAnalysisUnit.tsx
-// Corrected version integrating GoIdFilterUI and AccumulationPlot,
-// and updating the call to usePreparedPlotData (v19.5+)
+// Integrates GOUmapAnalysisTable, manages its state (sorting), handles row clicks.
+// Includes loading/error checks and passes all necessary props.
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Row, Col, Spin, Alert, Space, RadioChangeEvent } from 'antd';
+import type { TableProps } from 'antd';
 import UmapPlotComponent from './UmapPlotComponent';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import {
@@ -12,6 +13,7 @@ import {
 } from '../../hooks/usePreparedPlotData'; // Adjust path if needed
 import {
     UmapAnalysisDataPoint,
+    AnalysisTableRow,
     BMDResult,
 } from '../../models/applicationModel'; // Adjust path
 import { ReferenceUmapItem } from '../../data/referenceUmapData'; // Adjust path
@@ -20,18 +22,20 @@ import {
     selectReferenceDataMap,
     selectReferenceData,
 } from '../../store/selectors/referenceDataSelector';
-// --- Import selectors needed by THIS component or its direct children ---
 import {
     HighlightMode,
     selectColorBy,
     selectShapeBy,
     selectSizeBy,
-    selectHiddenColorLabels, // Array version for CustomLegends
+    selectHiddenColorLabels,
     selectHiddenShapeLabels,
     selectHiddenSizeLabels,
     selectHighlightMode,
     selectCommittedSlidingWindowValue,
     selectGoIdInputString,
+    selectGoIdFilterList,
+    selectAccumulationPlotSelectedGoIdsSet,
+    selectTableSelectedGoId, // Import selector for table selection
     // Actions
     setCommittedRankSliderValue,
     setColorBy,
@@ -42,67 +46,79 @@ import {
     toggleSizeLabelVisibility,
     setGoIdInputString,
     setHighlightMode as setHighlightModeAction,
+    setTableSelectedGoId, // Import action for table selection
 } from '../../store/slices/analysisUISlice'; // Adjust path if needed
-// ---------------------------------------------------------------------
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
 import { useGetRawAnalysisDataQuery } from '../../store/apis/experimentsApi';
 
-// --- Import Placeholders (Keep only needed ones) ---
-import AnalysisDataTable from './placeholders/AnalysisDataTable'; // Keep placeholder for now
-// --- Import the REAL Components ---
+// --- Import Table Component and Column Definitions ---
+import { GOUmapAnalysisTable } from '../GOUmapAnalysisTable'; // Adjust path if needed
+import { DEFAULT_GOUMAP_TABLE_COLUMNS } from '../../config/tableColumnDefinitions'; // Adjust path
+import type {
+    TablePaginationConfig,
+    TableColumnType,
+    SorterResult,
+    FilterValue,
+} from 'antd/es/table/interface'; // Import specific AntD table types
+// ----------------------------------------------------
+
+// --- Import Child Components ---
 import CustomLegends from './CustomLegends'; // Adjusted path
 import StylingSelectors from '../StylingSelectors'; // Adjusted path
 import SlidingWindowFilter from '../SlidingWindowFilter'; // Adjusted path
 import AccumulationPlot from './AccumulationPlot'; // Use the functional component
 import GoIdFilterUI from '../GOUIdFilterUI'; // Use the functional component (Adjusted path)
-// ---------------------------------------------
+// -----------------------------
 import {
     COLOR_BY_OPTIONS,
     SHAPE_BY_OPTIONS,
     SIZE_BY_OPTIONS,
 } from '../../config/analysisConstants'; // Adjust path if needed
 
-// --- Define Props Interface (if needed) ---
-interface GOUmapAnalysisUnitProps {
-    // Potentially add props if App.tsx needs to pass specific things
-}
+// --- Props Interface (if needed) ---
+interface GOUmapAnalysisUnitProps { }
 
-// --- Border Colors & Helper (Keep as is) ---
-const BORDER_COLORS = {
-    level1: 'rgba(255, 0, 0, 0.3)',
-    level2: 'rgba(0, 0, 255, 0.3)',
-    level3: 'rgba(0, 128, 0, 0.3)',
-    level4: 'rgba(255, 165, 0, 0.3)',
-    level5: 'rgba(128, 0, 128, 0.3)',
-    level6: 'rgba(255, 192, 203, 0.5)',
-    level7: 'rgba(0, 255, 255, 0.4)',
-};
-const borderStyle = () => ({
-    // border: `${level}px solid ${color}`, // Keep commented out
-});
-// ------------------------------------------
+// --- Border Colors & Helper (Unchanged) ---
+const borderStyle = () => ({});
 
-const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
-    {
-        /* Destructure any props if added */
-    }
-) => {
+// --- GOUmapAnalysisUnit Component ---
+const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
     const dispatch = useAppDispatch();
 
     // --- Selectors needed by THIS component or its direct children ---
     const projectName = useAppSelector(selectSelectedProjectName);
     const selectedBmdResultRefs = useAppSelector(selectSelectedAnalysisRefs);
-    const colorByOption = useAppSelector(selectColorBy); // Needed for StylingSelectors
-    const shapeByOption = useAppSelector(selectShapeBy); // Needed for StylingSelectors
-    const sizeByOption = useAppSelector(selectSizeBy); // Needed for StylingSelectors
-    const hiddenColorLabelsArray = useAppSelector(selectHiddenColorLabels); // Needed for CustomLegends
-    const hiddenShapeLabelsArray = useAppSelector(selectHiddenShapeLabels); // Needed for CustomLegends
-    const hiddenSizeLabelsArray = useAppSelector(selectHiddenSizeLabels); // Needed for CustomLegends
-    const highlightMode = useAppSelector(selectHighlightMode); // Needed for GoIdFilterUI
-    const committedRankValue = useAppSelector(selectCommittedSlidingWindowValue); // Needed for SlidingWindowFilter
-    const referenceData = useAppSelector(selectReferenceData); // Needed by UmapPlotComponent & usePreparedPlotData
-    const referenceDataMap = useAppSelector(selectReferenceDataMap); // Needed by usePreparedPlotData
-    const goIdInputString = useAppSelector(selectGoIdInputString); // Needed by GoIdFilterUI
+    const colorByOption = useAppSelector(selectColorBy);
+    const shapeByOption = useAppSelector(selectShapeBy);
+    const sizeByOption = useAppSelector(selectSizeBy);
+    const hiddenColorLabelsArray = useAppSelector(selectHiddenColorLabels);
+    const hiddenShapeLabelsArray = useAppSelector(selectHiddenShapeLabels);
+    const hiddenSizeLabelsArray = useAppSelector(selectHiddenSizeLabels);
+    const highlightMode = useAppSelector(selectHighlightMode);
+    const committedRankValue = useAppSelector(selectCommittedSlidingWindowValue);
+    const referenceData = useAppSelector(selectReferenceData);
+    const referenceDataMap = useAppSelector(selectReferenceDataMap);
+    const goIdInputString = useAppSelector(selectGoIdInputString);
+    const goIdFilterList = useAppSelector(selectGoIdFilterList);
+    const selectedAccumGoIdsSet = useAppSelector(
+        selectAccumulationPlotSelectedGoIdsSet
+    );
+    const currentTableSelectedGoId = useAppSelector(selectTableSelectedGoId);
+
+    // --- State for Controlled Table ---
+    const [tableSorter, setTableSorter] = useState<
+        SorterResult<AnalysisTableRow> | SorterResult<AnalysisTableRow>[]
+    >({});
+    const [tablePagination, setTablePagination] = useState<TablePaginationConfig>(
+        {
+            current: 1,
+            pageSize: 50,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100', '500'],
+            position: ['bottomRight'],
+        }
+    );
+    // ---------------------------------
 
     // --- Data Fetching ---
     const {
@@ -151,23 +167,65 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
         };
     }, [rawSuccess, rawData]);
 
-    // === Prepare Plot Data (Call hook with FEWER props) ===
-    // The hook now selects most UI state internally
+    // === Prepare Plot Data (Hook selects UI state internally) ===
     const {
-        analysisPoints,
-        allStyledPoints,
+        analysisPoints, // Filtered for plot
+        allStyledPoints, // All points after styling - USE THIS FOR TABLE
         colorItems,
         shapeItems,
         sizeItems,
         minRank,
         maxRank,
     }: PreparedPlotHookData = usePreparedPlotData({
-        // --- Pass ONLY the props the hook still needs ---
         selectedBmdResultRefs: selectedBmdResultRefs || [],
         referenceDataMap: referenceDataMap,
         referenceData: referenceData,
-        // --- UI state props are REMOVED from this call ---
     });
+
+    // --- Create Highlight GO ID Set ---
+    const highlightGoIdsSet = useMemo(
+        () => new Set(goIdFilterList),
+        [goIdFilterList]
+    );
+
+    // --- Prepare Data Source for Table (Sort based on tableSorter state) ---
+    const tableDataSource = useMemo(() => {
+        const points = allStyledPoints || [];
+        if (!tableSorter || !('field' in tableSorter) || !tableSorter.order) {
+            return points; // No sorting needed
+        }
+        const { field, order } = tableSorter;
+        const sorterFn = DEFAULT_GOUMAP_TABLE_COLUMNS.find(
+            (col) => col.key === field
+        )?.sorter;
+        if (typeof sorterFn !== 'function') {
+            return points; // Column or sorter not found
+        }
+        const sortedPoints = [...points].sort((a, b) => {
+            const result = sorterFn(a, b, order);
+            return order === 'descend' ? -result : result;
+        });
+        return sortedPoints;
+    }, [allStyledPoints, tableSorter]);
+
+    // --- Prepare Columns for Table (Add sortOrder dynamically) ---
+    const tableColumns = useMemo(() => {
+        return DEFAULT_GOUMAP_TABLE_COLUMNS.map((col) => {
+            if (!col.key) return col;
+            let currentSortOrder: SorterResult<AnalysisTableRow>['order'] = false;
+            if (
+                tableSorter &&
+                'field' in tableSorter &&
+                tableSorter.field === col.key
+            ) {
+                currentSortOrder = tableSorter.order || false;
+            }
+            return {
+                ...col,
+                sortOrder: currentSortOrder,
+            };
+        });
+    }, [tableSorter]);
 
     // --- Define Callbacks ---
     const handleToggleColorVisibility = useCallback(
@@ -221,17 +279,41 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
     const handleHighlightModeChange = useCallback(
         (e: RadioChangeEvent) => {
             const mode = e.target.value as HighlightMode;
-            // Basic validation before dispatching
             if (Object.values(HighlightMode).includes(mode)) {
                 dispatch(setHighlightModeAction(mode));
             } else {
                 console.warn('Invalid highlight mode selected:', mode);
-                dispatch(setHighlightModeAction(HighlightMode.NONE)); // Default to NONE
+                dispatch(setHighlightModeAction(HighlightMode.NONE));
             }
         },
         [dispatch]
     );
-    // ---------------------------------
+    const handleTableChange = useCallback(
+        (
+            pagination: TablePaginationConfig,
+            filters: Record<string, FilterValue | null>,
+            sorter: SorterResult<AnalysisTableRow> | SorterResult<AnalysisTableRow>[],
+            extra: { currentDataSource: AnalysisTableRow[]; action: string }
+        ) => {
+            console.log('[GOUmapAnalysisUnit] handleTableChange:', { pagination, filters, sorter, action: extra.action });
+            setTablePagination(pagination);
+            setTableSorter(sorter);
+        },
+        []
+    );
+    const handleTableRowClick = useCallback(
+        (record: AnalysisTableRow) => {
+            const clickedGoId = record?.go_id;
+            console.log('[GOUmapAnalysisUnit] Row clicked:', clickedGoId);
+            if (clickedGoId && clickedGoId === currentTableSelectedGoId) {
+                dispatch(setTableSelectedGoId(null));
+            } else {
+                dispatch(setTableSelectedGoId(clickedGoId || null));
+            }
+        },
+        [dispatch, currentTableSelectedGoId]
+    );
+    // --------------------------------------
 
     // === Render Logic Checks ===
     if (isLoading) {
@@ -242,7 +324,6 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
         );
     }
     if (queryError) {
-        // Attempt to access potential error message property
         const errorMessage =
             typeof queryError === 'object' && queryError !== null && 'message' in queryError
                 ? String(queryError.message)
@@ -256,7 +337,13 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
             />
         );
     }
-    // No need to check for project selection here, as App.tsx handles that
+
+    // --- Log Check Before Render ---
+    console.log('[GOUmapAnalysisUnit Prop Check]', {
+        handleToggleColorVisibility_Type: typeof handleToggleColorVisibility,
+        handleToggleShapeVisibility_Type: typeof handleToggleShapeVisibility,
+        handleToggleSizeVisibility_Type: typeof handleToggleSizeVisibility,
+    });
 
     // --- Render Layout ---
     return (
@@ -266,7 +353,6 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                 <div style={borderStyle()}>
                     <Row gutter={[16, 16]}>
                         <Col span={24}>
-                            {/* Pass selected state to GoIdFilterUI */}
                             <GoIdFilterUI
                                 goIdInputString={goIdInputString}
                                 highlightMode={highlightMode}
@@ -275,11 +361,10 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                             />
                         </Col>
                         <Col span={24}>
-                            {/* Pass selected state to SlidingWindowFilter */}
                             <SlidingWindowFilter
                                 min={minRank}
                                 max={maxRank}
-                                value={committedRankValue} // Pass selected value
+                                value={committedRankValue}
                                 onAfterChange={handleRankChange}
                                 disabled={
                                     isLoading ||
@@ -290,11 +375,10 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                                 label="Filter by Rank"
                                 analysisName="GOUmapRankFilter"
                             />
-                            {/* Pass selected state to StylingSelectors */}
                             <StylingSelectors
-                                colorByOption={colorByOption} // Pass selected value
-                                shapeByOption={shapeByOption} // Pass selected value
-                                sizeByOption={sizeByOption} // Pass selected value
+                                colorByOption={colorByOption}
+                                shapeByOption={shapeByOption}
+                                sizeByOption={sizeByOption}
                                 onColorByChange={handleColorByChange}
                                 onShapeByChange={handleShapeByChange}
                                 onSizeByChange={handleSizeByChange}
@@ -312,16 +396,16 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                     <Row gutter={[16, 16]} wrap={false}>
                         {/* Color Legend */}
                         <Col flex="200px" style={borderStyle()}>
-                            {/* Pass selected state to CustomLegends */}
                             <CustomLegends
                                 cardTitle="Color"
                                 colorItems={colorItems}
-                                hiddenColorLabels={hiddenColorLabelsArray} // Pass array version
-                                onToggleColorVisibility={handleToggleColorVisibility}
+                                hiddenColorLabels={hiddenColorLabelsArray}
+                                onToggleColorVisibility={handleToggleColorVisibility} // Pass the function
+                                onToggleShapeVisibility={handleToggleShapeVisibility} // Pass the function
+                                onToggleSizeVisibility={handleToggleSizeVisibility}   // Pass the function
                                 showColor={true}
-                                // Pass other toggles even if not shown in this instance
-                                onToggleShapeVisibility={handleToggleShapeVisibility}
-                                onToggleSizeVisibility={handleToggleSizeVisibility}
+                                showShape={false} // Explicitly false for this instance
+                                showSize={false}  // Explicitly false for this instance
                             />
                         </Col>
                         {/* Main Content Area */}
@@ -337,31 +421,20 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                                         {selectedBmdResultRefs?.map((refStr) => {
                                             const numericRef = Number(refStr);
                                             if (isNaN(numericRef)) return null;
-
                                             const bmdInfo = bmdResultMap.get(numericRef);
                                             const analysisNameForPlot =
                                                 bmdInfo?.name || `Analysis ${numericRef}`;
-
-                                            // Filter allStyledPoints for this specific analysis ref
                                             const pointsForThisAccumPlot = allStyledPoints
                                                 ? allStyledPoints.filter(
-                                                    (p: UmapAnalysisDataPoint) =>
-                                                        p.bmdResultRef === numericRef
+                                                    (p) => p.bmdResultRef === numericRef
                                                 )
                                                 : null;
-
-                                            console.log(
-                                                `[GOUmapAnalysisUnit] Preparing AccumPlot ${analysisNameForPlot}. Found ${pointsForThisAccumPlot?.length ?? 0
-                                                } points.`
-                                            );
-
                                             return (
                                                 <Col key={refStr} xs={24} sm={12} md={8} lg={6}>
                                                     <AccumulationPlot
                                                         analysisName={analysisNameForPlot}
                                                         styledPointsForPlot={pointsForThisAccumPlot}
                                                         bmdResultRef={numericRef}
-                                                    // Pass other props if AccumulationPlot needs them
                                                     />
                                                 </Col>
                                             );
@@ -371,7 +444,7 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                                 {/* UMAP Plot Section */}
                                 <div style={borderStyle()}>
                                     <UmapPlotComponent
-                                        data={analysisPoints} // Use filtered points
+                                        data={analysisPoints}
                                         referenceData={referenceData}
                                     />
                                 </div>
@@ -379,19 +452,18 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                         </Col>
                         {/* Shape/Size Legend */}
                         <Col flex="200px" style={borderStyle()}>
-                            {/* Pass selected state to CustomLegends */}
                             <CustomLegends
                                 cardTitle="Shape & Size"
                                 shapeItems={shapeItems}
                                 sizeItems={sizeItems}
-                                hiddenShapeLabels={hiddenShapeLabelsArray} // Pass array version
-                                hiddenSizeLabels={hiddenSizeLabelsArray} // Pass array version
-                                onToggleShapeVisibility={handleToggleShapeVisibility}
-                                onToggleSizeVisibility={handleToggleSizeVisibility}
+                                hiddenShapeLabels={hiddenShapeLabelsArray}
+                                hiddenSizeLabels={hiddenSizeLabelsArray}
+                                onToggleColorVisibility={handleToggleColorVisibility} // Pass the function
+                                onToggleShapeVisibility={handleToggleShapeVisibility} // Pass the function
+                                onToggleSizeVisibility={handleToggleSizeVisibility}   // Pass the function
+                                showColor={false} // Explicitly false for this instance
                                 showShape={true}
                                 showSize={true}
-                                // Pass other toggles even if not shown in this instance
-                                onToggleColorVisibility={handleToggleColorVisibility}
                             />
                         </Col>
                     </Row>
@@ -401,8 +473,20 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                 <div style={borderStyle()}>
                     <Row>
                         <Col span={24}>
-                            {/* --- TODO: Replace with functional AnalysisDataTable --- */}
-                            <AnalysisDataTable />
+                            <GOUmapAnalysisTable
+                                dataSource={tableDataSource}
+                                columns={tableColumns}
+                                loading={isLoading}
+                                highlightMode={highlightMode}
+                                highlightGoIdsSet={highlightGoIdsSet}
+                                selectedAccumGoIdsSet={selectedAccumGoIdsSet}
+                                size="small"
+                                bordered
+                                scroll={{ y: 400, x: 'max-content' }} // Example scroll
+                                pagination={tablePagination}
+                                onChange={handleTableChange}
+                                onRowClick={handleTableRowClick} // Pass the click handler
+                            />
                         </Col>
                     </Row>
                 </div>

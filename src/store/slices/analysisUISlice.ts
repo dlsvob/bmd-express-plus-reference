@@ -1,5 +1,5 @@
 // src/store/slices/analysisUISlice.ts
-// Setting default rank range in initialState
+// Manages UI state for analysis view, including filters, styling, and interactions.
 
 import { createSlice, PayloadAction, createSelector } from '@reduxjs/toolkit';
 import { RootState } from '../store'; // Adjust path if needed
@@ -7,11 +7,11 @@ import { RootState } from '../store'; // Adjust path if needed
 // Define HighlightMode enum
 export enum HighlightMode {
   NONE = 'none',
-  SELECTED = 'selected',
-  CLUSTER = 'cluster',
+  SELECTED = 'selected', // For GO ID Filter "Exact Match"
+  CLUSTER = 'cluster',   // For GO ID Filter "Cluster Match"
 }
 
-// Define the state interface directly
+// Define the state interface
 export interface AnalysisUIState {
   colorBy: string;
   shapeBy: string;
@@ -20,13 +20,14 @@ export interface AnalysisUIState {
   hiddenShapeLabels: string[];
   hiddenSizeLabels: string[];
   goIdInputString: string;
-  goIdFilterList: string[];
-  highlightMode: HighlightMode;
-  accumulationPlotSelectedGoIds: string[];
-  committedRankSliderValue: [number, number]; // [start_rank, end_rank]
+  goIdFilterList: string[]; // Derived from goIdInputString
+  highlightMode: HighlightMode; // For GO ID Filter/Highlight component
+  accumulationPlotSelectedGoIds: string[]; // GO IDs selected via Accumulation plots
+  committedRankSliderValue: [number, number]; // Current [minRank, maxRank] from SlidingWindowFilter
+  tableSelectedGoId: string | null; // GO ID selected by clicking a table row
 }
 
-// --- Define initial state with a default rank range ---
+// Define initial state
 const initialState: AnalysisUIState = {
   colorBy: 'cluster_id',
   shapeBy: 'bmdResultName',
@@ -38,30 +39,28 @@ const initialState: AnalysisUIState = {
   goIdFilterList: [],
   highlightMode: HighlightMode.NONE,
   accumulationPlotSelectedGoIds: [],
-  // --- SET DEFAULT RANK RANGE ---
-  committedRankSliderValue: [1, 5000], // Default to a wide range
-  // ----------------------------
+  committedRankSliderValue: [1, 5000], // Default wide range
+  tableSelectedGoId: null, // Initially nothing selected in table
 };
-// ----------------------------------------------------
 
 // --- Helper Functions ---
 const toggleItemInArray = (arr: string[], item: string): string[] => {
   const currentArr = arr || [];
   const index = currentArr.indexOf(item);
   if (index > -1) {
-    // console.log(`[toggleItemInArray] Removing item: ${item}`); // Keep logs minimal
     return [
       ...currentArr.slice(0, index),
       ...currentArr.slice(index + 1)
     ];
   } else {
-    // console.log(`[toggleItemInArray] Adding item: ${item}`); // Keep logs minimal
     return [...currentArr, item];
   }
 };
 
 const parseGoIdInput = (input: string): string[] => {
   if (!input) return [];
+  // Split by newline, comma, semicolon, or one or more spaces
+  // Trim whitespace, filter empty strings, convert to uppercase
   return input
     .split(/[\n,;\s]+/)
     .map(id => id.trim())
@@ -75,11 +74,37 @@ const analysisUISlice = createSlice({
   name: 'analysisUI',
   initialState,
   reducers: {
-    setColorBy(state, action: PayloadAction<string>) { state.colorBy = action.payload; state.hiddenColorLabels = []; },
-    setShapeBy(state, action: PayloadAction<string>) { state.shapeBy = action.payload; state.hiddenShapeLabels = []; },
-    setSizeBy(state, action: PayloadAction<string>) { state.sizeBy = action.payload; state.hiddenSizeLabels = []; },
-    resetStyling(state) { Object.assign(state, initialState); }, // Reset will now include the default range
+    // Styling Reducers
+    setColorBy(state, action: PayloadAction<string>) {
+      state.colorBy = action.payload;
+      state.hiddenColorLabels = []; // Reset hidden labels when changing category
+    },
+    setShapeBy(state, action: PayloadAction<string>) {
+      state.shapeBy = action.payload;
+      state.hiddenShapeLabels = []; // Reset hidden labels
+    },
+    setSizeBy(state, action: PayloadAction<string>) {
+      state.sizeBy = action.payload;
+      state.hiddenSizeLabels = []; // Reset hidden labels
+    },
+    resetStyling(state) {
+      // Reset to initial state, preserving potentially entered GO IDs?
+      // Or fully reset: Object.assign(state, initialState);
+      state.colorBy = initialState.colorBy;
+      state.shapeBy = initialState.shapeBy;
+      state.sizeBy = initialState.sizeBy;
+      state.hiddenColorLabels = [];
+      state.hiddenShapeLabels = [];
+      state.hiddenSizeLabels = [];
+      // Keep highlightMode, goIdInputString, goIdFilterList, selections?
+      // Decide if reset should clear everything or just visual styling.
+      // For now, let's keep selections/filters:
+      // state.highlightMode = initialState.highlightMode;
+      // state.accumulationPlotSelectedGoIds = [];
+      // state.tableSelectedGoId = null;
+    },
 
+    // Legend Visibility Reducers
     toggleColorLabelVisibility(state, action: PayloadAction<string>) {
       state.hiddenColorLabels = toggleItemInArray(state.hiddenColorLabels, action.payload);
     },
@@ -90,25 +115,34 @@ const analysisUISlice = createSlice({
       state.hiddenSizeLabels = toggleItemInArray(state.hiddenSizeLabels, action.payload);
     },
 
-    setGoIdInputString(state, action: PayloadAction<string>) { state.goIdInputString = action.payload; state.goIdFilterList = parseGoIdInput(action.payload); },
-    setHighlightMode(state, action: PayloadAction<HighlightMode>) { state.highlightMode = action.payload; },
-    setAccumulationPlotSelection(state, action: PayloadAction<string[]>) { state.accumulationPlotSelectedGoIds = action.payload || []; },
+    // GO ID Filter/Highlight Reducers
+    setGoIdInputString(state, action: PayloadAction<string>) {
+      state.goIdInputString = action.payload;
+      state.goIdFilterList = parseGoIdInput(action.payload); // Update derived list
+    },
+    setHighlightMode(state, action: PayloadAction<HighlightMode>) {
+      state.highlightMode = action.payload;
+    },
 
-    // --- Reducer for Rank ---
+    // Cross-component Interaction Reducers
+    setAccumulationPlotSelection(state, action: PayloadAction<string[]>) {
+      state.accumulationPlotSelectedGoIds = action.payload || [];
+    },
+    setTableSelectedGoId(state, action: PayloadAction<string | null>) {
+      state.tableSelectedGoId = action.payload;
+    },
+
+    // Rank Filter Reducer
     setCommittedRankSliderValue(state, action: PayloadAction<[number, number]>) {
-      // Basic validation
       if (Array.isArray(action.payload) && action.payload.length === 2 &&
         typeof action.payload[0] === 'number' && typeof action.payload[1] === 'number') {
-        // Only update if the value actually changed to prevent unnecessary re-renders
         if (state.committedRankSliderValue[0] !== action.payload[0] || state.committedRankSliderValue[1] !== action.payload[1]) {
-          // console.log(`[analysisUISlice] Reducer: setCommittedRankSliderValue - Payload: [${action.payload.join(', ')}]`); // Keep logs minimal
           state.committedRankSliderValue = action.payload;
         }
       } else {
         console.warn('[analysisUISlice] Invalid payload for setCommittedRankSliderValue:', action.payload);
       }
     },
-    // --------------------------
   },
 });
 
@@ -117,9 +151,8 @@ export const {
   setColorBy, setShapeBy, setSizeBy, resetStyling,
   toggleColorLabelVisibility, toggleShapeLabelVisibility, toggleSizeLabelVisibility,
   setGoIdInputString, setHighlightMode, setAccumulationPlotSelection,
-  // --- Export new action ---
+  setTableSelectedGoId, // Export new action
   setCommittedRankSliderValue,
-  // -------------------------
 } = analysisUISlice.actions;
 
 // Export the reducer function
@@ -137,11 +170,8 @@ export const selectGoIdInputString = (state: RootState): string => state.analysi
 export const selectGoIdFilterList = (state: RootState): string[] => state.analysisUI.goIdFilterList || [];
 export const selectHighlightMode = (state: RootState): HighlightMode => state.analysisUI.highlightMode;
 export const selectAccumulationPlotSelectedGoIds = (state: RootState): string[] => state.analysisUI.accumulationPlotSelectedGoIds || [];
-
-// --- RENAME Rank Selector ---
-// Renamed to reflect the UI component more accurately
 export const selectCommittedSlidingWindowValue = (state: RootState): [number, number] => state.analysisUI.committedRankSliderValue;
-// ----------------------------
+export const selectTableSelectedGoId = (state: RootState): string | null => state.analysisUI.tableSelectedGoId;
 
 // --- Memoized selectors returning Sets ---
 export const selectHiddenColorLabelsSet = createSelector(

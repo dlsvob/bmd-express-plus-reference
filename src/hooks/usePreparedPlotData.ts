@@ -77,7 +77,7 @@ function deriveLegendItemsInternal(
   shapeBy: string,
   sizeBy: string
 ): LegendItems {
-  // ... (implementation remains the same)
+    // ... (implementation remains the same)
   const defaultResult: LegendItems = { colorItems: [], shapeItems: [], sizeItems: [] };
   if (!allStyledPoints || allStyledPoints.length === 0) {
     return defaultResult;
@@ -103,13 +103,13 @@ function deriveLegendItemsInternal(
   });
   const sortedColorItems: [string, string][] = Array.from(uniqueLabelsAndColors.entries())
     .sort((a, b) => { /* ... sort logic ... */
-      const labelA = a[0]; const labelB = b[0];
-      const isAUnclustered = labelA === 'Unclustered'; const isBUnclustered = labelB === 'Unclustered';
-      if (isAUnclustered && !isBUnclustered) return -1; if (!isAUnclustered && isBUnclustered) return 1; if (isAUnclustered && isBUnclustered) return 0;
-      const numA = parseInt(labelA.replace('Cluster ', ''), 10); const numB = parseInt(labelB.replace('Cluster ', ''), 10);
-      if (!isNaN(numA) && !isNaN(numB)) { return numA - numB; }
-      return labelA.localeCompare(labelB);
-    });
+        const labelA = a[0]; const labelB = b[0];
+        const isAUnclustered = labelA === 'Unclustered'; const isBUnclustered = labelB === 'Unclustered';
+        if (isAUnclustered && !isBUnclustered) return -1; if (!isAUnclustered && isBUnclustered) return 1; if (isAUnclustered && isBUnclustered) return 0;
+        const numA = parseInt(labelA.replace('Cluster ', ''), 10); const numB = parseInt(labelB.replace('Cluster ', ''), 10);
+        if (!isNaN(numA) && !isNaN(numB)) { return numA - numB; }
+        return labelA.localeCompare(labelB);
+     });
   const sortedShapeItems: [string, string][] = Array.from(uniqueLabelsAndShapes.entries())
     .sort((a, b) => a[0].localeCompare(b[0]));
   const sortedSizeItems: [string, number][] = Array.from(uniqueLabelsAndSizes.entries())
