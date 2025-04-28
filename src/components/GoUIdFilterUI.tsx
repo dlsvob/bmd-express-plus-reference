@@ -1,4 +1,5 @@
-// src/components/GoIdFilterUI.tsx (New File)
+// src/components/GoIdFilterUI.tsx (Corrected)
+
 import React from 'react';
 import { Typography, Input, Radio } from 'antd';
 import type { RadioChangeEvent } from 'antd';
@@ -14,42 +15,48 @@ interface GoIdFilterUIProps {
     onHighlightModeChange: (e: RadioChangeEvent) => void;
 }
 
-const GoIdFilterUI: React.FC<GoIdFilterUIProps> = React.memo(({
-    goIdInputString,
-    highlightMode,
-    onGoIdInputChange,
-    onHighlightModeChange,
-}) => {
-    return (
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '1rem' }}>
-            <div style={{ flexBasis: '33%', flexShrink: 0 }}>
-                <Paragraph strong style={{ marginBottom: '0.5rem' }}>
-                    Highlight GO IDs:
-                </Paragraph>
-                <TextArea
-                    rows={4}
-                    placeholder="Paste GO IDs..."
-                    value={goIdInputString}
-                    onChange={onGoIdInputChange}
-                />
+const GoIdFilterUI: React.FC<GoIdFilterUIProps> = React.memo(
+    ({
+        goIdInputString,
+        highlightMode,
+        onGoIdInputChange,
+        onHighlightModeChange,
+    }) => {
+        return (
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '1rem' }}>
+                <div style={{ flexBasis: '33%', flexShrink: 0 }}>
+                    <Paragraph strong style={{ marginBottom: '0.5rem' }}>
+                        Highlight GO IDs:
+                    </Paragraph>
+                    <TextArea
+                        rows={4}
+                        placeholder="Paste GO IDs..."
+                        value={goIdInputString}
+                        onChange={onGoIdInputChange}
+                    />
+                </div>
+                <div style={{ flexGrow: 1 }}>
+                    <Paragraph strong style={{ marginBottom: '0.5rem' }}>
+                        Highlight Mode:
+                    </Paragraph>
+                    {/* Ensure the value passed to Radio.Group matches the state */}
+                    <Radio.Group onChange={onHighlightModeChange} value={highlightMode}>
+                        {/* Use HighlightMode enum values for consistency */}
+                        <Radio value={HighlightMode.NONE}>Off</Radio>
+                        {/* *** FIX HERE: Change value from "exact" to HighlightMode.SELECTED *** */}
+                        <Radio value={HighlightMode.SELECTED}>Exact Match</Radio>
+                        {/* ******************************************************************** */}
+                        <Radio value={HighlightMode.CLUSTER}>Cluster Match</Radio>
+                    </Radio.Group>
+                    <Paragraph type="secondary" style={{ marginTop: '0.5rem' }}>
+                        Exact: Increase size of matching GO IDs. <br />
+                        Cluster: Increase size of exact matches, decrease size & dim others
+                        in the same cluster(s).
+                    </Paragraph>
+                </div>
             </div>
-            <div style={{ flexGrow: 1 }}>
-                <Paragraph strong style={{ marginBottom: '0.5rem' }}>
-                    Highlight Mode:
-                </Paragraph>
-                <Radio.Group onChange={onHighlightModeChange} value={highlightMode}>
-                    <Radio value="none">Off</Radio>
-                    <Radio value="exact">Exact Match</Radio>
-                    <Radio value="cluster">Cluster Match</Radio>
-                </Radio.Group>
-                <Paragraph type="secondary" style={{ marginTop: '0.5rem' }}>
-                    Exact: Increase size of matching GO IDs. <br />
-                    Cluster: Increase size of exact matches, decrease size & dim others
-                    in the same cluster(s).
-                </Paragraph>
-            </div>
-        </div>
-    );
-});
+        );
+    }
+);
 
 export default GoIdFilterUI;

@@ -1,8 +1,9 @@
 // src/components/analysis/GOUmapAnalysisUnit.tsx
-// Corrected version integrating GoIdFilterUI and AccumulationPlot
+// Corrected version integrating GoIdFilterUI and AccumulationPlot,
+// and updating the call to usePreparedPlotData (v19.5+)
 
-import React, { useCallback, useMemo } from 'react'; // Removed useMemo, useEffect if not needed directly
-import { Row, Col, Spin, Alert, Space, RadioChangeEvent } from 'antd'; // Added RadioChangeEvent
+import React, { useCallback, useMemo } from 'react';
+import { Row, Col, Spin, Alert, Space, RadioChangeEvent } from 'antd';
 import UmapPlotComponent from './UmapPlotComponent';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import {
@@ -19,22 +20,19 @@ import {
     selectReferenceDataMap,
     selectReferenceData,
 } from '../../store/selectors/referenceDataSelector';
+// --- Import selectors needed by THIS component or its direct children ---
 import {
-    HighlightMode, // Import Enum
+    HighlightMode,
     selectColorBy,
     selectShapeBy,
     selectSizeBy,
-    selectHiddenColorLabels,
+    selectHiddenColorLabels, // Array version for CustomLegends
     selectHiddenShapeLabels,
     selectHiddenSizeLabels,
-    selectHiddenColorLabelsSet,
-    selectHiddenShapeLabelsSet,
-    selectHiddenSizeLabelsSet,
-    selectGoIdFilterList,
     selectHighlightMode,
-    selectAccumulationPlotSelectedGoIdsSet,
     selectCommittedSlidingWindowValue,
-    selectGoIdInputString, // Selector for input value
+    selectGoIdInputString,
+    // Actions
     setCommittedRankSliderValue,
     setColorBy,
     setShapeBy,
@@ -42,12 +40,11 @@ import {
     toggleColorLabelVisibility,
     toggleShapeLabelVisibility,
     toggleSizeLabelVisibility,
-    setGoIdInputString, // Action for input value
-    setHighlightMode as setHighlightModeAction, // Action for highlight mode (aliased)
+    setGoIdInputString,
+    setHighlightMode as setHighlightModeAction,
 } from '../../store/slices/analysisUISlice'; // Adjust path if needed
+// ---------------------------------------------------------------------
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
-// Keep BMDResult type import if needed elsewhere, maybe bmdResultMap key type
-// import { BMDResult } from '../../models/BMDxExported';
 import { useGetRawAnalysisDataQuery } from '../../store/apis/experimentsApi';
 
 // --- Import Placeholders (Keep only needed ones) ---
@@ -57,7 +54,7 @@ import CustomLegends from './CustomLegends'; // Adjusted path
 import StylingSelectors from '../StylingSelectors'; // Adjusted path
 import SlidingWindowFilter from '../SlidingWindowFilter'; // Adjusted path
 import AccumulationPlot from './AccumulationPlot'; // Use the functional component
-import GoIdFilterUI from '../../components/GOUIdFilterUI'; // Use the functional component
+import GoIdFilterUI from '../GOUIdFilterUI'; // Use the functional component (Adjusted path)
 // ---------------------------------------------
 import {
     COLOR_BY_OPTIONS,
@@ -65,12 +62,9 @@ import {
     SIZE_BY_OPTIONS,
 } from '../../config/analysisConstants'; // Adjust path if needed
 
-// --- Define Props Interface (from parent App.tsx) ---
-// This component now gets most of its state via selectors
-// Props might be minimal if App.tsx doesn't need to pass much down anymore
+// --- Define Props Interface (if needed) ---
 interface GOUmapAnalysisUnitProps {
     // Potentially add props if App.tsx needs to pass specific things
-    // For now, assuming it gets project context implicitly via selectors
 }
 
 // --- Border Colors & Helper (Keep as is) ---
@@ -84,7 +78,7 @@ const BORDER_COLORS = {
     level7: 'rgba(0, 255, 255, 0.4)',
 };
 const borderStyle = () => ({
-    // border: `${level}px solid ${color}`,
+    // border: `${level}px solid ${color}`, // Keep commented out
 });
 // ------------------------------------------
 
@@ -95,25 +89,18 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
 ) => {
     const dispatch = useAppDispatch();
 
-    // --- Selectors ---
-    const projectName = useAppSelector(selectSelectedProjectName); // Needed for query
+    // --- Selectors needed by THIS component or its direct children ---
+    const projectName = useAppSelector(selectSelectedProjectName);
     const selectedBmdResultRefs = useAppSelector(selectSelectedAnalysisRefs);
-    const colorByOption = useAppSelector(selectColorBy);
-    const shapeByOption = useAppSelector(selectShapeBy);
-    const sizeByOption = useAppSelector(selectSizeBy);
-    const hiddenColorLabelsArray = useAppSelector(selectHiddenColorLabels);
-    const hiddenShapeLabelsArray = useAppSelector(selectHiddenShapeLabels);
-    const hiddenSizeLabelsArray = useAppSelector(selectHiddenSizeLabels);
-    const hiddenColorLabelsSet = useAppSelector(selectHiddenColorLabelsSet);
-    const hiddenShapeLabelsSet = useAppSelector(selectHiddenShapeLabelsSet);
-    const hiddenSizeLabelsSet = useAppSelector(selectHiddenSizeLabelsSet);
-    const goIdFilterList = useAppSelector(selectGoIdFilterList); // Needed by usePreparedPlotData
-    const highlightMode = useAppSelector(selectHighlightMode); // Needed by usePreparedPlotData & GoIdFilterUI
-    const selectedGoIdsSet = useAppSelector(
-        selectAccumulationPlotSelectedGoIdsSet
-    ); // Needed by usePreparedPlotData
-    const committedRankValue = useAppSelector(selectCommittedSlidingWindowValue); // Needed by usePreparedPlotData & SlidingWindowFilter
-    const referenceData = useAppSelector(selectReferenceData); // Needed by usePreparedPlotData & UmapPlotComponent
+    const colorByOption = useAppSelector(selectColorBy); // Needed for StylingSelectors
+    const shapeByOption = useAppSelector(selectShapeBy); // Needed for StylingSelectors
+    const sizeByOption = useAppSelector(selectSizeBy); // Needed for StylingSelectors
+    const hiddenColorLabelsArray = useAppSelector(selectHiddenColorLabels); // Needed for CustomLegends
+    const hiddenShapeLabelsArray = useAppSelector(selectHiddenShapeLabels); // Needed for CustomLegends
+    const hiddenSizeLabelsArray = useAppSelector(selectHiddenSizeLabels); // Needed for CustomLegends
+    const highlightMode = useAppSelector(selectHighlightMode); // Needed for GoIdFilterUI
+    const committedRankValue = useAppSelector(selectCommittedSlidingWindowValue); // Needed for SlidingWindowFilter
+    const referenceData = useAppSelector(selectReferenceData); // Needed by UmapPlotComponent & usePreparedPlotData
     const referenceDataMap = useAppSelector(selectReferenceDataMap); // Needed by usePreparedPlotData
     const goIdInputString = useAppSelector(selectGoIdInputString); // Needed by GoIdFilterUI
 
@@ -133,7 +120,7 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
         }
     );
 
-    const isLoading = isLoadingRaw; // Combine loading states if more sources are added
+    const isLoading = isLoadingRaw;
     const queryError = rawError;
     const hasSelection = selectedBmdResultRefs && selectedBmdResultRefs.length > 0;
 
@@ -164,7 +151,8 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
         };
     }, [rawSuccess, rawData]);
 
-    // === Prepare Plot Data ===
+    // === Prepare Plot Data (Call hook with FEWER props) ===
+    // The hook now selects most UI state internally
     const {
         analysisPoints,
         allStyledPoints,
@@ -174,20 +162,12 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
         minRank,
         maxRank,
     }: PreparedPlotHookData = usePreparedPlotData({
+        // --- Pass ONLY the props the hook still needs ---
         selectedBmdResultRefs: selectedBmdResultRefs || [],
         referenceDataMap: referenceDataMap,
         referenceData: referenceData,
-        colorByOption,
-        shapeByOption,
-        sizeByOption,
-        hiddenColorLabels: hiddenColorLabelsSet,
-        hiddenShapeLabels: hiddenShapeLabelsSet,
-        hiddenSizeLabels: hiddenSizeLabelsSet,
-        goIdFilterList, // Pass the list derived from input string
-        highlightMode,
-        selectedGoIdsSet,
-        committedRankSliderValue: committedRankValue,
-    }) as PreparedPlotHookData;
+        // --- UI state props are REMOVED from this call ---
+    });
 
     // --- Define Callbacks ---
     const handleToggleColorVisibility = useCallback(
@@ -232,7 +212,6 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
         },
         [dispatch]
     );
-    // --- Callbacks for GoIdFilterUI ---
     const handleGoIdInputChange = useCallback(
         (e: React.ChangeEvent<HTMLTextAreaElement>) => {
             dispatch(setGoIdInputString(e.target.value));
@@ -242,10 +221,12 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
     const handleHighlightModeChange = useCallback(
         (e: RadioChangeEvent) => {
             const mode = e.target.value as HighlightMode;
+            // Basic validation before dispatching
             if (Object.values(HighlightMode).includes(mode)) {
                 dispatch(setHighlightModeAction(mode));
             } else {
-                dispatch(setHighlightModeAction(HighlightMode.NONE));
+                console.warn('Invalid highlight mode selected:', mode);
+                dispatch(setHighlightModeAction(HighlightMode.NONE)); // Default to NONE
             }
         },
         [dispatch]
@@ -261,10 +242,15 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
         );
     }
     if (queryError) {
+        // Attempt to access potential error message property
+        const errorMessage =
+            typeof queryError === 'object' && queryError !== null && 'message' in queryError
+                ? String(queryError.message)
+                : String(queryError);
         return (
             <Alert
                 message="Error Loading Data"
-                description={String(queryError)}
+                description={errorMessage}
                 type="error"
                 showIcon
             />
@@ -280,7 +266,7 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                 <div style={borderStyle()}>
                     <Row gutter={[16, 16]}>
                         <Col span={24}>
-                            {/* --- Use functional GoIdFilterUI --- */}
+                            {/* Pass selected state to GoIdFilterUI */}
                             <GoIdFilterUI
                                 goIdInputString={goIdInputString}
                                 highlightMode={highlightMode}
@@ -289,10 +275,11 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                             />
                         </Col>
                         <Col span={24}>
+                            {/* Pass selected state to SlidingWindowFilter */}
                             <SlidingWindowFilter
                                 min={minRank}
                                 max={maxRank}
-                                value={committedRankValue}
+                                value={committedRankValue} // Pass selected value
                                 onAfterChange={handleRankChange}
                                 disabled={
                                     isLoading ||
@@ -303,10 +290,11 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                                 label="Filter by Rank"
                                 analysisName="GOUmapRankFilter"
                             />
+                            {/* Pass selected state to StylingSelectors */}
                             <StylingSelectors
-                                colorByOption={colorByOption}
-                                shapeByOption={shapeByOption}
-                                sizeByOption={sizeByOption}
+                                colorByOption={colorByOption} // Pass selected value
+                                shapeByOption={shapeByOption} // Pass selected value
+                                sizeByOption={sizeByOption} // Pass selected value
                                 onColorByChange={handleColorByChange}
                                 onShapeByChange={handleShapeByChange}
                                 onSizeByChange={handleSizeByChange}
@@ -324,19 +312,25 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                     <Row gutter={[16, 16]} wrap={false}>
                         {/* Color Legend */}
                         <Col flex="200px" style={borderStyle()}>
+                            {/* Pass selected state to CustomLegends */}
                             <CustomLegends
                                 cardTitle="Color"
                                 colorItems={colorItems}
-                                hiddenColorLabels={hiddenColorLabelsArray}
+                                hiddenColorLabels={hiddenColorLabelsArray} // Pass array version
                                 onToggleColorVisibility={handleToggleColorVisibility}
                                 showColor={true}
+                                // Pass other toggles even if not shown in this instance
                                 onToggleShapeVisibility={handleToggleShapeVisibility}
                                 onToggleSizeVisibility={handleToggleSizeVisibility}
                             />
                         </Col>
                         {/* Main Content Area */}
                         <Col flex="auto" style={borderStyle()}>
-                            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                            <Space
+                                direction="vertical"
+                                size="middle"
+                                style={{ width: '100%' }}
+                            >
                                 {/* Accumulation Plots Section */}
                                 <div style={borderStyle()}>
                                     <Row gutter={[16, 16]}>
@@ -348,6 +342,7 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                                             const analysisNameForPlot =
                                                 bmdInfo?.name || `Analysis ${numericRef}`;
 
+                                            // Filter allStyledPoints for this specific analysis ref
                                             const pointsForThisAccumPlot = allStyledPoints
                                                 ? allStyledPoints.filter(
                                                     (p: UmapAnalysisDataPoint) =>
@@ -366,7 +361,7 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                                                         analysisName={analysisNameForPlot}
                                                         styledPointsForPlot={pointsForThisAccumPlot}
                                                         bmdResultRef={numericRef}
-                                                    // Removed unused props
+                                                    // Pass other props if AccumulationPlot needs them
                                                     />
                                                 </Col>
                                             );
@@ -376,7 +371,7 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                                 {/* UMAP Plot Section */}
                                 <div style={borderStyle()}>
                                     <UmapPlotComponent
-                                        data={analysisPoints || []}
+                                        data={analysisPoints} // Use filtered points
                                         referenceData={referenceData}
                                     />
                                 </div>
@@ -384,16 +379,18 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
                         </Col>
                         {/* Shape/Size Legend */}
                         <Col flex="200px" style={borderStyle()}>
+                            {/* Pass selected state to CustomLegends */}
                             <CustomLegends
                                 cardTitle="Shape & Size"
                                 shapeItems={shapeItems}
                                 sizeItems={sizeItems}
-                                hiddenShapeLabels={hiddenShapeLabelsArray}
-                                hiddenSizeLabels={hiddenSizeLabelsArray}
+                                hiddenShapeLabels={hiddenShapeLabelsArray} // Pass array version
+                                hiddenSizeLabels={hiddenSizeLabelsArray} // Pass array version
                                 onToggleShapeVisibility={handleToggleShapeVisibility}
                                 onToggleSizeVisibility={handleToggleSizeVisibility}
                                 showShape={true}
                                 showSize={true}
+                                // Pass other toggles even if not shown in this instance
                                 onToggleColorVisibility={handleToggleColorVisibility}
                             />
                         </Col>

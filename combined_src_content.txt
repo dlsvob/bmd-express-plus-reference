@@ -21,29 +21,30 @@ if (container) {
 // src/App.tsx
 import React from 'react';
 import { Layout, Typography, Spin, Alert } from 'antd';
-//import { PyodideProvider, usePyodide } from './contexts/PyodideProvider'; // Keep this import for usePyodide hook
 import { useAppSelector } from './store/hooks';
 import { useGetProjectsQuery } from './store/apis/projectsApi';
 import { selectSelectedProjectName } from './store/selectors/projectSelectors';
 import { selectCurrentView } from './store/slices/navigationSlice';
-import AppHeader from './components/layout/AppHeader';
-import AppSidebar from './components/layout/AppSidebar';
+// --- Import Siders and other components ---
+import ProjectSelectionSider from './components/layout/ProjectSelectionSider';
+import AppSidebar from './components/layout/AppSidebar'; // Left Sider content
 import ErrorBoundary from './components/ErrorBoundary';
 import PyodideErrorNotifier from './components/PyodideErrorNotifier';
 import ExperimentListView from './components/views/ExperimentListView';
 import GOUmapAnalysisUnit from './components/analysis/GOUmapAnalysisUnit';
 
+// Use Title and Paragraph from Ant Design
 const { Title, Paragraph } = Typography;
+// Use Content from Ant Design Layout
+const { Content } = Layout;
 
 const AppContent: React.FC = () => {
-  // --- usePyodide hook will now throw an error because provider is missing ---
-  // --- You might need to conditionally use this or provide a mock context ---
-  // const { isLoading: pyodideLoading, error: pyodideError } = usePyodide();
-  // --- TEMPORARY FIX: Assume Pyodide is not loading and has no error ---
+  // --- State and Data Fetching ---
+  // Assuming temporary Pyodide state for now
   const pyodideLoading = false;
   const pyodideError = null;
-  // ---------------------------------------------------------------------
 
+  // Fetch project list using RTK Query
   const {
     data: projectsData,
     isLoading: isLoadingProjects,
@@ -51,14 +52,12 @@ const AppContent: React.FC = () => {
     isSuccess: projectsLoadSuccess,
   } = useGetProjectsQuery();
 
+  // Get relevant state from Redux
   const selectedProjectName = useAppSelector(selectSelectedProjectName);
   const activeView = useAppSelector(selectCurrentView);
-  const isProjectSelected = !!selectedProjectName;
+  const isProjectSelected = !!selectedProjectName; // Boolean flag
 
-  console.log(
-    `Rendering AppContent: selectedProjectName = "${selectedProjectName}", isProjectSelected = ${isProjectSelected}, activeView = "${activeView}"`
-  );
-
+  // Format potential project loading error
   const formattedProjectsError = projectsError
     ? typeof projectsError === 'object' &&
       projectsError !== null &&
@@ -67,10 +66,31 @@ const AppContent: React.FC = () => {
       : String(projectsError)
     : null;
 
+  // Variables to hold the main content view and the header within the content area
   let mainContent: React.ReactNode;
+  let contentHeader: React.ReactNode = null;
 
+  // --- Determine Content Header (Project Title) ---
+  // Display the title only if a project is selected
+  if (isProjectSelected && selectedProjectName) {
+    contentHeader = (
+      <Title
+        level={2} // Prominent title size
+        style={{
+          marginBottom: '24px', // Space below title
+          marginTop: '0px', // Adjust as needed
+          textAlign: 'left', // Align with content
+          padding: 0,
+        }}
+      >
+        {selectedProjectName}
+      </Title>
+    );
+  }
+
+  // --- Determine Main Content View based on application state ---
   if (pyodideLoading) {
-    // This block might not be reached now
+    // Display spinner if Pyodide is initializing
     mainContent = (
       <Spin tip="Initializing Pyodide..." size="large" spinning={true}>
         <div
@@ -84,7 +104,7 @@ const AppContent: React.FC = () => {
       </Spin>
     );
   } else if (pyodideError) {
-    // This block might not be reached now
+    // Display error if Pyodide failed (Error Notifier modal will also show)
     mainContent = (
       <Alert
         message="Pyodide Initialization Failed"
@@ -93,7 +113,8 @@ const AppContent: React.FC = () => {
         showIcon
       />
     );
-  } else if (isLoadingProjects) {
+  } else if (isLoadingProjects && !projectsData) {
+    // Display spinner if project list is loading for the first time
     mainContent = (
       <Spin tip="Loading project list..." size="large" spinning={true}>
         <div
@@ -106,7 +127,8 @@ const AppContent: React.FC = () => {
         />
       </Spin>
     );
-  } else if (projectsError) {
+  } else if (projectsError && !isLoadingProjects) {
+    // Display error if project list failed to load
     const errorMessage =
       formattedProjectsError || 'An unknown error occurred loading projects.';
     mainContent = (
@@ -117,26 +139,27 @@ const AppContent: React.FC = () => {
       />
     );
   } else if (!isProjectSelected && projectsLoadSuccess) {
+    // Display welcome message if projects loaded but none selected
     mainContent = (
       <div style={{ textAlign: 'center', marginTop: '50px' }}>
         <Title level={3}>Welcome to BMDx Plus</Title>
         <Paragraph>
           Project list loaded ({projectsData?.length || 0} found). Please select
-          a project or add a new one using the header.
+          a project using the panel on the right.
         </Paragraph>
       </div>
     );
   } else if (isProjectSelected && selectedProjectName) {
+    // Render the appropriate view based on navigation state if a project is selected
     mainContent = (
-      <div>
-        <Title level={4} style={{ marginBottom: '20px' }}>
-          Project: {selectedProjectName}
-        </Title>
+      <>
+        {/* Default view or Experiment List view */}
         {(!activeView || activeView === 'experiments') && (
           <ExperimentListView projectName={selectedProjectName} />
         )}
-        {/* Pass projectName if GOUmapAnalysisUnit needs it */}
+        {/* Analysis View */}
         {activeView === 'categoryAnalysis' && <GOUmapAnalysisUnit />}
+        {/* Handle unknown views */}
         {activeView &&
           !['experiments', 'categoryAnalysis', 'settings'].includes(
             activeView
@@ -147,9 +170,10 @@ const AppContent: React.FC = () => {
               showIcon
             />
           )}
-      </div>
+      </>
     );
   } else {
+    // Fallback loading state (should ideally not be reached often with above logic)
     mainContent = (
       <Spin tip="Loading..." size="large" spinning={true}>
         <div
@@ -164,36 +188,44 @@ const AppContent: React.FC = () => {
     );
   }
 
+  // --- Render the Layout Structure ---
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <AppHeader
+    // Outermost Layout is now horizontal
+    <Layout style={{ minHeight: '100vh', flexDirection: 'row' }}>
+      {/* Left Sider (Navigation) - Always Rendered if Pyodide is OK */}
+      {!pyodideError && <AppSidebar projectSelected={isProjectSelected} />}
+
+      {/* Center Content Area - Takes remaining space */}
+      <Layout style={{ flexGrow: 1 }}>
+        <Content style={{ padding: '24px', margin: '16px', overflow: 'initial' }}>
+          {contentHeader} {/* Render the project title (if any) */}
+          {mainContent} {/* Render the main view */}
+        </Content>
+      </Layout>
+
+      {/* Right Sider (Project Selection) - Always Rendered */}
+      <ProjectSelectionSider
         projectList={projectsData}
         isLoading={isLoadingProjects}
         error={formattedProjectsError}
-        disabled={!!pyodideError} // Still uses pyodideError state
+        disabled={!!pyodideError}
+        width={220} // Adjust width as needed
       />
-      <Layout>
-        {isProjectSelected && !pyodideError && <AppSidebar />}
-        <Layout.Content style={{ padding: '24px', margin: '16px' }}>
-          {mainContent}
-        </Layout.Content>
-      </Layout>
+
+      {/* Pyodide Error Modal (rendered outside main layout flow) */}
+      <PyodideErrorNotifier />
     </Layout>
   );
 };
 
-// App component wraps everything
+// App component wraps everything in an Error Boundary
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
-      {/* --- PyodideProvider still needed here if AppContent uses usePyodide --- */}
-      {/* --- Or provide a mock context / handle the error --- */}
+      {/* PyodideProvider would wrap AppContent if used */}
       {/* <PyodideProvider> */}
       <AppContent />
-      <PyodideErrorNotifier />
       {/* </PyodideProvider> */}
-      {/* ----------------------------- */}
-      {/* -------------------------------------------------------------------- */}
     </ErrorBoundary>
   );
 };
@@ -1433,7 +1465,7 @@ export const filterPlotItems = (
 
 import { HighlightMode } from '../store/slices/analysisUISlice'; // Adjust path if needed
 import type {
-  BaseCategoryAnalysisDataPoint, // Now includes rank? : number | null
+  BaseCategoryAnalysisDataPoint,
   UmapAnalysisDataPoint,
 } from '../models/applicationModel'; // Adjust path if needed
 import {
@@ -1456,11 +1488,15 @@ import type { ReferenceUmapItem } from '../data/referenceUmapData'; // Adjust pa
 type BaseGroupedData = Map<string, BaseCategoryAnalysisDataPoint[]>;
 type StyledUmapGroupedData = Map<string, UmapAnalysisDataPoint[]>;
 
+// --- Constants for Opacity and Highlighting ---
 export const VISIBLE_OPACITY = 0.9;
 export const HIDDEN_OPACITY = 0.0;
 export const DIM_OPACITY = 0.4;
+export const HIGHLIGHT_OPACITY = 1.0; // Opacity for highlighted points
+export const HIGHLIGHT_SIZE_MULTIPLIER = 1.5; // Size increase for highlighted points
+// ---------------------------------------------
 
-// --- Helper Functions ---
+// --- Helper Functions (remain the same) ---
 function getBinnedSize(percentage: number | null | undefined): number {
   if (percentage == null || isNaN(percentage)) return DEFAULT_MARKER_SIZE;
   for (let i = 0; i < PERCENTAGE_BINS.length; i++) {
@@ -1480,15 +1516,14 @@ function getDirectionColor(direction: string | null | undefined): string {
 }
 // ------------------------------------
 
-// --- Main Styling Function (Updated for rank property) ---
+// --- Main Styling Function ---
 export function calculateOverlayStyles(
-  // Expects data points to potentially have the 'rank' property calculated
   rankedBaseGroupedData: Map<string, BaseCategoryAnalysisDataPoint[]> | null,
   stylingOptions: { colorBy: string; shapeBy: string; sizeBy: string },
   hiddenColorLabels: Set<string>,
   hiddenShapeLabels: Set<string>,
   hiddenSizeLabels: Set<string>,
-  goIdFilterList: string[],
+  goIdFilterList: string[], // This is the raw list from state
   highlightMode: HighlightMode,
   bmdRefToExperimentNameMap: Map<number, string> | null,
   selectedGoIdsFromAccumulation: Set<string>,
@@ -1496,11 +1531,20 @@ export function calculateOverlayStyles(
   clusterColorMap: Map<string | number, string>,
   bmdRefShapeMap: Map<number, string>,
   bmdRefColorMap: Map<number, string>,
-  committedRankWindow: [number, number] // This is [start_rank, end_rank]
+  committedRankWindow: [number, number]
 ): StyledUmapGroupedData | null {
-  const styleLogPrefix = '[StyleUtils v15 - Rank Property Filter]'; // Version Bump
+  // --- DEBUG LOG v18 ---
+  const styleLogPrefix = '[StyleUtils v18 - Debug Exact Highlight]';
+  console.log(
+    `${styleLogPrefix} Function called. highlightMode: "${highlightMode}", goIdFilterList size: ${goIdFilterList?.length}`
+  );
+  // ---------------------
 
-  if (!rankedBaseGroupedData || rankedBaseGroupedData.size === 0 || !referenceMap) {
+  if (
+    !rankedBaseGroupedData ||
+    rankedBaseGroupedData.size === 0 ||
+    !referenceMap
+  ) {
     return null;
   }
 
@@ -1508,11 +1552,12 @@ export function calculateOverlayStyles(
   const hiddenShapeSet = hiddenShapeLabels;
   const hiddenSizeSet = hiddenSizeLabels;
 
-  // --- Destructure committed rank window ---
   const [startRank, endRank] = committedRankWindow;
-  // Check if the range is valid (min <= max and both are finite, start >= 1)
-  const isRankFilterActive = isFinite(startRank) && isFinite(endRank) && startRank <= endRank && startRank >= 1;
-  // ----------------------------------------
+  const isRankFilterActive =
+    isFinite(startRank) &&
+    isFinite(endRank) &&
+    startRank <= endRank &&
+    startRank >= 1;
 
   const styledGroupedData = new Map<string, UmapAnalysisDataPoint[]>();
   let pointsProcessed = 0;
@@ -1521,9 +1566,20 @@ export function calculateOverlayStyles(
   let pointsOutput = 0;
   const failedKeysSample = new Set<string>();
 
+  // --- Create the Set for matching INSIDE the function ---
+  // This ensures we use the goIdFilterList passed in for this specific calculation run
   const exactMatchGoIds = new Set(
-    goIdFilterList.map((id) => (id ?? '').toUpperCase())
+    (goIdFilterList || []).map((id) => (id ?? '').toUpperCase()) // Ensure filter list is an array
   );
+  // --- DEBUG LOG v18 ---
+  if (exactMatchGoIds.size > 0) {
+    console.log(
+      `${styleLogPrefix} exactMatchGoIds Set created with size: ${exactMatchGoIds.size
+      }. Sample: ${Array.from(exactMatchGoIds).slice(0, 5).join(', ')}`
+    );
+  }
+  // ---------------------
+
   const clusterMatchClusterIds = new Set<string | number>();
   if (highlightMode === HighlightMode.CLUSTER && exactMatchGoIds.size > 0) {
     exactMatchGoIds.forEach((goId) => {
@@ -1536,7 +1592,7 @@ export function calculateOverlayStyles(
 
   rankedBaseGroupedData.forEach((basePoints, refStringKey) => {
     const styledPoints = basePoints
-      .map((basePoint) => {
+      .map((basePoint, index) => { // Added index for logging
         pointsProcessed++;
         const goIdSource = basePoint.go_id;
         const lookupKey =
@@ -1552,18 +1608,16 @@ export function calculateOverlayStyles(
           return null;
         }
 
-        // --- Rank Filtering based on point.rank ---
-        const currentRank = basePoint.rank; // Use the pre-calculated rank
-        const isOutsideRankRange = isRankFilterActive && (
-          currentRank == null || // Treat null/undefined rank as outside
-          currentRank < startRank ||
-          currentRank > endRank
-        );
+        const currentRank = basePoint.rank;
+        const isOutsideRankRange =
+          isRankFilterActive &&
+          (currentRank == null ||
+            currentRank < startRank ||
+            currentRank > endRank);
 
         if (isOutsideRankRange) {
           pointsSkippedByRank++;
         }
-        // ------------------------------------------
 
         const { colorBy, shapeBy, sizeBy } = stylingOptions;
         const experimentNameForLabel =
@@ -1571,9 +1625,10 @@ export function calculateOverlayStyles(
           basePoint.bmdResultName;
         const numericBmdRef = basePoint.bmdResultRef;
 
-        // --- Color Calculation ---
+        // --- Color, Shape, Size Calculations (remain the same) ---
         let baseFinalColor = DEFAULT_MARKER_COLOR;
         let colorLabel = experimentNameForLabel;
+        // ... (switch statement for colorBy) ...
         switch (colorBy) {
           case 'cluster_id':
             const clusterId = refDataItem.cluster_id;
@@ -1597,7 +1652,8 @@ export function calculateOverlayStyles(
             );
             break;
           case 'bmdResultName':
-            baseFinalColor = bmdRefColorMap.get(numericBmdRef) || DEFAULT_MARKER_COLOR;
+            baseFinalColor =
+              bmdRefColorMap.get(numericBmdRef) || DEFAULT_MARKER_COLOR;
             colorLabel = experimentNameForLabel;
             break;
           default:
@@ -1606,9 +1662,9 @@ export function calculateOverlayStyles(
             break;
         }
 
-        // --- Shape Calculation ---
         let baseFinalShape = DEFAULT_MARKER_SHAPE;
         let shapeLabel = DEFAULT_SHAPE_LABEL;
+        // ... (switch statement for shapeBy) ...
         switch (shapeBy) {
           case 'bmdResultName':
             baseFinalShape =
@@ -1626,9 +1682,9 @@ export function calculateOverlayStyles(
             break;
         }
 
-        // --- Size Calculation ---
         let baseFinalSize = DEFAULT_MARKER_SIZE;
         let sizeLabel = DEFAULT_SIZE_LABEL;
+        // ... (switch statement for sizeBy) ...
         switch (sizeBy) {
           case 'percentage':
             baseFinalSize = getBinnedSize(basePoint.percentage);
@@ -1641,8 +1697,9 @@ export function calculateOverlayStyles(
             sizeLabel = DEFAULT_SIZE_LABEL;
             break;
         }
+        // ---------------------------------------------------------
 
-        // --- Opacity/Highlighting (Uses isOutsideRankRange) ---
+        // --- Opacity/Highlighting (with DEBUG LOGS) ---
         const isHiddenByLegend =
           hiddenColorSet.has(colorLabel) ||
           hiddenShapeSet.has(shapeLabel) ||
@@ -1650,12 +1707,15 @@ export function calculateOverlayStyles(
 
         let finalSize = baseFinalSize;
         let finalOpacity = VISIBLE_OPACITY; // Start assuming visible
+        let highlightReason = 'None'; // For logging
 
         // Apply filters sequentially: Rank -> Legend -> Highlighting
         if (isOutsideRankRange) {
-          finalOpacity = HIDDEN_OPACITY; // Hide if outside rank range
+          finalOpacity = HIDDEN_OPACITY;
+          highlightReason = 'Rank Filter';
         } else if (isHiddenByLegend) {
-          finalOpacity = HIDDEN_OPACITY; // Hide if toggled off in legend
+          finalOpacity = HIDDEN_OPACITY;
+          highlightReason = 'Legend Hide';
         } else {
           // Only apply highlighting logic if the point is potentially visible
           const currentGoIdUpper = lookupKey;
@@ -1670,24 +1730,59 @@ export function calculateOverlayStyles(
             currentGoIdUpper &&
             selectedGoIdsFromAccumulation.has(currentGoIdUpper);
 
+          // --- DEBUG LOG v18 ---
+          // Log only for the first few points or points that *should* match
+          const shouldLogPoint = index < 5 || isExactMatch;
+          if (shouldLogPoint) {
+            console.log(
+              `${styleLogPrefix} Point ${index} (${goIdSource}): isExactMatch=${isExactMatch}, isInHighlightCluster=${isInHighlightCluster}, isSelectedFromAccumulation=${isSelectedFromAccumulation}, highlightMode=${highlightMode}`
+            );
+          }
+          // ---------------------
+
           if (isSelectedFromAccumulation) {
-            finalSize = baseFinalSize * 1.5;
-            finalOpacity = 1.0;
+            finalSize = baseFinalSize * HIGHLIGHT_SIZE_MULTIPLIER;
+            finalOpacity = HIGHLIGHT_OPACITY;
+            highlightReason = 'Accumulation Select';
           } else if (
             highlightMode !== HighlightMode.NONE &&
             exactMatchGoIds.size > 0
           ) {
+            // --- Logic for HighlightMode.SELECTED (Exact Match) ---
             if (highlightMode === HighlightMode.SELECTED) {
-              if (!isExactMatch) finalOpacity = HIDDEN_OPACITY;
+              // --- DEBUG LOG v18 ---
+              if (shouldLogPoint) console.log(`${styleLogPrefix} Point ${index}: Entering SELECTED mode logic.`);
+              // ---------------------
+              if (isExactMatch) {
+                finalSize = baseFinalSize * HIGHLIGHT_SIZE_MULTIPLIER;
+                finalOpacity = HIGHLIGHT_OPACITY;
+                highlightReason = 'Exact Match';
+                // --- DEBUG LOG v18 ---
+                if (shouldLogPoint) console.log(`${styleLogPrefix} Point ${index}: EXACT MATCH found! Setting size=${finalSize}, opacity=${finalOpacity}`);
+                // ---------------------
+              } else {
+                finalOpacity = HIDDEN_OPACITY;
+                highlightReason = 'Exact Hide';
+                // --- DEBUG LOG v18 ---
+                if (shouldLogPoint) console.log(`${styleLogPrefix} Point ${index}: No exact match. Hiding.`);
+                // ---------------------
+              }
+              // --- Logic for HighlightMode.CLUSTER ---
             } else if (highlightMode === HighlightMode.CLUSTER) {
+              // --- DEBUG LOG v18 ---
+              if (shouldLogPoint) console.log(`${styleLogPrefix} Point ${index}: Entering CLUSTER mode logic.`);
+              // ---------------------
               if (isExactMatch) {
                 finalSize = baseFinalSize * 1.2;
                 finalOpacity = VISIBLE_OPACITY;
+                highlightReason = 'Cluster Exact';
               } else if (isInHighlightCluster) {
                 finalSize = Math.max(1, baseFinalSize * 0.8);
                 finalOpacity = DIM_OPACITY;
+                highlightReason = 'Cluster Neighbor';
               } else {
                 finalOpacity = HIDDEN_OPACITY;
+                highlightReason = 'Cluster Hide';
               }
             }
           }
@@ -1704,11 +1799,11 @@ export function calculateOverlayStyles(
           finalColor: baseFinalColor,
           finalShape: baseFinalShape,
           finalSize: finalSize,
-          finalOpacity: finalOpacity, // Use the calculated finalOpacity
+          finalOpacity: finalOpacity,
           colorLabel,
           shapeLabel,
           sizeLabel,
-          // rank property is already on basePoint if added correctly
+          // rank property is already on basePoint
         };
         return styledPoint;
       })
@@ -1718,12 +1813,11 @@ export function calculateOverlayStyles(
   });
 
   if (pointsSkippedMissingRef > 0) {
-    console.warn(`${styleLogPrefix} Skipped ${pointsSkippedMissingRef} points due to missing reference data. Sample failed keys:`, Array.from(failedKeysSample));
+    console.warn(
+      `${styleLogPrefix} Skipped ${pointsSkippedMissingRef} points due to missing reference data. Sample failed keys:`,
+      Array.from(failedKeysSample)
+    );
   }
-  // if (pointsSkippedByRank > 0) { // Keep logs minimal
-  //   console.log(`${styleLogPrefix} Skipped ${pointsSkippedByRank} points due to rank filter [${startRank}-${endRank}].`);
-  // }
-  // console.log(`${styleLogPrefix} Processed ${pointsProcessed} points, output ${pointsOutput} styled points.`); // Keep logs minimal
 
   return styledGroupedData;
 }
@@ -2514,13 +2608,14 @@ export async function listProjectDatabaseNames(): Promise<string[]> {
 }
 // src/utils/analysisUtils.ts
 
-import { BMDResult, CategoryAnalysisItem } from '../models/BMDxExported'
+import { BMDResult, CategoryAnalysisItem } from '../models/BMDxExported';
 // *** USE CORRECT TYPE ***
-import { BaseCategoryAnalysisDataPoint } from '../models/applicationModel' // Adjusted path/type
+import { BaseCategoryAnalysisDataPoint } from '../models/applicationModel'; // Adjusted path/type
 
 /**
  * Groups raw category‐analysis items into the basic overlay points,
  * keyed by BMDResult.ref (as string).
+ * **Crucially, assigns the value used for ranking to the `rankValue` property.**
  */
 export function prepareGroupedOverlayData(
   bmdResultMap: Map<number, BMDResult>,
@@ -2529,90 +2624,96 @@ export function prepareGroupedOverlayData(
   // *** USE CORRECT TYPE FOR RETURN MAP VALUE ***
 ): Map<string, BaseCategoryAnalysisDataPoint[]> {
   // *** USE CORRECT TYPE FOR OUTPUT MAP ***
-  const out = new Map<string, BaseCategoryAnalysisDataPoint[]>()
+  const out = new Map<string, BaseCategoryAnalysisDataPoint[]>();
 
-  console.log('[prepareGroupedOverlayData v2] Input:', {
+  console.log('[prepareGroupedOverlayData v3 - RankValue Fix] Input:', { // Version Bump
     bmdKeys: Array.from(bmdResultMap.keys()),
     categoryKeys: Array.from(categoryItemsMap.keys()),
-  })
+  });
 
   // Iterate over the keys provided by the correctly structured categoryItemsMap
   for (const refStr of categoryItemsMap.keys()) {
-    console.log(`  [prepareGroupedOverlayData v2] trying ref: ${refStr}`)
-    const bmd = bmdResultMap.get(Number(refStr)) // Get corresponding BMDResult
-    const items = categoryItemsMap.get(refStr) // Get the array of items for this ref
+    console.log(
+      `  [prepareGroupedOverlayData v3] trying ref: ${refStr}`
+    );
+    const bmd = bmdResultMap.get(Number(refStr)); // Get corresponding BMDResult
+    const items = categoryItemsMap.get(refStr); // Get the array of items for this ref
 
     if (!bmd) {
-      console.warn(`   🌶️ no BMD for ref ${refStr}`)
-      continue
+      console.warn(`   🌶️ no BMD for ref ${refStr}`);
+      continue;
     }
     if (!items || items.length === 0) {
-      console.warn(`   🌶️ no category items for ref ${refStr}`)
-      continue
+      console.warn(`   🌶️ no category items for ref ${refStr}`);
+      continue;
     }
 
     // Build the BaseCategoryAnalysisDataPoint[] for this ref
-    // *** FIX POINT A & B ***
     const basePoints: BaseCategoryAnalysisDataPoint[] = items
       .map((item) => {
-        // --- FIX A: Use categoryIdentifier.id for goId ---
-        const goId = item?.categoryIdentifier?.id
-        const goTerm = item?.categoryIdentifier?.title
+        // --- Use categoryIdentifier.id for goId ---
+        const goId = item?.categoryIdentifier?.id;
+        const goTerm = item?.categoryIdentifier?.title;
         // --- Map other relevant fields from CategoryAnalysisItem ---
-        const direction = item?.overallDirection
-        const percentage = item?.percentage
+        const direction = item?.overallDirection;
+        const percentage = item?.percentage;
         // Use the field specified for ranking/accumulation plot
-        const bmdFifthPercentileTotalGenes = item?.bmdFifthPercentileTotalGenes
-        const geneAllCount = item?.geneAllCount
-        const genesPassed = item?.genesThatPassedAllFilters
+        const bmdFifthPercentileTotalGenes = item?.bmdFifthPercentileTotalGenes;
+        const geneAllCount = item?.geneAllCount;
+        const genesPassed = item?.genesThatPassedAllFilters;
 
         // Basic validation: Ensure goId exists
         if (!goId) {
           console.warn(
             `   🌶️ Skipping item due to missing goId:`,
             item?.categoryIdentifier
-          )
-          return null // Skip items without a GO ID
+          );
+          return null; // Skip items without a GO ID
         }
+
+        // --- FIX: Assign the ranking value to rankValue ---
+        const rankValue = bmdFifthPercentileTotalGenes;
+        // --------------------------------------------------
 
         // Create the base point object
         return {
           // Identifiers
-          go_id: goId, // Keep snake_case for consistency with reference data? Or switch to goId? Let's use go_id for now.
+          go_id: goId,
           go_term: goTerm || 'Unknown Term',
 
-          // Source Info (Use number for ref consistency internally if possible, but map key is string)
-          bmdResultRef: bmd['@ref'], // Store the original numeric ref
+          // Source Info
+          bmdResultRef: bmd['@ref'],
           bmdResultName: bmd.name || 'Unnamed BMD Result',
 
-          // Data Fields (ensure names match applicationModel)
+          // Data Fields
           direction: direction,
           percentage: percentage,
-          bmdFifthPercentileTotalGenes: bmdFifthPercentileTotalGenes, // Field for ranking/accumulation
+          bmdFifthPercentileTotalGenes: bmdFifthPercentileTotalGenes,
           geneAllCount: geneAllCount,
           genesThatPassedAllFilters: genesPassed,
 
+          // --- ADD rankValue ---
+          rankValue: rankValue, // Assign the value used for ranking
+          // -------------------
+
           // Placeholder for calculated styles - will be added by styleUtils
-          finalColor: '',
-          finalShape: '',
-          finalSize: 0,
-          finalOpacity: 0,
-        }
+          // rank and final* properties are added later
+        };
       })
-      .filter((p): p is BaseCategoryAnalysisDataPoint => p !== null) // Filter out nulls
+      .filter((p): p is BaseCategoryAnalysisDataPoint => p !== null); // Filter out nulls
 
     console.log(
-      `   → [prepareGroupedOverlayData v2] built ${basePoints.length} base points for ref ${refStr}`
-    )
+      `   → [prepareGroupedOverlayData v3] built ${basePoints.length} base points for ref ${refStr}`
+    );
     // Use the string ref as the key for the output map
-    out.set(refStr, basePoints)
+    out.set(refStr, basePoints);
   }
 
   console.log(
-    '[prepareGroupedOverlayData v2] Output map keys:',
+    '[prepareGroupedOverlayData v3] Output map keys:',
     Array.from(out.keys())
-  )
-  return out
+  );
+  return out;
 }
 // src/utils/referenceDataUtils.ts
 
@@ -4934,19 +5035,28 @@ const ShapeSizeLegend: React.FC = () => (
     </Card>
 );
 export default ShapeSizeLegend;// src/components/analysis/GOUmapAnalysisUnit.tsx
-// Final version for Step 2: Integrating SlidingWindowFilter
+// Corrected version integrating GoIdFilterUI and AccumulationPlot
 
-import React, { useMemo, useEffect, useCallback } from 'react';
-import { Row, Col, Spin, Alert, Space } from 'antd';
+import React, { useCallback, useMemo } from 'react'; // Removed useMemo, useEffect if not needed directly
+import { Row, Col, Spin, Alert, Space, RadioChangeEvent } from 'antd'; // Added RadioChangeEvent
 import UmapPlotComponent from './UmapPlotComponent';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { usePreparedPlotData, PreparedPlotHookData } from '../../hooks/usePreparedPlotData';
+import {
+    usePreparedPlotData,
+    PreparedPlotHookData,
+} from '../../hooks/usePreparedPlotData'; // Adjust path if needed
+import {
+    UmapAnalysisDataPoint,
+    BMDResult,
+} from '../../models/applicationModel'; // Adjust path
+import { ReferenceUmapItem } from '../../data/referenceUmapData'; // Adjust path
 import { selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice';
 import {
     selectReferenceDataMap,
     selectReferenceData,
 } from '../../store/selectors/referenceDataSelector';
 import {
+    HighlightMode, // Import Enum
     selectColorBy,
     selectShapeBy,
     selectSizeBy,
@@ -4959,37 +5069,45 @@ import {
     selectGoIdFilterList,
     selectHighlightMode,
     selectAccumulationPlotSelectedGoIdsSet,
-    // --- Import RENAMED selector and action ---
-    selectCommittedSlidingWindowValue, // <<< RENAMED IMPORT
-    setCommittedRankSliderValue, // Action name stays the same
-    // ----------------------------------------
+    selectCommittedSlidingWindowValue,
+    selectGoIdInputString, // Selector for input value
+    setCommittedRankSliderValue,
     setColorBy,
     setShapeBy,
     setSizeBy,
     toggleColorLabelVisibility,
     toggleShapeLabelVisibility,
     toggleSizeLabelVisibility,
+    setGoIdInputString, // Action for input value
+    setHighlightMode as setHighlightModeAction, // Action for highlight mode (aliased)
 } from '../../store/slices/analysisUISlice'; // Adjust path if needed
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
-import { BMDResult, CategoryAnalysisItem } from '../../models/BMDxExported';
+// Keep BMDResult type import if needed elsewhere, maybe bmdResultMap key type
+// import { BMDResult } from '../../models/BMDxExported';
 import { useGetRawAnalysisDataQuery } from '../../store/apis/experimentsApi';
 
-// --- Import Placeholders ---
-import GoIdFilterUI from './placeholders/GoIdFilterUI';
-// import RankSliderUI from './placeholders/RankSliderUI'; // REMOVE placeholder
-import AccumulationPlot from './placeholders/AccumulationPlot';
-import AnalysisDataTable from './placeholders/AnalysisDataTable';
+// --- Import Placeholders (Keep only needed ones) ---
+import AnalysisDataTable from './placeholders/AnalysisDataTable'; // Keep placeholder for now
 // --- Import the REAL Components ---
-import CustomLegends from './CustomLegends';
-import StylingSelectors from '../StylingSelectors';
-// --- Import the SlidingWindowFilter ---
+import CustomLegends from './CustomLegends'; // Adjusted path
+import StylingSelectors from '../StylingSelectors'; // Adjusted path
 import SlidingWindowFilter from '../SlidingWindowFilter'; // Adjusted path
-// ------------------------------------
+import AccumulationPlot from './AccumulationPlot'; // Use the functional component
+import GoIdFilterUI from '../../components/GOUIdFilterUI'; // Use the functional component
+// ---------------------------------------------
 import {
     COLOR_BY_OPTIONS,
     SHAPE_BY_OPTIONS,
     SIZE_BY_OPTIONS,
-} from '../../config/analysisConstants';
+} from '../../config/analysisConstants'; // Adjust path if needed
+
+// --- Define Props Interface (from parent App.tsx) ---
+// This component now gets most of its state via selectors
+// Props might be minimal if App.tsx doesn't need to pass much down anymore
+interface GOUmapAnalysisUnitProps {
+    // Potentially add props if App.tsx needs to pass specific things
+    // For now, assuming it gets project context implicitly via selectors
+}
 
 // --- Border Colors & Helper (Keep as is) ---
 const BORDER_COLORS = {
@@ -5001,18 +5119,20 @@ const BORDER_COLORS = {
     level6: 'rgba(255, 192, 203, 0.5)',
     level7: 'rgba(0, 255, 255, 0.4)',
 };
-const borderStyle = (color: string, level: number = 1) => ({
-    // border: `${level}px solid ${color}`, // Keep commented out unless debugging layout
-    // padding: `${5 - level}px`,
-    // margin: '1px'
+const borderStyle = () => ({
+    // border: `${level}px solid ${color}`,
 });
 // ------------------------------------------
 
-const GOUmapAnalysisUnit: React.FC = () => {
+const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = (
+    {
+        /* Destructure any props if added */
+    }
+) => {
     const dispatch = useAppDispatch();
 
     // --- Selectors ---
-    const projectName = useAppSelector(selectSelectedProjectName);
+    const projectName = useAppSelector(selectSelectedProjectName); // Needed for query
     const selectedBmdResultRefs = useAppSelector(selectSelectedAnalysisRefs);
     const colorByOption = useAppSelector(selectColorBy);
     const shapeByOption = useAppSelector(selectShapeBy);
@@ -5023,14 +5143,15 @@ const GOUmapAnalysisUnit: React.FC = () => {
     const hiddenColorLabelsSet = useAppSelector(selectHiddenColorLabelsSet);
     const hiddenShapeLabelsSet = useAppSelector(selectHiddenShapeLabelsSet);
     const hiddenSizeLabelsSet = useAppSelector(selectHiddenSizeLabelsSet);
-    const goIdFilterList = useAppSelector(selectGoIdFilterList);
-    const highlightMode = useAppSelector(selectHighlightMode);
-    const selectedGoIdsSet = useAppSelector(selectAccumulationPlotSelectedGoIdsSet);
-    // --- Select committed rank value using RENAMED selector ---
-    const committedRankValue = useAppSelector(selectCommittedSlidingWindowValue);
-    // -------------------------------------------------------
-    const referenceData = useAppSelector(selectReferenceData);
-    const referenceDataMap = useAppSelector(selectReferenceDataMap);
+    const goIdFilterList = useAppSelector(selectGoIdFilterList); // Needed by usePreparedPlotData
+    const highlightMode = useAppSelector(selectHighlightMode); // Needed by usePreparedPlotData & GoIdFilterUI
+    const selectedGoIdsSet = useAppSelector(
+        selectAccumulationPlotSelectedGoIdsSet
+    ); // Needed by usePreparedPlotData
+    const committedRankValue = useAppSelector(selectCommittedSlidingWindowValue); // Needed by usePreparedPlotData & SlidingWindowFilter
+    const referenceData = useAppSelector(selectReferenceData); // Needed by usePreparedPlotData & UmapPlotComponent
+    const referenceDataMap = useAppSelector(selectReferenceDataMap); // Needed by usePreparedPlotData
+    const goIdInputString = useAppSelector(selectGoIdInputString); // Needed by GoIdFilterUI
 
     // --- Data Fetching ---
     const {
@@ -5040,35 +5161,54 @@ const GOUmapAnalysisUnit: React.FC = () => {
         isSuccess: rawSuccess,
     } = useGetRawAnalysisDataQuery(
         { projectName, selectedBmdResultRefs },
-        { skip: !projectName || !selectedBmdResultRefs || selectedBmdResultRefs.length === 0 }
+        {
+            skip:
+                !projectName ||
+                !selectedBmdResultRefs ||
+                selectedBmdResultRefs.length === 0,
+        }
     );
 
-    const isLoading = isLoadingRaw;
+    const isLoading = isLoadingRaw; // Combine loading states if more sources are added
     const queryError = rawError;
     const hasSelection = selectedBmdResultRefs && selectedBmdResultRefs.length > 0;
 
     // === Memoize Maps from Raw Data ===
-    const { bmdResultMap } = useMemo<{
+    const { bmdResultMap, bmdRefToExperimentNameMap } = useMemo<{
         bmdResultMap: Map<number, BMDResult>;
+        bmdRefToExperimentNameMap: Map<number, string>;
     }>(() => {
         const tempBmdResultMap = new Map<number, BMDResult>();
+        const tempBmdRefToNameMap = new Map<number, string>();
         if (rawSuccess && rawData) {
             rawData.rawBmdResults?.forEach((r) => {
-                if (r && r['@ref'] != null) tempBmdResultMap.set(Number(r['@ref']), r);
+                if (r && r['@ref'] != null) {
+                    const numericRef = Number(r['@ref']);
+                    if (!isNaN(numericRef)) {
+                        tempBmdResultMap.set(numericRef, r);
+                        tempBmdRefToNameMap.set(
+                            numericRef,
+                            r.name || `BMD Result ${numericRef}`
+                        );
+                    }
+                }
             });
         }
-        return { bmdResultMap: tempBmdResultMap };
+        return {
+            bmdResultMap: tempBmdResultMap,
+            bmdRefToExperimentNameMap: tempBmdRefToNameMap,
+        };
     }, [rawSuccess, rawData]);
 
-    // === Prepare Plot Data (Includes min/max rank calculation) ===
+    // === Prepare Plot Data ===
     const {
         analysisPoints,
-        allStyledPoints, // Keep this if needed for legends later
+        allStyledPoints,
         colorItems,
         shapeItems,
         sizeItems,
-        minRank, // <<< Destructure
-        maxRank, // <<< Destructure
+        minRank,
+        maxRank,
     }: PreparedPlotHookData = usePreparedPlotData({
         selectedBmdResultRefs: selectedBmdResultRefs || [],
         referenceDataMap: referenceDataMap,
@@ -5079,75 +5219,126 @@ const GOUmapAnalysisUnit: React.FC = () => {
         hiddenColorLabels: hiddenColorLabelsSet,
         hiddenShapeLabels: hiddenShapeLabelsSet,
         hiddenSizeLabels: hiddenSizeLabelsSet,
-        goIdFilterList,
+        goIdFilterList, // Pass the list derived from input string
         highlightMode,
         selectedGoIdsSet,
-        committedRankSliderValue: committedRankValue, // Pass value from Redux
-    }) as PreparedPlotHookData; // Keep assertion if needed
-
-    // --- Log arguments (Keep as is) ---
-    useEffect(() => {
-        // console.log('[GOUmapAnalysisUnit] Props/State Log:', { /* ... */ }); // Keep logs minimal
-    }, [ /* ... dependencies ... */]);
+        committedRankSliderValue: committedRankValue,
+    }) as PreparedPlotHookData;
 
     // --- Define Callbacks ---
-    const handleToggleColorVisibility = useCallback((label: string) => {
-        dispatch(toggleColorLabelVisibility(label));
-    }, [dispatch]);
-    const handleToggleShapeVisibility = useCallback((label: string) => {
-        dispatch(toggleShapeLabelVisibility(label));
-    }, [dispatch]);
-    const handleToggleSizeVisibility = useCallback((label: string) => {
-        dispatch(toggleSizeLabelVisibility(label));
-    }, [dispatch]);
-    const handleColorByChange = useCallback((value: string) => {
-        // console.log(`[GOUmapAnalysisUnit] Dispatching setColorBy: ${value}`); // Keep logs minimal
-        dispatch(setColorBy(value));
-    }, [dispatch]);
-    const handleShapeByChange = useCallback((value: string) => {
-        // console.log(`[GOUmapAnalysisUnit] Dispatching setShapeBy: ${value}`); // Keep logs minimal
-        dispatch(setShapeBy(value));
-    }, [dispatch]);
-    const handleSizeByChange = useCallback((value: string) => {
-        // console.log(`[GOUmapAnalysisUnit] Dispatching setSizeBy: ${value}`); // Keep logs minimal
-        dispatch(setSizeBy(value));
-    }, [dispatch]);
+    const handleToggleColorVisibility = useCallback(
+        (label: string) => {
+            dispatch(toggleColorLabelVisibility(label));
+        },
+        [dispatch]
+    );
+    const handleToggleShapeVisibility = useCallback(
+        (label: string) => {
+            dispatch(toggleShapeLabelVisibility(label));
+        },
+        [dispatch]
+    );
+    const handleToggleSizeVisibility = useCallback(
+        (label: string) => {
+            dispatch(toggleSizeLabelVisibility(label));
+        },
+        [dispatch]
+    );
+    const handleColorByChange = useCallback(
+        (value: string) => {
+            dispatch(setColorBy(value));
+        },
+        [dispatch]
+    );
+    const handleShapeByChange = useCallback(
+        (value: string) => {
+            dispatch(setShapeBy(value));
+        },
+        [dispatch]
+    );
+    const handleSizeByChange = useCallback(
+        (value: string) => {
+            dispatch(setSizeBy(value));
+        },
+        [dispatch]
+    );
+    const handleRankChange = useCallback(
+        (value: [number, number]) => {
+            dispatch(setCommittedRankSliderValue(value));
+        },
+        [dispatch]
+    );
+    // --- Callbacks for GoIdFilterUI ---
+    const handleGoIdInputChange = useCallback(
+        (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+            dispatch(setGoIdInputString(e.target.value));
+        },
+        [dispatch]
+    );
+    const handleHighlightModeChange = useCallback(
+        (e: RadioChangeEvent) => {
+            const mode = e.target.value as HighlightMode;
+            if (Object.values(HighlightMode).includes(mode)) {
+                dispatch(setHighlightModeAction(mode));
+            } else {
+                dispatch(setHighlightModeAction(HighlightMode.NONE));
+            }
+        },
+        [dispatch]
+    );
+    // ---------------------------------
 
-    // --- Define Rank Change Handler ---
-    const handleRankChange = useCallback((value: [number, number]) => {
-        // console.log(`[GOUmapAnalysisUnit] Dispatching setCommittedRankSliderValue:`, value); // Keep logs minimal
-        dispatch(setCommittedRankSliderValue(value)); // Action name remains the same
-    }, [dispatch]);
-    // --------------------------------
+    // === Render Logic Checks ===
+    if (isLoading) {
+        return (
+            <Spin tip="Loading analysis data..." size="large">
+                <div style={{ minHeight: '200px' }} />
+            </Spin>
+        );
+    }
+    if (queryError) {
+        return (
+            <Alert
+                message="Error Loading Data"
+                description={String(queryError)}
+                type="error"
+                showIcon
+            />
+        );
+    }
+    // No need to check for project selection here, as App.tsx handles that
 
-    // === Render Logic (Checks) ===
-    if (!projectName) { return <Alert message="No Project Selected" type="info" showIcon />; }
-    if (isLoading) { return <Spin tip="Loading analysis data..." size="large"><div style={{ minHeight: '200px' }} /></Spin>; }
-    if (queryError) { return <Alert message="Error Loading Data" description={String(queryError)} type="error" showIcon />; }
-    if (!hasSelection) { return <Alert message="No Analysis Selected" description="Please select one or more analysis results from the list." type="info" showIcon />; }
-    if (rawSuccess && (bmdResultMap.size === 0 || !rawData?.rawCategoryAnalysisItems || rawData.rawCategoryAnalysisItems.length === 0)) { return <Alert message="No Data Found" description="No category analysis data found for the selected BMD results in this project." type="warning" showIcon />; }
-
-    // --- Render Layout with SlidingWindowFilter ---
+    // --- Render Layout ---
     return (
-        <div style={borderStyle(BORDER_COLORS.level1)}>
+        <div style={borderStyle()}>
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
                 {/* Filters Row */}
-                <div style={borderStyle(BORDER_COLORS.level2)}>
+                <div style={borderStyle()}>
                     <Row gutter={[16, 16]}>
-                        <Col span={24}> <GoIdFilterUI /> </Col>
                         <Col span={24}>
-                            {/* --- Replace RankSliderUI placeholder with SlidingWindowFilter --- */}
-                            <SlidingWindowFilter
-                                min={minRank} // Pass calculated min (should be 1)
-                                max={maxRank} // Pass calculated max (N)
-                                value={committedRankValue} // Pass value from Redux
-                                onAfterChange={handleRankChange} // Pass dispatching handler
-                                // Disable if loading, no selection, or if min/max haven't been calculated yet (maxRank <= 0 or minRank >= maxRank)
-                                disabled={isLoading || !hasSelection || maxRank <= 0 || minRank >= maxRank}
-                                label="Filter by Rank" // Or customize
-                                analysisName="GOUmapRankFilter" // For logs inside component
+                            {/* --- Use functional GoIdFilterUI --- */}
+                            <GoIdFilterUI
+                                goIdInputString={goIdInputString}
+                                highlightMode={highlightMode}
+                                onGoIdInputChange={handleGoIdInputChange}
+                                onHighlightModeChange={handleHighlightModeChange}
                             />
-                            {/* ----------------------------------------------------------------- */}
+                        </Col>
+                        <Col span={24}>
+                            <SlidingWindowFilter
+                                min={minRank}
+                                max={maxRank}
+                                value={committedRankValue}
+                                onAfterChange={handleRankChange}
+                                disabled={
+                                    isLoading ||
+                                    !hasSelection ||
+                                    maxRank <= 0 ||
+                                    minRank >= maxRank
+                                }
+                                label="Filter by Rank"
+                                analysisName="GOUmapRankFilter"
+                            />
                             <StylingSelectors
                                 colorByOption={colorByOption}
                                 shapeByOption={shapeByOption}
@@ -5163,53 +5354,78 @@ const GOUmapAnalysisUnit: React.FC = () => {
                         </Col>
                     </Row>
                 </div>
+
                 {/* Plots/Legends Row */}
-                <div style={borderStyle(BORDER_COLORS.level3)}>
+                <div style={borderStyle()}>
                     <Row gutter={[16, 16]} wrap={false}>
-                        <Col flex="200px" style={borderStyle(BORDER_COLORS.level4)}>
+                        {/* Color Legend */}
+                        <Col flex="200px" style={borderStyle()}>
                             <CustomLegends
                                 cardTitle="Color"
                                 colorItems={colorItems}
                                 hiddenColorLabels={hiddenColorLabelsArray}
-                                // visibleColorLabelsSet={visibleColorLabelsSet} // Removed for now
                                 onToggleColorVisibility={handleToggleColorVisibility}
                                 showColor={true}
                                 onToggleShapeVisibility={handleToggleShapeVisibility}
                                 onToggleSizeVisibility={handleToggleSizeVisibility}
                             />
                         </Col>
-                        <Col flex="auto" style={borderStyle(BORDER_COLORS.level5)}>
+                        {/* Main Content Area */}
+                        <Col flex="auto" style={borderStyle()}>
                             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                                <div style={borderStyle(BORDER_COLORS.level6)}>
+                                {/* Accumulation Plots Section */}
+                                <div style={borderStyle()}>
                                     <Row gutter={[16, 16]}>
-                                        {selectedBmdResultRefs?.map((ref) => {
-                                            const bmdInfo = bmdResultMap.get(Number(ref));
+                                        {selectedBmdResultRefs?.map((refStr) => {
+                                            const numericRef = Number(refStr);
+                                            if (isNaN(numericRef)) return null;
+
+                                            const bmdInfo = bmdResultMap.get(numericRef);
+                                            const analysisNameForPlot =
+                                                bmdInfo?.name || `Analysis ${numericRef}`;
+
+                                            const pointsForThisAccumPlot = allStyledPoints
+                                                ? allStyledPoints.filter(
+                                                    (p: UmapAnalysisDataPoint) =>
+                                                        p.bmdResultRef === numericRef
+                                                )
+                                                : null;
+
+                                            console.log(
+                                                `[GOUmapAnalysisUnit] Preparing AccumPlot ${analysisNameForPlot}. Found ${pointsForThisAccumPlot?.length ?? 0
+                                                } points.`
+                                            );
+
                                             return (
-                                                <Col key={ref} xs={24} sm={12} md={8} lg={6}>
-                                                    <AccumulationPlot analysisName={bmdInfo?.name || `Analysis ${ref}`} />
+                                                <Col key={refStr} xs={24} sm={12} md={8} lg={6}>
+                                                    <AccumulationPlot
+                                                        analysisName={analysisNameForPlot}
+                                                        styledPointsForPlot={pointsForThisAccumPlot}
+                                                        bmdResultRef={numericRef}
+                                                    // Removed unused props
+                                                    />
                                                 </Col>
                                             );
                                         })}
                                     </Row>
                                 </div>
-                                <div style={borderStyle(BORDER_COLORS.level7)}>
+                                {/* UMAP Plot Section */}
+                                <div style={borderStyle()}>
                                     <UmapPlotComponent
-                                        // Pass analysisPoints even if it's empty or null
                                         data={analysisPoints || []}
                                         referenceData={referenceData}
                                     />
                                 </div>
                             </Space>
                         </Col>
-                        <Col flex="200px" style={borderStyle(BORDER_COLORS.level4)}>
+                        {/* Shape/Size Legend */}
+                        <Col flex="200px" style={borderStyle()}>
                             <CustomLegends
                                 cardTitle="Shape & Size"
                                 shapeItems={shapeItems}
                                 sizeItems={sizeItems}
                                 hiddenShapeLabels={hiddenShapeLabelsArray}
                                 hiddenSizeLabels={hiddenSizeLabelsArray}
-                                // visibleShapeLabelsSet={visibleShapeLabelsSet} // Removed for now
-                                // visibleSizeLabelsSet={visibleSizeLabelsSet} // Removed for now
                                 onToggleShapeVisibility={handleToggleShapeVisibility}
                                 onToggleSizeVisibility={handleToggleSizeVisibility}
                                 showShape={true}
@@ -5219,10 +5435,14 @@ const GOUmapAnalysisUnit: React.FC = () => {
                         </Col>
                     </Row>
                 </div>
+
                 {/* Table Row */}
-                <div style={borderStyle(BORDER_COLORS.level2)}>
+                <div style={borderStyle()}>
                     <Row>
-                        <Col span={24}> <AnalysisDataTable /> </Col>
+                        <Col span={24}>
+                            {/* --- TODO: Replace with functional AnalysisDataTable --- */}
+                            <AnalysisDataTable />
+                        </Col>
                     </Row>
                 </div>
             </Space>
@@ -5232,40 +5452,343 @@ const GOUmapAnalysisUnit: React.FC = () => {
 
 export default GOUmapAnalysisUnit;
 // src/components/analysis/AccumulationPlot.tsx
-import React from 'react';
-import { Card } from 'antd';
-import type { Experiment } from '../../store/apis/experimentsApi'; // Adjust path if needed
+import React, { useMemo, useCallback } from 'react';
+import type {
+    Data,
+    Layout,
+    PlotMouseEvent,
+    PlotSelectionEvent,
+} from 'plotly.js';
+import { Spin } from 'antd';
+// --- Import the CORRECT data type ---
+import { UmapAnalysisDataPoint } from '../../models/applicationModel'; // Adjusted path & type name
+// --- Component for Plotly ---
+import Plot from 'react-plotly.js'; // Assuming direct use or a thin wrapper
+// --- Redux imports ---
+import { useAppDispatch } from '../../store/hooks'; // Adjust path
+import { setAccumulationPlotSelection } from '../../store/slices/analysisUISlice'; // Adjust path
 
-// Define props based on how it's used in GOUmapAnalysisUnit
-interface AccumulationPlotProps {
-    filterState: any; // Replace 'any' with actual filter state type later
-    setFilterState: (value: any) => void; // Replace 'any' later
-    availableData?: Experiment[]; // Make availableData potentially optional or check it
+// Props interface - Cleaned up
+export interface AccumulationPlotProps {
+    analysisName: string;
+    // Expects pre-styled, rank-filtered points for this specific analysis
+    styledPointsForPlot: UmapAnalysisDataPoint[] | null; // Use correct type
+    bmdResultRef: number; // Identifier for this specific plot
+    // Removed unused props based on previous cleanup
 }
 
-const AccumulationPlot: React.FC<AccumulationPlotProps> = ({
-    filterState,
-    setFilterState,
-    availableData, // Receive the prop
-}) => {
+// Constants
+const PLOT_HEIGHT = 400;
+const LINE_COLOR = '#1f77b4'; // Color for the cumulative line itself
 
-    // FIX: Check if availableData exists and is an array before accessing length
-    const dataCount = Array.isArray(availableData) ? availableData.length : 0;
+const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
+    function AccumulationPlot({
+        analysisName,
+        styledPointsForPlot,
+        bmdResultRef,
+        // Removed unused props from destructuring
+    }) {
+        const dispatch = useAppDispatch();
+        const logPrefix = `[AccumulationPlot ${analysisName}]`;
 
-    return (
-        <Card title="Accumulation Plot">
-            {/* Use the calculated count */}
-            Filter controls here. Data count: {dataCount}
-            <br />
-            Current Filter State: {JSON.stringify(filterState)}
-            <br />
-            (Placeholder - Implement actual filter UI)
-            {/* Example: <Select placeholder="Group by..." onChange={setFilterState} /> */}
-        </Card>
-    );
-};
+        console.log(
+            `${logPrefix} Rendering. Received ${styledPointsForPlot?.length ?? 0
+            } styled points.`
+        );
 
-export default AccumulationPlot;/* src/components/analysis/CustomLegend.module.css */
+        // --- Calculate Cumulative Line Data ---
+        const linePlotData = useMemo(() => {
+            console.log(`${logPrefix} Calculating line data...`);
+            if (!styledPointsForPlot || styledPointsForPlot.length === 0) {
+                console.log(`${logPrefix} No styled points to process for line.`);
+                return null;
+            }
+
+            try {
+                const validPoints = styledPointsForPlot.filter(
+                    (p) =>
+                        p.bmdFifthPercentileTotalGenes != null &&
+                        !isNaN(p.bmdFifthPercentileTotalGenes) &&
+                        isFinite(p.bmdFifthPercentileTotalGenes) &&
+                        p.bmdFifthPercentileTotalGenes > 0
+                );
+
+                if (validPoints.length === 0) {
+                    console.log(`${logPrefix} No points with valid BMD values found.`);
+                    return null;
+                }
+
+                const sortedPoints = [...validPoints].sort(
+                    (a, b) =>
+                        (a.bmdFifthPercentileTotalGenes ?? Infinity) -
+                        (b.bmdFifthPercentileTotalGenes ?? Infinity)
+                );
+
+                const cumulativeCounts = sortedPoints.map((_, index) => index + 1);
+                const minX = sortedPoints[0].bmdFifthPercentileTotalGenes!;
+                const maxX =
+                    sortedPoints[sortedPoints.length - 1].bmdFifthPercentileTotalGenes!;
+                const maxY = cumulativeCounts[cumulativeCounts.length - 1];
+
+                console.log(
+                    `${logPrefix} Line data calculated. Points: ${sortedPoints.length}, MinX: ${minX}, MaxX: ${maxX}, MaxY: ${maxY}`
+                );
+
+                return {
+                    points: sortedPoints,
+                    cumulativeCounts,
+                    minXValue: minX,
+                    maxXValue: maxX,
+                    minYValue: 0,
+                    maxYValue: maxY,
+                    totalPoints: sortedPoints.length,
+                };
+            } catch (error) {
+                console.error(`${logPrefix} Error processing line data:`, error);
+                return null;
+            }
+        }, [styledPointsForPlot, logPrefix]);
+
+        // --- Generate Plotly Traces ---
+        const plotData = useMemo((): Data[] | null => {
+            console.log(`${logPrefix} plotData Memo] Recalculating traces...`);
+
+            if (!linePlotData) {
+                console.log(
+                    `${logPrefix} plotData Memo] Exiting early: no linePlotData.`
+                );
+                return null;
+            }
+
+            // --- Line Trace ---
+            const lineTrace: Data = {
+                // FIX: Ensure x values are number or null, not undefined
+                x: linePlotData.points.map((p) => p.bmdFifthPercentileTotalGenes ?? null),
+                y: linePlotData.cumulativeCounts,
+                type: 'scattergl',
+                mode: 'lines',
+                name: 'Cumulative Count',
+                line: { color: LINE_COLOR, width: 2 },
+                customdata: linePlotData.points.map((p) => p.go_id),
+                text: linePlotData.points.map(
+                    (p, i) =>
+                        `Rank: ${i + 1}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term
+                        }<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(
+                            2
+                        )}<br>Count: ${linePlotData.cumulativeCounts[i]}`
+                ),
+                hoverinfo: 'text',
+                hoverlabel: { bgcolor: '#FFF', bordercolor: LINE_COLOR },
+                showlegend: false,
+            };
+
+            // --- Marker Trace ---
+            const pointsForMarkers = (styledPointsForPlot || []).filter(
+                (p) =>
+                    p.finalOpacity > 0 &&
+                    p.bmdFifthPercentileTotalGenes != null &&
+                    !isNaN(p.bmdFifthPercentileTotalGenes) &&
+                    isFinite(p.bmdFifthPercentileTotalGenes) &&
+                    p.bmdFifthPercentileTotalGenes > 0
+            );
+
+            const goIdToRankMap = new Map<string, number>();
+            linePlotData.points.forEach((p, index) => {
+                goIdToRankMap.set(p.go_id, index + 1);
+            });
+
+            console.log(
+                `${logPrefix} plotData Memo] Found ${pointsForMarkers.length} marker points (visible & valid BMD).`
+            );
+
+            const markerTrace: Data | null =
+                pointsForMarkers.length > 0
+                    ? {
+                        // FIX: Ensure x values are number or null, not undefined
+                        x: pointsForMarkers.map(
+                            (p) => p.bmdFifthPercentileTotalGenes ?? null
+                        ),
+                        // y calculation already handles potential missing rank with ?? null
+                        y: pointsForMarkers.map(
+                            (p) =>
+                                linePlotData.cumulativeCounts[
+                                goIdToRankMap.get(p.go_id)! - 1
+                                ] ?? null
+                        ),
+                        customdata: pointsForMarkers.map((p) => p.go_id),
+                        text: pointsForMarkers.map(
+                            (p) =>
+                                `Rank: ${goIdToRankMap.get(p.go_id) ?? 'N/A'}<br>GO ID: ${p.go_id
+                                }<br>Term: ${p.go_term}<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(
+                                    2
+                                )}<br>Source: ${p.bmdResultName}`
+                        ),
+                        type: 'scattergl',
+                        mode: 'markers',
+                        name: 'Points',
+                        marker: {
+                            color: pointsForMarkers.map((p) => p.finalColor),
+                            symbol: pointsForMarkers.map((p) => p.finalShape),
+                            size: pointsForMarkers.map((p) => p.finalSize),
+                            opacity: pointsForMarkers.map((p) => p.finalOpacity),
+                            line: { color: 'black', width: 0.5 },
+                        },
+                        hoverinfo: 'text',
+                        hoverlabel: { bgcolor: '#FFF', bordercolor: '#333' },
+                        showlegend: false,
+                    }
+                    : null;
+
+            console.log(
+                `${logPrefix} plotData Memo] markerTrace created?`,
+                !!markerTrace
+            );
+            return markerTrace ? [lineTrace, markerTrace] : [lineTrace];
+        }, [linePlotData, styledPointsForPlot, logPrefix]);
+
+        // --- Layout Calculation (remains the same) ---
+        const plotLayout = useMemo((): Partial<Layout> | null => {
+            if (!linePlotData) return null;
+            const epsilon = 1e-10;
+            const logMinX = Math.log10(Math.max(linePlotData.minXValue, epsilon));
+            const logMaxX = Math.log10(linePlotData.maxXValue);
+            const minYValue = 0;
+            const maxYValueWithPadding = linePlotData.maxYValue * 1.05;
+
+            return {
+                xaxis: {
+                    title: '5th Percentile BMD (Log Scale)',
+                    type: 'log',
+                    autorange: false,
+                    range: [logMinX, logMaxX],
+                },
+                yaxis: {
+                    title: 'Cumulative Count',
+                    autorange: false,
+                    range: [minYValue, maxYValueWithPadding],
+                },
+                height: PLOT_HEIGHT,
+                margin: { l: 60, r: 20, t: 20, b: 50 },
+                hovermode: 'closest',
+                showlegend: false,
+                autosize: true,
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                dragmode: 'lasso',
+                clickmode: 'event+select',
+            };
+        }, [linePlotData]);
+
+        // --- Event Handlers (remain the same) ---
+        const handleSelection = useCallback(
+            (event: Readonly<PlotSelectionEvent> | undefined) => {
+                const selectedGoIds =
+                    event?.points?.map((p) => p.customdata as string).filter(Boolean) ||
+                    [];
+                console.log(
+                    `${logPrefix} handleSelection - Dispatching selection:`,
+                    selectedGoIds
+                );
+                dispatch(setAccumulationPlotSelection(selectedGoIds));
+            },
+            [dispatch, logPrefix]
+        );
+
+        const handleClick = useCallback(
+            (event: Readonly<PlotMouseEvent>) => {
+                const clickedGoId = event.points[0]?.customdata as string;
+                if (clickedGoId) {
+                    console.log(
+                        `${logPrefix} handleClick - Dispatching single selection:`,
+                        [clickedGoId]
+                    );
+                    dispatch(setAccumulationPlotSelection([clickedGoId]));
+                } else {
+                    console.log(
+                        `${logPrefix} handleClick - No GO ID found, dispatching empty selection.`
+                    );
+                    dispatch(setAccumulationPlotSelection([]));
+                }
+            },
+            [dispatch, logPrefix]
+        );
+
+        const handleDoubleClick = useCallback(() => {
+            console.log(
+                `${logPrefix} handleDoubleClick - Dispatching empty selection.`
+            );
+            dispatch(setAccumulationPlotSelection([]));
+        }, [dispatch, logPrefix]);
+
+        // --- Render Logic (remains the same) ---
+        console.log(
+            `${logPrefix} FINAL check before Plot. plotData is null?`,
+            plotData === null,
+            'plotLayout is null?',
+            plotLayout === null
+        );
+        if (plotData) {
+            console.log(`${logPrefix} FINAL plotData length:`, plotData.length);
+        }
+
+        if (styledPointsForPlot === null) {
+            return <Spin tip="Processing plot data..." />;
+        }
+        if (!plotData || !plotLayout) {
+            return (
+                <div
+                    style={{
+                        height: `${PLOT_HEIGHT}px`,
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '1px solid lightgrey',
+                        fontSize: '0.9em',
+                        color: '#888',
+                    }}
+                >
+                    <span>No valid data for plot.</span>
+                </div>
+            );
+        }
+
+        return (
+            <div style={{ height: `${PLOT_HEIGHT}px`, width: '100%' }}>
+                <Plot
+                    divId={`${analysisName}-accumulation-${bmdResultRef}`}
+                    // No type assertion needed now for data if TS is satisfied
+                    data={plotData}
+                    layout={plotLayout}
+                    style={{ width: '100%', height: '100%' }}
+                    useResizeHandler={true}
+                    config={{
+                        responsive: true,
+                        displaylogo: false,
+                        modeBarButtonsToRemove: [
+                            'zoom2d',
+                            'pan2d',
+                            'select2d',
+                            'zoomIn2d',
+                            'zoomOut2d',
+                            'autoScale2d',
+                            'resetScale2d',
+                            'hoverClosestCartesian',
+                            'hoverCompareCartesian',
+                            'toggleSpikelines',
+                        ],
+                    }}
+                    onClick={handleClick}
+                    onSelected={handleSelection}
+                    onDoubleClick={handleDoubleClick}
+                />
+            </div>
+        );
+    }
+);
+
+export default AccumulationPlot;
+/* src/components/analysis/CustomLegend.module.css */
 
 .legendCard {
     /* Allow content to scroll if it overflows the fixed height */
@@ -5701,83 +6224,203 @@ export default GroupFilterControl;/* src/components/SlidingWindow.css */
 .sliding-window-width-input .ant-input-number-input {
     text-align: right;
 }// src/components/layout/AppHeader.tsx
+// Reverted to the simpler version - Title is NOT displayed here.
+
 import React from 'react';
 import { Layout, Select, Button, Space, Typography, Tooltip } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
-import { useAppDispatch, useAppSelector } from '../../store/hooks'; // Redux hooks
-import { setActiveProject } from '../../store/slices/projectSlice'; // Action to set project
-import { selectActiveProjectId } from '../../store/selectors/projectSelectors'; // Selector for current value
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { setActiveProject } from '../../store/slices/projectSlice';
+import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
 
 const { Header } = Layout;
 const { Option } = Select;
 const { Text } = Typography;
 
-// Define the expected structure of a project item in the list
-// Matches the output of projectsApi baseQuery
 interface ProjectListItem {
     name: string;
-    // experiments?: any[]; // experiments array might be present but likely unused here
 }
 
-// Define props expected by AppHeader
 interface AppHeaderProps {
-    projectList: ProjectListItem[] | undefined; // Array of projects or undefined if not loaded
-    isLoading: boolean; // Loading status for the project list
-    error: string | null; // Error object if loading failed
-    disabled?: boolean; // General disabled state (e.g., if Pyodide failed)
+    projectList: ProjectListItem[] | undefined;
+    isLoading: boolean;
+    error: string | null;
+    disabled?: boolean;
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({
-    projectList = [], // Default to empty array
+    projectList = [],
     isLoading,
     error,
-    disabled = false, // Default disabled to false
+    disabled = false,
 }) => {
     const dispatch = useAppDispatch();
-    // Get the currently selected project name from Redux state to control the Select value
-    const activeProjectName = useAppSelector(selectActiveProjectId);
+    const activeProjectName = useAppSelector(selectSelectedProjectName);
 
     const handleProjectChange = (value: string | null) => {
-        // Dispatch action to update the active project in Redux state
         dispatch(setActiveProject(value));
     };
 
     const handleAddNewProject = () => {
-        // TODO: Implement logic to add a new project
-        // This would likely involve dispatching an action to open a modal
-        console.log("Add New Project clicked - Implement me!");
+        console.log('Add New Project clicked - Implement me!');
+    };
+
+    let placeholderText = 'Select Project...';
+    if (isLoading) {
+        placeholderText = 'Loading projects...';
+    } else if (error) {
+        placeholderText = 'Error loading projects';
+    } else if (!projectList || projectList.length === 0) {
+        placeholderText = 'No projects found';
+    }
+
+    return (
+        <Header
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0 24px',
+                background: '#fff',
+                borderBottom: '1px solid #f0f0f0',
+            }}
+        >
+            {/* Left Section: App Title */}
+            <div style={{ marginRight: 'auto' }}> {/* Pushes controls to the right */}
+                <Text strong style={{ fontSize: '1.2em' }}>
+                    BMDx Plus
+                </Text>
+            </div>
+
+            {/* Right Section: Controls */}
+            <div>
+                <Space>
+                    <Select
+                        style={{ width: 200 }}
+                        placeholder={placeholderText}
+                        onChange={handleProjectChange}
+                        value={activeProjectName}
+                        loading={isLoading}
+                        disabled={
+                            disabled ||
+                            isLoading ||
+                            !!error ||
+                            !projectList ||
+                            projectList.length === 0
+                        }
+                        allowClear
+                        onClear={() => handleProjectChange(null)}
+                    >
+                        {projectList?.map((project) => (
+                            <Option key={project.name} value={project.name}>
+                                {project.name}
+                            </Option>
+                        ))}
+                    </Select>
+
+                    <Tooltip title="Add New Project">
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={handleAddNewProject}
+                            disabled={disabled || isLoading || !!error}
+                        >
+                            New
+                        </Button>
+                    </Tooltip>
+                </Space>
+            </div>
+        </Header>
+    );
+};
+
+export default AppHeader;
+// src/components/layout/ProjectSelectionSider.tsx
+import React from 'react';
+import { Layout, Select, Button, Space, Typography, Tooltip, Spin } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { setActiveProject } from '../../store/slices/projectSlice';
+import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
+
+const { Sider } = Layout;
+const { Option } = Select;
+const { Text } = Typography;
+
+// Define the expected structure of a project item in the list
+interface ProjectListItem {
+    name: string;
+}
+
+// Define props expected by this Sider component
+interface ProjectSelectionSiderProps {
+    projectList: ProjectListItem[] | undefined;
+    isLoading: boolean;
+    error: string | null;
+    disabled?: boolean; // General disabled state
+    width?: number; // Allow customizing width
+}
+
+const ProjectSelectionSider: React.FC<ProjectSelectionSiderProps> = ({
+    projectList = [],
+    isLoading,
+    error,
+    disabled = false,
+    width = 200, // Default width
+}) => {
+    const dispatch = useAppDispatch();
+    const activeProjectName = useAppSelector(selectSelectedProjectName);
+
+    const handleProjectChange = (value: string | null) => {
+        dispatch(setActiveProject(value));
+    };
+
+    const handleAddNewProject = () => {
+        console.log('Add New Project clicked - Implement me!');
         // Example: dispatch(uiSlice.actions.showAddProjectModal());
     };
 
     // Determine placeholder text based on state
-    let placeholderText = "Select Project...";
+    let placeholderText = 'Select Project...';
     if (isLoading) {
-        placeholderText = "Loading projects...";
+        placeholderText = 'Loading...';
     } else if (error) {
-        placeholderText = "Error loading projects";
+        placeholderText = 'Error';
     } else if (!projectList || projectList.length === 0) {
-        placeholderText = "No projects found";
+        placeholderText = 'No projects';
     }
 
     return (
-        <Header style={{ display: 'flex', alignItems: 'center', padding: '0 24px', background: '#fff' }}>
-            {/* Simple Title or Logo Area */}
-            <div style={{ marginRight: 'auto' }}>
-                <Text strong style={{ fontSize: '1.2em' }}>BMDx Plus</Text>
-            </div>
-
-            {/* Project Selection Area */}
-            <Space>
-                <Text>Project:</Text>
+        <Sider
+            width={width}
+            theme="light" // Or "dark"
+            style={{
+                padding: '16px',
+                borderLeft: '1px solid #f0f0f0', // Add separator
+                overflow: 'auto', // Allow scrolling if content overflows
+                height: '100vh', // Make it full height
+                position: 'sticky', // Keep it sticky if main content scrolls
+                top: 0,
+            }}
+        >
+            <Space direction="vertical" style={{ width: '100%' }}>
+                <Text strong>Project Selection</Text>
+                {isLoading && <Spin size="small" />}
+                {error && <Text type="danger">Error loading</Text>}
                 <Select
-                    style={{ width: 200 }}
+                    style={{ width: '100%' }} // Take full width of sider padding
                     placeholder={placeholderText}
                     onChange={handleProjectChange}
-                    value={activeProjectName} // Controlled by Redux state
+                    value={activeProjectName}
                     loading={isLoading}
-                    disabled={disabled || isLoading || !!error || !projectList || projectList.length === 0} // Disable based on status
-                    allowClear // Allow clearing the selection
-                    onClear={() => handleProjectChange(null)} // Dispatch null on clear
+                    disabled={
+                        disabled ||
+                        isLoading ||
+                        !!error ||
+                        !projectList ||
+                        projectList.length === 0
+                    }
+                    allowClear
+                    onClear={() => handleProjectChange(null)}
                 >
                     {projectList?.map((project) => (
                         <Option key={project.name} value={project.name}>
@@ -5791,112 +6434,122 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                         type="primary"
                         icon={<PlusOutlined />}
                         onClick={handleAddNewProject}
-                        disabled={disabled || isLoading || !!error} // Disable if loading/error/globally disabled
+                        disabled={disabled || isLoading || !!error}
+                        style={{ width: '100%' }} // Make button full width
                     >
-                        New
+                        New Project
                     </Button>
                 </Tooltip>
             </Space>
-        </Header>
+        </Sider>
     );
 };
 
-export default AppHeader;// src/components/layout/AppSidebar.tsx
+export default ProjectSelectionSider;
+// src/components/layout/AppSidebar.tsx
 import React from 'react';
 import { Layout, Menu } from 'antd';
-import type { MenuProps } from 'antd'; // Import MenuProps type
-// Import icons you want to use
-import { ExperimentOutlined, BarChartOutlined, SettingOutlined } from '@ant-design/icons';
+import type { MenuProps } from 'antd';
+import {
+    ExperimentOutlined,
+    BarChartOutlined,
+    SettingOutlined,
+} from '@ant-design/icons';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
-// Import actions/selectors for navigation state
-import { setActiveView, selectCurrentView } from '../../store/slices/navigationSlice.ts'
-
+import {
+    setActiveView,
+    selectCurrentView,
+} from '../../store/slices/navigationSlice'; // Corrected path
 
 const { Sider } = Layout;
 
-// Define the type for your view keys if you haven't already
-type AppViewKey = 'experiments' | 'categoryAnalysis' | 'settings' | string; // Add other keys as needed
+type AppViewKey = 'experiments' | 'categoryAnalysis' | 'settings' | string;
 
-const AppSidebar: React.FC = () => {
+// --- Define Props ---
+interface AppSidebarProps {
+    projectSelected: boolean; // Receive the selection status
+}
+// --------------------
+
+const AppSidebar: React.FC<AppSidebarProps> = ({ projectSelected }) => {
+    // Receive the prop
     const dispatch = useAppDispatch();
-    // Get the current active view key from Redux state to highlight the correct item
     const currentViewKey = useAppSelector(selectCurrentView);
 
-    // Define Menu items using the 'items' prop structure
     const items: MenuProps['items'] = [
         {
-            key: 'experiments', // Matches the value dispatched by setActiveView
+            key: 'experiments',
             icon: <ExperimentOutlined />,
             label: 'Experiments',
         },
         {
-            key: 'analysis', // Key for the submenu itself (optional if not clickable)
+            key: 'analysis',
             label: 'Analysis',
             icon: <BarChartOutlined />,
             children: [
                 {
-                    key: 'categoryAnalysis', // Matches the value dispatched by setActiveView
+                    key: 'categoryAnalysis',
                     label: 'Category Analysis',
                 },
                 // Add other analysis types here if needed
             ],
         },
         {
-            key: 'settings', // Matches the value dispatched by setActiveView
+            key: 'settings',
             icon: <SettingOutlined />,
             label: 'Project Settings',
         },
     ];
 
-    // Handle menu item clicks
     const handleMenuClick: MenuProps['onClick'] = (e) => {
-        console.log('Sidebar menu clicked:', e.key);
-        // Dispatch action to update the active view in Redux state
-        // Ensure the payload type matches what your setActiveView action expects
-        dispatch(setActiveView(e.key as AppViewKey)); // Cast key type if necessary
+        // Only dispatch if the menu is actually enabled (project is selected)
+        if (projectSelected) {
+            console.log('Sidebar menu clicked:', e.key);
+            dispatch(setActiveView(e.key as AppViewKey));
+        }
     };
 
     return (
-        // Adjust width and other Sider props as needed
         <Sider width={200} theme="light" collapsible={false}>
             <Menu
                 mode="inline"
-                // Set the currently selected key based on Redux state
                 selectedKeys={currentViewKey ? [currentViewKey] : []}
-                // Default open keys for submenus (optional)
-                // defaultOpenKeys={['analysis']}
                 style={{ height: '100%', borderRight: 0 }}
-                items={items} // Pass the items array here
-                onClick={handleMenuClick} // Handle clicks
+                items={items}
+                onClick={handleMenuClick}
+                // --- Disable the entire menu if no project is selected ---
+                disabled={!projectSelected}
+            // ---------------------------------------------------------
             />
         </Sider>
     );
 };
 
-export default AppSidebar;// src/components/SlidingWindowFilter.tsx
+export default AppSidebar;
+// src/components/SlidingWindowFilter.tsx
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Typography, InputNumber, Space } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import './SlidingWindow.css';
+import './SlidingWindow.css'; // Make sure this CSS file exists
 
 const { Text } = Typography;
 
 interface SlidingWindowFilterProps {
-    min: number;
-    max: number;
-    value: [number, number];
-    onAfterChange?: (value: [number, number]) => void;
+    min: number; // The absolute minimum possible rank (usually 1)
+    max: number; // The absolute maximum possible rank (N)
+    value: [number, number]; // The currently committed range [start, end] from Redux
+    onAfterChange?: (value: [number, number]) => void; // Callback when range changes
     disabled?: boolean;
     label?: string;
-    analysisName?: string;
+    analysisName?: string; // For logging context
 }
 
 const SlidingWindowFilter: React.FC<SlidingWindowFilterProps> = React.memo(
     ({
         min,
         max,
-        value,
+        value, // This is the committed value from Redux
         onAfterChange,
         disabled = false,
         label = 'Filter by Rank',
@@ -5904,130 +6557,240 @@ const SlidingWindowFilter: React.FC<SlidingWindowFilterProps> = React.memo(
     }) => {
         const logPrefix = `[${analysisName}]`;
 
+        // Internal state for the displayed range in the UI
         const [displayValue, setDisplayValue] = useState<[number, number]>([1, 1]);
-        const [widthInput, setWidthInput] = useState<string>("1");
+        // Internal state for the width input field (string to allow intermediate typing)
+        const [widthInput, setWidthInput] = useState<string>('1');
 
-        // console.log(`${logPrefix} Render. Props: min=${min}, max=${max}, value=[${value.join(', ')}], display: [${displayValue.join(', ')}]`); // Keep logs minimal
-
-        // --- REVISED useEffect (v5) for Initialization and Syncing ---
+        // --- REVISED useEffect (v6) for Initialization and Syncing ---
         useEffect(() => {
-            // console.log(`${logPrefix} useEffect Check. Props: min=${min}, max=${max}, value=[${value.join(', ')}]. Current display: [${displayValue.join(', ')}]`); // Keep logs minimal
+            console.log(
+                `${logPrefix} useEffect Sync Check. Props: min=${min}, max=${max}, value=[${value?.join(
+                    ', '
+                )}]. Current display: [${displayValue.join(', ')}]`
+            );
 
-            const isPropsRangeValid = min < max && isFinite(min) && isFinite(max);
-            const isCommittedValueValid = isFinite(value[0]) && isFinite(value[1]);
+            // Determine if the incoming min/max props represent a valid range
+            // A valid range requires min < max and both are finite numbers.
+            const isPropsRangeValid =
+                typeof min === 'number' &&
+                typeof max === 'number' &&
+                isFinite(min) &&
+                isFinite(max) &&
+                min < max; // Strictly less than for a valid range > 1 point
 
             let newDisplayValue: [number, number];
             let newWidth: number;
 
             if (isPropsRangeValid) {
-                // Valid min/max received. Determine the correct display range.
-                if (isCommittedValueValid) {
-                    // Use the committed value, but clamp it to the valid bounds
-                    const clampedStart = Math.max(min, Math.min(value[0], max));
-                    const clampedEnd = Math.min(max, Math.max(clampedStart, value[1]));
-                    newDisplayValue = [clampedStart, clampedEnd];
-                    // console.log(`${logPrefix} useEffect: Valid props & valid committed value. Clamped target: [${newDisplayValue.join(', ')}]`); // Keep logs minimal
-                } else {
-                    // Committed value is invalid (initial state), use the full valid range
-                    newDisplayValue = [min, max];
-                    // console.log(`${logPrefix} useEffect: Valid props & invalid committed value. Target set to full range: [${newDisplayValue.join(', ')}]`); // Keep logs minimal
-                }
-            } else {
-                // Props range is not yet valid, use placeholder
-                newDisplayValue = [1, 1];
-                // console.log(`${logPrefix} useEffect: Props range [${min}, ${max}] is invalid. Target set to placeholder: [${newDisplayValue.join(', ')}]`); // Keep logs minimal
-            }
+                // The incoming min/max define a valid range (more than one possible point)
+                console.log(`${logPrefix} useEffect: Valid props range [${min}, ${max}] received.`);
 
-            newWidth = newDisplayValue[1] - newDisplayValue[0] + 1;
+                // Use the committed value from props, but clamp it strictly within the valid [min, max] bounds.
+                // This ensures the display never shows values outside the possible range.
+                const clampedStart = Math.max(min, Math.min(value[0], max));
+                // Ensure end is >= start and <= max
+                const clampedEnd = Math.min(max, Math.max(clampedStart, value[1]));
 
-            // Update state only if the calculated display value is different
-            if (displayValue[0] !== newDisplayValue[0] || displayValue[1] !== newDisplayValue[1]) {
-                // console.log(`${logPrefix} useEffect: Applying state update to displayValue: [${newDisplayValue.join(', ')}]`); // Keep logs minimal
+                newDisplayValue = [clampedStart, clampedEnd];
+                newWidth = newDisplayValue[1] - newDisplayValue[0] + 1;
+
+                console.log(
+                    `${logPrefix} useEffect: Calculated target display: [${newDisplayValue.join(
+                        ', '
+                    )}], width: ${newWidth}`
+                );
+
+                // --- Force state update ---
+                // Always update the state if the props define a valid range.
+                // This ensures synchronization even if the calculated newDisplayValue happens
+                // to be the same as the current displayValue (e.g., after reset).
                 setDisplayValue(newDisplayValue);
                 setWidthInput(String(newWidth));
+                console.log(
+                    `${logPrefix} useEffect: State updated to: [${newDisplayValue.join(
+                        ', '
+                    )}]`
+                );
+                // -------------------------
             } else {
-                // console.log(`${logPrefix} useEffect: No state update needed.`); // Keep logs minimal
+                // The incoming min/max props are invalid (e.g., loading, no data max=0, min >= max)
+                // Default to a safe placeholder state [1, 1] and width 1.
+                // Use Math.max(1, min) in case min itself is invalid initially.
+                const safeMin = Math.max(1, min);
+                newDisplayValue = [safeMin, safeMin];
+                newWidth = 1;
+                console.log(
+                    `${logPrefix} useEffect: Invalid props range [${min}, ${max}]. Setting display to placeholder: [${newDisplayValue.join(
+                        ', '
+                    )}]`
+                );
+
+                // Update state only if it's different from the placeholder to avoid loops
+                if (
+                    displayValue[0] !== newDisplayValue[0] ||
+                    displayValue[1] !== newDisplayValue[1]
+                ) {
+                    setDisplayValue(newDisplayValue);
+                    setWidthInput(String(newWidth));
+                }
             }
-
-            // This effect now correctly depends on all external values that influence its state
-        }, [value, min, max]);
+            // This effect depends on the external props that define the range and the committed value.
+        }, [value, min, max]); // Dependencies remain the same
         // --- END REVISED useEffect ---
-
 
         // --- Width Input Handling ---
         const finalizeWidthInput = useCallback(() => {
-            const currentSafeMax = Math.max(1, max);
-            if (disabled || currentSafeMax < min) return;
+            const currentSafeMax = Math.max(1, max); // Use max from props
+            if (disabled || currentSafeMax < min) return; // Check against props min/max
+
             const parsedWidth = parseInt(widthInput, 10);
-            let newWidth = displayValue[1] - displayValue[0] + 1;
+            let newWidth: number;
+
+            // Validate parsed width and clamp it between 1 and the total range size
             if (!isNaN(parsedWidth) && parsedWidth > 0) {
-                newWidth = Math.max(1, Math.min(parsedWidth, currentSafeMax));
+                newWidth = Math.max(1, Math.min(parsedWidth, currentSafeMax - min + 1));
             } else {
-                setWidthInput(String(newWidth)); return;
+                // If input is invalid, revert to the width derived from the current displayValue
+                newWidth = displayValue[1] - displayValue[0] + 1;
+                setWidthInput(String(newWidth)); // Update input to show the reverted width
+                return; // Don't proceed further if input was invalid
             }
-            const newStart = 1; // Reset to start rank 1
+
+            // Apply the new width, starting from rank 1
+            const newStart = min; // Always start from the minimum possible rank (prop)
             const newEnd = Math.min(currentSafeMax, newStart + newWidth - 1);
             const finalRange: [number, number] = [newStart, newEnd];
+
+            console.log(
+                `${logPrefix} finalizeWidthInput: Parsed=${parsedWidth}, Clamped Width=${newWidth}, Final Range=[${finalRange.join(
+                    ', '
+                )}]`
+            );
+
             // Update local state *before* calling onAfterChange
             setDisplayValue(finalRange);
-            setWidthInput(String(finalRange[1] - finalRange[0] + 1));
-            if (onAfterChange) { onAfterChange(finalRange); }
-        }, [widthInput, displayValue, min, max, onAfterChange, disabled, logPrefix]);
+            setWidthInput(String(finalRange[1] - finalRange[0] + 1)); // Update width input based on final range
+
+            // Trigger the callback to update Redux state
+            if (onAfterChange) {
+                onAfterChange(finalRange);
+            }
+        }, [
+            widthInput,
+            displayValue,
+            min,
+            max,
+            onAfterChange,
+            disabled,
+            logPrefix,
+        ]);
 
         // --- Sliding Window Handler ---
         const handleShift = useCallback(
             (amount: number) => {
-                const currentSafeMax = Math.max(1, max);
-                if (disabled || currentSafeMax < min || amount === 0) return;
+                const currentSafeMax = Math.max(1, max); // Use max from props
+                if (disabled || currentSafeMax < min || amount === 0) return; // Check against props min/max
+
                 const currentStart = displayValue[0];
                 const currentEnd = displayValue[1];
                 const currentWidth = currentEnd - currentStart + 1;
+
+                // Calculate desired start, clamping within valid bounds [min, max - width + 1]
                 let desiredStart = currentStart + amount;
-                desiredStart = Math.max(min, Math.min(desiredStart, currentSafeMax - currentWidth + 1));
+                desiredStart = Math.max(
+                    min,
+                    Math.min(desiredStart, currentSafeMax - currentWidth + 1)
+                );
+
+                // Calculate desired end based on the clamped start and width
                 let desiredEnd = Math.min(currentSafeMax, desiredStart + currentWidth - 1);
+
                 const finalRange: [number, number] = [desiredStart, desiredEnd];
+
+                // Only update if the range actually changed
                 if (finalRange[0] !== currentStart || finalRange[1] !== currentEnd) {
+                    console.log(
+                        `${logPrefix} handleShift(${amount}): New Range=[${finalRange.join(
+                            ', '
+                        )}]`
+                    );
                     // Update local state *before* calling onAfterChange
                     setDisplayValue(finalRange);
-                    setWidthInput(String(finalRange[1] - finalRange[0] + 1));
-                    if (onAfterChange) { onAfterChange(finalRange); }
+                    setWidthInput(String(finalRange[1] - finalRange[0] + 1)); // Update width input
+
+                    // Trigger the callback to update Redux state
+                    if (onAfterChange) {
+                        onAfterChange(finalRange);
+                    }
+                } else {
+                    console.log(`${logPrefix} handleShift(${amount}): No change.`);
                 }
             },
-            [min, max, displayValue, onAfterChange, disabled, logPrefix],
+            [min, max, displayValue, onAfterChange, disabled, logPrefix]
         );
 
         // --- Reset Handler ---
         const handleReset = useCallback(() => {
             if (disabled) return;
-            const currentSafeMax = Math.max(1, max);
+            const currentSafeMax = Math.max(1, max); // Use max from props
+            // Reset to the full valid range defined by props
             const fullRange: [number, number] = [min, currentSafeMax];
+
+            console.log(
+                `${logPrefix} handleReset: Resetting to full range [${fullRange.join(
+                    ', '
+                )}]`
+            );
+
             // Update local state *before* calling onAfterChange
             setDisplayValue(fullRange);
-            setWidthInput(String(fullRange[1] - fullRange[0] + 1));
-            if (onAfterChange) { onAfterChange(fullRange); }
+            setWidthInput(String(fullRange[1] - fullRange[0] + 1)); // Update width input
+
+            // Trigger the callback to update Redux state
+            if (onAfterChange) {
+                onAfterChange(fullRange);
+            }
         }, [disabled, min, max, onAfterChange, logPrefix]);
 
-        // Determine button disabled states based on *displayValue*
+        // Determine button disabled states based on *displayValue* and props *min/max*
         const canShiftDown = !disabled && displayValue[0] > min;
         const canShiftUp = !disabled && displayValue[1] < max;
+        const isRangeValidForControls = max > min; // Controls only make sense if there's a range
 
         const shiftAmounts = [-100, -10, -1, +1, +10, +100];
 
         // --- JSX Rendering ---
         return (
-            <div style={{ padding: '10px 15px', border: '1px solid #f0f0f0', borderRadius: '4px', background: '#fafafa', marginBottom: '1rem' }}>
+            <div
+                style={{
+                    padding: '10px 15px',
+                    border: '1px solid #f0f0f0',
+                    borderRadius: '4px',
+                    background: '#fafafa',
+                    marginBottom: '1rem',
+                }}
+            >
                 <div style={{ padding: '5px 0' }}>
                     <Space align="center" wrap>
                         <Text style={{ whiteSpace: 'nowrap' }}>{label}:</Text>
+                        {/* Display the internal displayValue state */}
                         <Text code>{`[${displayValue[0]} - ${displayValue[1]}]`}</Text>
-                        <Text type="secondary" style={{ marginLeft: '10px' }}>(Total Points: {max})</Text>
+                        <Text type="secondary" style={{ marginLeft: '10px' }}>
+                            (Total Points: {max > 0 ? max : 0}) {/* Show 0 if max is invalid */}
+                        </Text>
                         <Space.Compact style={{ marginLeft: '10px' }}>
                             {shiftAmounts.map((amount) => (
                                 <Button
                                     key={amount}
                                     size="small"
                                     onClick={() => handleShift(amount)}
-                                    disabled={amount < 0 ? !canShiftDown : !canShiftUp}
+                                    // Disable based on calculated ability to shift and overall validity
+                                    disabled={
+                                        disabled ||
+                                        !isRangeValidForControls ||
+                                        (amount < 0 ? !canShiftDown : !canShiftUp)
+                                    }
                                     aria-label={`Shift range by ${amount}`}
                                 >
                                     {amount > 0 ? `+${amount}` : amount}
@@ -6037,16 +6800,22 @@ const SlidingWindowFilter: React.FC<SlidingWindowFilterProps> = React.memo(
                         <Text style={{ marginLeft: '10px' }}>Width:</Text>
                         <InputNumber
                             aria-label="Range Width"
-                            className="sliding-window-width-input"
+                            className="sliding-window-width-input" // Keep custom class if needed
                             size="small"
                             min={1}
-                            max={max > 0 ? max : 1}
+                            // Max width is the total number of points in the valid range
+                            max={max > min ? max - min + 1 : 1}
                             step={1}
-                            value={parseInt(widthInput, 10)}
+                            // Use the string state for the input value
+                            value={widthInput ? parseInt(widthInput, 10) : undefined} // Parse for display, handle empty string
+                            // Update the string state on change
                             onChange={(val) => setWidthInput(val === null ? '' : String(val))}
-                            onBlur={finalizeWidthInput}
-                            onPressEnter={finalizeWidthInput}
-                            disabled={disabled || max <= 0 || min >= max}
+                            onBlur={finalizeWidthInput} // Finalize on blur
+                            onPressEnter={(e) => {
+                                e.preventDefault();
+                                finalizeWidthInput();
+                            }} // Finalize on Enter
+                            disabled={disabled || !isRangeValidForControls} // Disable if range is invalid
                             style={{ width: '70px' }}
                             controls={false}
                         />
@@ -6054,7 +6823,7 @@ const SlidingWindowFilter: React.FC<SlidingWindowFilterProps> = React.memo(
                             icon={<ReloadOutlined />}
                             size="small"
                             onClick={handleReset}
-                            disabled={disabled}
+                            disabled={disabled || !isRangeValidForControls} // Disable if range is invalid
                             aria-label="Reset range to full"
                             style={{ marginLeft: '5px' }}
                         />
@@ -6062,7 +6831,7 @@ const SlidingWindowFilter: React.FC<SlidingWindowFilterProps> = React.memo(
                 </div>
             </div>
         );
-    },
+    }
 );
 
 export default SlidingWindowFilter;
@@ -6143,6 +6912,392 @@ const PyodideErrorNotifier: React.FC = () => {
 };
 
 export default PyodideErrorNotifier;
+// src/components/AccumulationPlot.tsx
+// src/components/AccumulationPlot.tsx
+import React, { useMemo, useCallback } from 'react';
+import type { Data, Layout, PlotMouseEvent, PlotSelectionEvent } from 'plotly.js';
+import { Spin } from 'antd';
+// --- Import the primary data type containing final styles ---
+import { UmapAnalysisDataValue } from '../models/ApplicationModel'; // Adjust path if needed
+import { ReferenceUmapItem } from '../data/referenceUmapData'; // Adjust path if needed for tooltips
+// --- Component for Plotly ---
+import { AccumulationPlotAnalysis } from './AccumulationPlotAnalysis'; // Adjust path
+// --- Redux imports ---
+import { useAppDispatch } from '../store/hooks'; // Adjust path
+import { setAccumulationPlotSelection } from '../store/slices/analysisUISlice'; // Adjust path
+
+// Props interface - Updated
+export interface AccumulationPlotProps {
+  analysisName: string;
+  // Instead of raw items, accept pre-styled, rank-filtered points for this analysis
+  styledPointsForPlot: UmapAnalysisDataValue[] | null;
+  // --- Keep props still needed ---
+  goIdFilterList: string[]; // Still needed for highlighting GO ID matches
+  referenceDataMap: Map<string, ReferenceUmapItem> | null; // Potentially needed for tooltips/data
+  bmdResultRef: number; // Identifier for this specific plot
+  // --- We might still pass these for informational purposes (e.g., tooltips) or if needed by child components ---
+  // --- but they are NOT used for marker styling calculation within this component anymore ---
+  colorByOption: string;
+  shapeByOption: string;
+  sizeByOption: string;
+  bmdRefToExperimentNameMap: Map<number, string>;
+}
+
+
+// Constants
+const PLOT_HEIGHT = 400;
+const LINE_COLOR = '#1f77b4'; // Color for the cumulative line itself
+
+const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
+  function AccumulationPlot({
+    analysisName,
+    styledPointsForPlot, // Use the new prop
+    goIdFilterList,
+    referenceDataMap,
+    bmdResultRef,
+    colorByOption, // Keep if needed for tooltips/other logic
+    shapeByOption,
+    sizeByOption,
+    bmdRefToExperimentNameMap,
+  }) {
+
+    const dispatch = useAppDispatch();
+
+    console.log(`[AccumulationPlot ${analysisName}] Rendering. Received ${styledPointsForPlot?.length ?? 0} styled points.`);
+
+    // --- Calculate Cumulative Line Data ---
+    // This part still needs to process the points to get cumulative counts vs BMD
+    const linePlotData = useMemo(() => {
+      console.log(`[AccumulationPlot ${analysisName}] Calculating line data...`);
+      if (!styledPointsForPlot || styledPointsForPlot.length === 0) {
+        console.log(`[AccumulationPlot ${analysisName}] No styled points to process for line.`);
+        return null;
+      }
+
+      try {
+        // Filter out points without valid BMD values for the line plot itself
+        const validPoints = styledPointsForPlot.filter(p =>
+          p.bmdFifthPercentileTotalGenes != null &&
+          !isNaN(p.bmdFifthPercentileTotalGenes) &&
+          isFinite(p.bmdFifthPercentileTotalGenes) &&
+          p.bmdFifthPercentileTotalGenes > 0
+        );
+
+        if (validPoints.length === 0) {
+          console.log(`[AccumulationPlot ${analysisName}] No points with valid BMD values found.`);
+          return null;
+        }
+
+        // Sort points by BMD value (rankValue in BaseOverlayPlotPoint, mapped to bmdFifthPercentileTotalGenes)
+        const sortedPoints = [...validPoints].sort((a, b) =>
+          (a.bmdFifthPercentileTotalGenes ?? Infinity) - (b.bmdFifthPercentileTotalGenes ?? Infinity)
+        );
+
+        const cumulativeCounts = sortedPoints.map((_, index) => index + 1);
+        const minX = sortedPoints[0].bmdFifthPercentileTotalGenes!;
+        const maxX = sortedPoints[sortedPoints.length - 1].bmdFifthPercentileTotalGenes!;
+        const maxY = cumulativeCounts[cumulativeCounts.length - 1];
+
+        console.log(`[AccumulationPlot ${analysisName}] Line data calculated. Points: ${sortedPoints.length}, MinX: ${minX}, MaxX: ${maxX}, MaxY: ${maxY}`);
+
+        return {
+          points: sortedPoints, // Sorted points with valid BMD
+          cumulativeCounts,
+          minXValue: minX,
+          maxXValue: maxX,
+          minYValue: 0,
+          maxYValue: maxY,
+          totalPoints: sortedPoints.length,
+        };
+      } catch (error) {
+        console.error(`[AccumulationPlot ${analysisName}] Error processing line data:`, error);
+        return null;
+      }
+    }, [styledPointsForPlot, analysisName]); // Depends only on the styled points prop
+
+
+    // --- Generate Plotly Traces ---
+    const plotData = useMemo((): Data[] | null => {
+      console.log(`[AccumulationPlot ${analysisName} plotData Memo] Recalculating traces...`);
+
+      if (!linePlotData) {
+        console.log(`[AccumulationPlot ${analysisName} plotData Memo] Exiting early: no linePlotData.`);
+        return null;
+      }
+
+      const lineTrace: Data = {
+        x: linePlotData.points.map(p => p.bmdFifthPercentileTotalGenes),
+        y: linePlotData.cumulativeCounts,
+        type: 'scattergl',
+        mode: 'lines',
+        name: 'Cumulative Count',
+        line: { color: LINE_COLOR, width: 2 },
+        customdata: linePlotData.points.map(p => p.go_id), // Keep GO ID for click events
+        text: linePlotData.points.map((p, i) =>
+          `Rank: ${i + 1}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term}<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(2)}<br>Count: ${linePlotData.cumulativeCounts[i]}`
+        ),
+        hoverinfo: 'text',
+        hoverlabel: { bgcolor: '#FFF', bordercolor: LINE_COLOR },
+        showlegend: false,
+      };
+
+      // --- Marker Trace Generation using pre-calculated styles ---
+      // Use the original 'styledPointsForPlot' which includes points filtered by rank upstream but potentially highlighted by GO ID
+      const pointsForMarkers = (styledPointsForPlot || []).filter(p =>
+        p.finalOpacity > 0 && // Must be visible (not hidden by legend or highlight mode)
+        p.bmdFifthPercentileTotalGenes != null && // Must have a valid BMD for plotting
+        !isNaN(p.bmdFifthPercentileTotalGenes) &&
+        isFinite(p.bmdFifthPercentileTotalGenes) &&
+        p.bmdFifthPercentileTotalGenes > 0
+      );
+
+      // Create a map for efficient lookup of rank within the line plot context
+      const bmdToRankMap = new Map<string, number>();
+      linePlotData.points.forEach((p, index) => {
+        bmdToRankMap.set(p.go_id, index + 1);
+      });
+
+      console.log(`[AccumulationPlot ${analysisName} plotData Memo] Found ${pointsForMarkers.length} potential marker points (visible & valid BMD).`);
+
+      const markerTrace: Data | null = pointsForMarkers.length > 0 ? {
+        x: pointsForMarkers.map(p => p.bmdFifthPercentileTotalGenes),
+        // Use the cumulative count corresponding to the rank of this point in the *line plot*
+        y: pointsForMarkers.map(p => linePlotData.cumulativeCounts[bmdToRankMap.get(p.go_id)! - 1] ?? null),
+        // Custom data for interactions
+        customdata: pointsForMarkers.map(p => p.go_id),
+        text: pointsForMarkers.map(p =>
+          `Rank: ${bmdToRankMap.get(p.go_id) ?? 'N/A'}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term}<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(2)}<br>Source: ${p.bmdResultName}`
+        ),
+        type: 'scattergl',
+        mode: 'markers',
+        name: 'Selected/Highlighted Points',
+        marker: {
+          // Use the pre-calculated styles directly from UmapAnalysisDataValue
+          color: pointsForMarkers.map(p => p.finalColor),
+          symbol: pointsForMarkers.map(p => p.finalShape),
+          size: pointsForMarkers.map(p => p.finalSize),
+          opacity: pointsForMarkers.map(p => p.finalOpacity),
+          line: { color: 'black', width: 0.5 }
+        },
+        hoverinfo: 'text',
+        hoverlabel: { bgcolor: '#FFF', bordercolor: '#333' }, // Generic border color
+        showlegend: false,
+      } : null;
+
+      console.log(`[AccumulationPlot ${analysisName} plotData Memo] markerTrace created?`, !!markerTrace);
+      return markerTrace ? [lineTrace, markerTrace] : [lineTrace];
+
+    }, [ // Dependencies updated
+      linePlotData, styledPointsForPlot, goIdFilterList, analysisName, bmdRefToExperimentNameMap, bmdResultRef // Added bmdResultRef back if needed for map lookups
+    ]);
+
+    // Layout calculation remains the same
+    const plotLayout = useMemo((): Partial<Layout> | null => {
+      if (!linePlotData) return null;
+      const epsilon = 1e-10;
+      const logMinX = Math.log10(Math.max(linePlotData.minXValue, epsilon));
+      const logMaxX = Math.log10(linePlotData.maxXValue);
+      const minYValue = 0;
+      const maxYValueWithPadding = linePlotData.maxYValue * 1.05;
+
+      return {
+        xaxis: { title: '5th Percentile BMD (Log Scale)', type: 'log', autorange: false, range: [logMinX, logMaxX], },
+        yaxis: { title: 'Cumulative Count', autorange: false, range: [minYValue, maxYValueWithPadding], },
+        height: PLOT_HEIGHT, margin: { l: 60, r: 20, t: 20, b: 50 }, hovermode: 'closest', showlegend: false, autosize: true, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', dragmode: 'lasso', clickmode: 'event+select',
+      };
+    }, [linePlotData]);
+
+    // Event Handlers
+    const handleSelection = useCallback((event: Readonly<PlotSelectionEvent> | undefined) => {
+      const selectedGoIds = event?.points?.map(p => p.customdata as string).filter(Boolean) || [];
+      console.log(`[AccumulationPlot ${analysisName}] handleSelection - Dispatching selection:`, selectedGoIds);
+      dispatch(setAccumulationPlotSelection(selectedGoIds));
+    }, [dispatch, analysisName]);
+
+    const handleClick = useCallback((event: Readonly<PlotMouseEvent>) => {
+      const clickedGoId = event.points[0]?.customdata as string;
+      if (clickedGoId) {
+        console.log(`[AccumulationPlot ${analysisName}] handleClick - Dispatching single selection:`, [clickedGoId]);
+        dispatch(setAccumulationPlotSelection([clickedGoId]));
+      } else {
+        console.log(`[AccumulationPlot ${analysisName}] handleClick - No GO ID found, dispatching empty selection.`);
+        dispatch(setAccumulationPlotSelection([]));
+      }
+    }, [dispatch, analysisName]);
+
+    const handleDoubleClick = useCallback(() => {
+      console.log(`[AccumulationPlot ${analysisName}] handleDoubleClick - Dispatching empty selection.`);
+      dispatch(setAccumulationPlotSelection([]));
+    }, [dispatch, analysisName]);
+
+    // Render Logic
+    console.log(`[AccumulationPlot ${analysisName}] FINAL check before AccumulationPlotAnalysis. plotData is null?`, plotData === null, 'plotLayout is null?', plotLayout === null);
+    if (plotData) { console.log(`[AccumulationPlot ${analysisName}] FINAL plotData length:`, plotData.length); }
+
+    // Show spinner if styledPointsForPlot is still null (indicating parent is processing)
+    if (styledPointsForPlot === null) {
+      return <Spin tip="Processing plot data..." />;
+    }
+    // Show message if processing completed but yielded no valid data
+    if (!plotData || !plotLayout) {
+      return (<div style={{ height: `${PLOT_HEIGHT}px`, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid lightgrey' }}> <span>No valid data for plot after filtering.</span> </div>);
+    }
+
+    // Render the plot
+    return (
+      <div style={{ height: `${PLOT_HEIGHT}px`, width: '100%' }}>
+        <AccumulationPlotAnalysis
+          plotId={`${analysisName}-accumulation`}
+          data={plotData}
+          layoutProp={plotLayout}
+          onClick={handleClick}
+          onSelected={handleSelection}
+          onDeselect={() => handleSelection(undefined)} // Dispatch empty on deselect
+          onDoubleClick={handleDoubleClick}
+        />
+      </div>
+    );
+  }
+);
+
+export default AccumulationPlot;
+// src/components/AccumulationPlotAnalysis.tsx
+import React from 'react';
+import Plot from 'react-plotly.js';
+import type { Data, Layout, Config, PlotMouseEvent, PlotSelectionEvent } from 'plotly.js';
+
+interface AccumulationPlotAnalysisProps {
+  plotId: string;
+  data: Data[] | null;
+  layoutProp: Partial<Layout> | null;
+  config?: Partial<Config>;
+  style?: React.CSSProperties;
+  className?: string;
+  onClick?: (event: Readonly<PlotMouseEvent>) => void;
+  onSelected?: (event: Readonly<PlotSelectionEvent> | undefined) => void;
+  onDeselect?: () => void;
+  onDoubleClick?: () => void;
+}
+
+// Define the base functional component first
+const AccumulationPlotAnalysisComponent: React.FC<AccumulationPlotAnalysisProps> = ({
+  plotId,
+  data,
+  layoutProp,
+  config,
+  style,
+  className,
+  onClick,
+  onSelected,
+  onDeselect,
+  onDoubleClick,
+}) => {
+
+  console.log(`[PlotDisplay ${plotId}] Rendering check. Has data: ${!!data}, Has layout: ${!!layoutProp}`);
+
+  if (!data || !layoutProp) {
+    return (
+      <div
+                style= {{
+      height: '100%',
+        width: '100%',
+          display: 'flex',
+            alignItems: 'center',
+              justifyContent: 'center',
+                border: '1px dashed lightgrey',
+                  color: 'grey',
+                    minHeight: '100px',
+                    ...(style || {})
+                }}
+className = { className }
+  >
+  Plot data / layout missing.
+            </div>
+        );
+    }
+
+const plotConfig: Partial<Config> = {
+  responsive: true,
+  displayModeBar: false,
+  ...(config || {})
+};
+
+return (
+  <Plot
+            data= { data }
+layout = { layoutProp }
+useResizeHandler = { true}
+style = {{ width: '100%', height: '100%', ...(style || {}) }}
+className = { className }
+config = { plotConfig }
+onClick = { onClick }
+onSelected = { onSelected }
+onDeselect = { onDeselect }
+onDoubleClick = { onDoubleClick }
+  />
+    );
+};
+
+// Apply React.memo to the base component
+const MemoizedAccumulationPlotAnalysis = React.memo(AccumulationPlotAnalysisComponent);
+
+// Export the memoized component using a named export, aliased to the original name
+export { MemoizedAccumulationPlotAnalysis as AccumulationPlotAnalysis };
+// src/components/GoIdFilterUI.tsx (New File)
+import React from 'react';
+import { Typography, Input, Radio } from 'antd';
+import type { RadioChangeEvent } from 'antd';
+import { HighlightMode } from '../store/slices/analysisUISlice'; // Adjust path
+
+const { Paragraph } = Typography;
+const { TextArea } = Input;
+
+interface GoIdFilterUIProps {
+    goIdInputString: string;
+    highlightMode: HighlightMode;
+    onGoIdInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+    onHighlightModeChange: (e: RadioChangeEvent) => void;
+}
+
+const GoIdFilterUI: React.FC<GoIdFilterUIProps> = React.memo(({
+    goIdInputString,
+    highlightMode,
+    onGoIdInputChange,
+    onHighlightModeChange,
+}) => {
+    return (
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '1rem' }}>
+            <div style={{ flexBasis: '33%', flexShrink: 0 }}>
+                <Paragraph strong style={{ marginBottom: '0.5rem' }}>
+                    Highlight GO IDs:
+                </Paragraph>
+                <TextArea
+                    rows={4}
+                    placeholder="Paste GO IDs..."
+                    value={goIdInputString}
+                    onChange={onGoIdInputChange}
+                />
+            </div>
+            <div style={{ flexGrow: 1 }}>
+                <Paragraph strong style={{ marginBottom: '0.5rem' }}>
+                    Highlight Mode:
+                </Paragraph>
+                <Radio.Group onChange={onHighlightModeChange} value={highlightMode}>
+                    <Radio value="none">Off</Radio>
+                    <Radio value="exact">Exact Match</Radio>
+                    <Radio value="cluster">Cluster Match</Radio>
+                </Radio.Group>
+                <Paragraph type="secondary" style={{ marginTop: '0.5rem' }}>
+                    Exact: Increase size of matching GO IDs. <br />
+                    Cluster: Increase size of exact matches, decrease size & dim others
+                    in the same cluster(s).
+                </Paragraph>
+            </div>
+        </div>
+    );
+});
+
+export default GoIdFilterUI;
 // src/components/StylingSelectors.tsx
 import React from 'react';
 import { Select, Space } from 'antd';
