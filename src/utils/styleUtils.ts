@@ -7,7 +7,7 @@
 
 import { HighlightMode } from '../store/slices/analysisUISlice'; // Adjust path if needed
 import type {
-  BaseCategoryAnalysisDataPoint, // Now includes rank? : number | null
+  BaseCategoryAnalysisDataPoint,
   UmapAnalysisDataPoint,
 } from '../models/applicationModel'; // Adjust path if needed
 import {
@@ -30,11 +30,15 @@ import type { ReferenceUmapItem } from '../data/referenceUmapData'; // Adjust pa
 type BaseGroupedData = Map<string, BaseCategoryAnalysisDataPoint[]>;
 type StyledUmapGroupedData = Map<string, UmapAnalysisDataPoint[]>;
 
+// --- Constants for Opacity and Highlighting ---
 export const VISIBLE_OPACITY = 0.9;
 export const HIDDEN_OPACITY = 0.0;
 export const DIM_OPACITY = 0.4;
+export const HIGHLIGHT_OPACITY = 1.0; // Opacity for highlighted points
+export const HIGHLIGHT_SIZE_MULTIPLIER = 1.5; // Size increase for highlighted points
+// ---------------------------------------------
 
-// --- Helper Functions ---
+// --- Helper Functions (remain the same) ---
 function getBinnedSize(percentage: number | null | undefined): number {
   if (percentage == null || isNaN(percentage)) return DEFAULT_MARKER_SIZE;
   for (let i = 0; i < PERCENTAGE_BINS.length; i++) {
@@ -54,15 +58,14 @@ function getDirectionColor(direction: string | null | undefined): string {
 }
 // ------------------------------------
 
-// --- Main Styling Function (Updated for rank property) ---
+// --- Main Styling Function ---
 export function calculateOverlayStyles(
-  // Expects data points to potentially have the 'rank' property calculated
   rankedBaseGroupedData: Map<string, BaseCategoryAnalysisDataPoint[]> | null,
   stylingOptions: { colorBy: string; shapeBy: string; sizeBy: string },
   hiddenColorLabels: Set<string>,
   hiddenShapeLabels: Set<string>,
   hiddenSizeLabels: Set<string>,
-  goIdFilterList: string[],
+  goIdFilterList: string[], // This is the raw list from state
   highlightMode: HighlightMode,
   bmdRefToExperimentNameMap: Map<number, string> | null,
   selectedGoIdsFromAccumulation: Set<string>,
@@ -70,11 +73,20 @@ export function calculateOverlayStyles(
   clusterColorMap: Map<string | number, string>,
   bmdRefShapeMap: Map<number, string>,
   bmdRefColorMap: Map<number, string>,
-  committedRankWindow: [number, number] // This is [start_rank, end_rank]
+  committedRankWindow: [number, number]
 ): StyledUmapGroupedData | null {
-  const styleLogPrefix = '[StyleUtils v15 - Rank Property Filter]'; // Version Bump
+  // --- DEBUG LOG v18 ---
+  const styleLogPrefix = '[StyleUtils v18 - Debug Exact Highlight]';
+  console.log(
+    `${styleLogPrefix} Function called. highlightMode: "${highlightMode}", goIdFilterList size: ${goIdFilterList?.length}`
+  );
+  // ---------------------
 
-  if (!rankedBaseGroupedData || rankedBaseGroupedData.size === 0 || !referenceMap) {
+  if (
+    !rankedBaseGroupedData ||
+    rankedBaseGroupedData.size === 0 ||
+    !referenceMap
+  ) {
     return null;
   }
 
@@ -82,11 +94,12 @@ export function calculateOverlayStyles(
   const hiddenShapeSet = hiddenShapeLabels;
   const hiddenSizeSet = hiddenSizeLabels;
 
-  // --- Destructure committed rank window ---
   const [startRank, endRank] = committedRankWindow;
-  // Check if the range is valid (min <= max and both are finite, start >= 1)
-  const isRankFilterActive = isFinite(startRank) && isFinite(endRank) && startRank <= endRank && startRank >= 1;
-  // ----------------------------------------
+  const isRankFilterActive =
+    isFinite(startRank) &&
+    isFinite(endRank) &&
+    startRank <= endRank &&
+    startRank >= 1;
 
   const styledGroupedData = new Map<string, UmapAnalysisDataPoint[]>();
   let pointsProcessed = 0;
@@ -95,9 +108,20 @@ export function calculateOverlayStyles(
   let pointsOutput = 0;
   const failedKeysSample = new Set<string>();
 
+  // --- Create the Set for matching INSIDE the function ---
+  // This ensures we use the goIdFilterList passed in for this specific calculation run
   const exactMatchGoIds = new Set(
-    goIdFilterList.map((id) => (id ?? '').toUpperCase())
+    (goIdFilterList || []).map((id) => (id ?? '').toUpperCase()) // Ensure filter list is an array
   );
+  // --- DEBUG LOG v18 ---
+  if (exactMatchGoIds.size > 0) {
+    console.log(
+      `${styleLogPrefix} exactMatchGoIds Set created with size: ${exactMatchGoIds.size
+      }. Sample: ${Array.from(exactMatchGoIds).slice(0, 5).join(', ')}`
+    );
+  }
+  // ---------------------
+
   const clusterMatchClusterIds = new Set<string | number>();
   if (highlightMode === HighlightMode.CLUSTER && exactMatchGoIds.size > 0) {
     exactMatchGoIds.forEach((goId) => {
@@ -110,7 +134,7 @@ export function calculateOverlayStyles(
 
   rankedBaseGroupedData.forEach((basePoints, refStringKey) => {
     const styledPoints = basePoints
-      .map((basePoint) => {
+      .map((basePoint, index) => { // Added index for logging
         pointsProcessed++;
         const goIdSource = basePoint.go_id;
         const lookupKey =
@@ -126,18 +150,16 @@ export function calculateOverlayStyles(
           return null;
         }
 
-        // --- Rank Filtering based on point.rank ---
-        const currentRank = basePoint.rank; // Use the pre-calculated rank
-        const isOutsideRankRange = isRankFilterActive && (
-          currentRank == null || // Treat null/undefined rank as outside
-          currentRank < startRank ||
-          currentRank > endRank
-        );
+        const currentRank = basePoint.rank;
+        const isOutsideRankRange =
+          isRankFilterActive &&
+          (currentRank == null ||
+            currentRank < startRank ||
+            currentRank > endRank);
 
         if (isOutsideRankRange) {
           pointsSkippedByRank++;
         }
-        // ------------------------------------------
 
         const { colorBy, shapeBy, sizeBy } = stylingOptions;
         const experimentNameForLabel =
@@ -145,9 +167,10 @@ export function calculateOverlayStyles(
           basePoint.bmdResultName;
         const numericBmdRef = basePoint.bmdResultRef;
 
-        // --- Color Calculation ---
+        // --- Color, Shape, Size Calculations (remain the same) ---
         let baseFinalColor = DEFAULT_MARKER_COLOR;
         let colorLabel = experimentNameForLabel;
+        // ... (switch statement for colorBy) ...
         switch (colorBy) {
           case 'cluster_id':
             const clusterId = refDataItem.cluster_id;
@@ -171,7 +194,8 @@ export function calculateOverlayStyles(
             );
             break;
           case 'bmdResultName':
-            baseFinalColor = bmdRefColorMap.get(numericBmdRef) || DEFAULT_MARKER_COLOR;
+            baseFinalColor =
+              bmdRefColorMap.get(numericBmdRef) || DEFAULT_MARKER_COLOR;
             colorLabel = experimentNameForLabel;
             break;
           default:
@@ -180,9 +204,9 @@ export function calculateOverlayStyles(
             break;
         }
 
-        // --- Shape Calculation ---
         let baseFinalShape = DEFAULT_MARKER_SHAPE;
         let shapeLabel = DEFAULT_SHAPE_LABEL;
+        // ... (switch statement for shapeBy) ...
         switch (shapeBy) {
           case 'bmdResultName':
             baseFinalShape =
@@ -200,9 +224,9 @@ export function calculateOverlayStyles(
             break;
         }
 
-        // --- Size Calculation ---
         let baseFinalSize = DEFAULT_MARKER_SIZE;
         let sizeLabel = DEFAULT_SIZE_LABEL;
+        // ... (switch statement for sizeBy) ...
         switch (sizeBy) {
           case 'percentage':
             baseFinalSize = getBinnedSize(basePoint.percentage);
@@ -215,8 +239,9 @@ export function calculateOverlayStyles(
             sizeLabel = DEFAULT_SIZE_LABEL;
             break;
         }
+        // ---------------------------------------------------------
 
-        // --- Opacity/Highlighting (Uses isOutsideRankRange) ---
+        // --- Opacity/Highlighting (with DEBUG LOGS) ---
         const isHiddenByLegend =
           hiddenColorSet.has(colorLabel) ||
           hiddenShapeSet.has(shapeLabel) ||
@@ -224,12 +249,15 @@ export function calculateOverlayStyles(
 
         let finalSize = baseFinalSize;
         let finalOpacity = VISIBLE_OPACITY; // Start assuming visible
+        let highlightReason = 'None'; // For logging
 
         // Apply filters sequentially: Rank -> Legend -> Highlighting
         if (isOutsideRankRange) {
-          finalOpacity = HIDDEN_OPACITY; // Hide if outside rank range
+          finalOpacity = HIDDEN_OPACITY;
+          highlightReason = 'Rank Filter';
         } else if (isHiddenByLegend) {
-          finalOpacity = HIDDEN_OPACITY; // Hide if toggled off in legend
+          finalOpacity = HIDDEN_OPACITY;
+          highlightReason = 'Legend Hide';
         } else {
           // Only apply highlighting logic if the point is potentially visible
           const currentGoIdUpper = lookupKey;
@@ -244,24 +272,59 @@ export function calculateOverlayStyles(
             currentGoIdUpper &&
             selectedGoIdsFromAccumulation.has(currentGoIdUpper);
 
+          // --- DEBUG LOG v18 ---
+          // Log only for the first few points or points that *should* match
+          const shouldLogPoint = index < 5 || isExactMatch;
+          if (shouldLogPoint) {
+            console.log(
+              `${styleLogPrefix} Point ${index} (${goIdSource}): isExactMatch=${isExactMatch}, isInHighlightCluster=${isInHighlightCluster}, isSelectedFromAccumulation=${isSelectedFromAccumulation}, highlightMode=${highlightMode}`
+            );
+          }
+          // ---------------------
+
           if (isSelectedFromAccumulation) {
-            finalSize = baseFinalSize * 1.5;
-            finalOpacity = 1.0;
+            finalSize = baseFinalSize * HIGHLIGHT_SIZE_MULTIPLIER;
+            finalOpacity = HIGHLIGHT_OPACITY;
+            highlightReason = 'Accumulation Select';
           } else if (
             highlightMode !== HighlightMode.NONE &&
             exactMatchGoIds.size > 0
           ) {
+            // --- Logic for HighlightMode.SELECTED (Exact Match) ---
             if (highlightMode === HighlightMode.SELECTED) {
-              if (!isExactMatch) finalOpacity = HIDDEN_OPACITY;
+              // --- DEBUG LOG v18 ---
+              if (shouldLogPoint) console.log(`${styleLogPrefix} Point ${index}: Entering SELECTED mode logic.`);
+              // ---------------------
+              if (isExactMatch) {
+                finalSize = baseFinalSize * HIGHLIGHT_SIZE_MULTIPLIER;
+                finalOpacity = HIGHLIGHT_OPACITY;
+                highlightReason = 'Exact Match';
+                // --- DEBUG LOG v18 ---
+                if (shouldLogPoint) console.log(`${styleLogPrefix} Point ${index}: EXACT MATCH found! Setting size=${finalSize}, opacity=${finalOpacity}`);
+                // ---------------------
+              } else {
+                finalOpacity = HIDDEN_OPACITY;
+                highlightReason = 'Exact Hide';
+                // --- DEBUG LOG v18 ---
+                if (shouldLogPoint) console.log(`${styleLogPrefix} Point ${index}: No exact match. Hiding.`);
+                // ---------------------
+              }
+              // --- Logic for HighlightMode.CLUSTER ---
             } else if (highlightMode === HighlightMode.CLUSTER) {
+              // --- DEBUG LOG v18 ---
+              if (shouldLogPoint) console.log(`${styleLogPrefix} Point ${index}: Entering CLUSTER mode logic.`);
+              // ---------------------
               if (isExactMatch) {
                 finalSize = baseFinalSize * 1.2;
                 finalOpacity = VISIBLE_OPACITY;
+                highlightReason = 'Cluster Exact';
               } else if (isInHighlightCluster) {
                 finalSize = Math.max(1, baseFinalSize * 0.8);
                 finalOpacity = DIM_OPACITY;
+                highlightReason = 'Cluster Neighbor';
               } else {
                 finalOpacity = HIDDEN_OPACITY;
+                highlightReason = 'Cluster Hide';
               }
             }
           }
@@ -278,11 +341,11 @@ export function calculateOverlayStyles(
           finalColor: baseFinalColor,
           finalShape: baseFinalShape,
           finalSize: finalSize,
-          finalOpacity: finalOpacity, // Use the calculated finalOpacity
+          finalOpacity: finalOpacity,
           colorLabel,
           shapeLabel,
           sizeLabel,
-          // rank property is already on basePoint if added correctly
+          // rank property is already on basePoint
         };
         return styledPoint;
       })
@@ -292,12 +355,11 @@ export function calculateOverlayStyles(
   });
 
   if (pointsSkippedMissingRef > 0) {
-    console.warn(`${styleLogPrefix} Skipped ${pointsSkippedMissingRef} points due to missing reference data. Sample failed keys:`, Array.from(failedKeysSample));
+    console.warn(
+      `${styleLogPrefix} Skipped ${pointsSkippedMissingRef} points due to missing reference data. Sample failed keys:`,
+      Array.from(failedKeysSample)
+    );
   }
-  // if (pointsSkippedByRank > 0) { // Keep logs minimal
-  //   console.log(`${styleLogPrefix} Skipped ${pointsSkippedByRank} points due to rank filter [${startRank}-${endRank}].`);
-  // }
-  // console.log(`${styleLogPrefix} Processed ${pointsProcessed} points, output ${pointsOutput} styled points.`); // Keep logs minimal
 
   return styledGroupedData;
 }

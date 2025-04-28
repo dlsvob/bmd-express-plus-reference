@@ -1,29 +1,30 @@
 // src/App.tsx
 import React from 'react';
 import { Layout, Typography, Spin, Alert } from 'antd';
-//import { PyodideProvider, usePyodide } from './contexts/PyodideProvider'; // Keep this import for usePyodide hook
 import { useAppSelector } from './store/hooks';
 import { useGetProjectsQuery } from './store/apis/projectsApi';
 import { selectSelectedProjectName } from './store/selectors/projectSelectors';
 import { selectCurrentView } from './store/slices/navigationSlice';
-import AppHeader from './components/layout/AppHeader';
-import AppSidebar from './components/layout/AppSidebar';
+// --- Import Siders and other components ---
+import ProjectSelectionSider from './components/layout/ProjectSelectionSider';
+import AppSidebar from './components/layout/AppSidebar'; // Left Sider content
 import ErrorBoundary from './components/ErrorBoundary';
 import PyodideErrorNotifier from './components/PyodideErrorNotifier';
 import ExperimentListView from './components/views/ExperimentListView';
 import GOUmapAnalysisUnit from './components/analysis/GOUmapAnalysisUnit';
 
+// Use Title and Paragraph from Ant Design
 const { Title, Paragraph } = Typography;
+// Use Content from Ant Design Layout
+const { Content } = Layout;
 
 const AppContent: React.FC = () => {
-  // --- usePyodide hook will now throw an error because provider is missing ---
-  // --- You might need to conditionally use this or provide a mock context ---
-  // const { isLoading: pyodideLoading, error: pyodideError } = usePyodide();
-  // --- TEMPORARY FIX: Assume Pyodide is not loading and has no error ---
+  // --- State and Data Fetching ---
+  // Assuming temporary Pyodide state for now
   const pyodideLoading = false;
   const pyodideError = null;
-  // ---------------------------------------------------------------------
 
+  // Fetch project list using RTK Query
   const {
     data: projectsData,
     isLoading: isLoadingProjects,
@@ -31,14 +32,12 @@ const AppContent: React.FC = () => {
     isSuccess: projectsLoadSuccess,
   } = useGetProjectsQuery();
 
+  // Get relevant state from Redux
   const selectedProjectName = useAppSelector(selectSelectedProjectName);
   const activeView = useAppSelector(selectCurrentView);
-  const isProjectSelected = !!selectedProjectName;
+  const isProjectSelected = !!selectedProjectName; // Boolean flag
 
-  console.log(
-    `Rendering AppContent: selectedProjectName = "${selectedProjectName}", isProjectSelected = ${isProjectSelected}, activeView = "${activeView}"`
-  );
-
+  // Format potential project loading error
   const formattedProjectsError = projectsError
     ? typeof projectsError === 'object' &&
       projectsError !== null &&
@@ -47,10 +46,31 @@ const AppContent: React.FC = () => {
       : String(projectsError)
     : null;
 
+  // Variables to hold the main content view and the header within the content area
   let mainContent: React.ReactNode;
+  let contentHeader: React.ReactNode = null;
 
+  // --- Determine Content Header (Project Title) ---
+  // Display the title only if a project is selected
+  if (isProjectSelected && selectedProjectName) {
+    contentHeader = (
+      <Title
+        level={2} // Prominent title size
+        style={{
+          marginBottom: '24px', // Space below title
+          marginTop: '0px', // Adjust as needed
+          textAlign: 'left', // Align with content
+          padding: 0,
+        }}
+      >
+        {selectedProjectName}
+      </Title>
+    );
+  }
+
+  // --- Determine Main Content View based on application state ---
   if (pyodideLoading) {
-    // This block might not be reached now
+    // Display spinner if Pyodide is initializing
     mainContent = (
       <Spin tip="Initializing Pyodide..." size="large" spinning={true}>
         <div
@@ -64,7 +84,7 @@ const AppContent: React.FC = () => {
       </Spin>
     );
   } else if (pyodideError) {
-    // This block might not be reached now
+    // Display error if Pyodide failed (Error Notifier modal will also show)
     mainContent = (
       <Alert
         message="Pyodide Initialization Failed"
@@ -73,7 +93,8 @@ const AppContent: React.FC = () => {
         showIcon
       />
     );
-  } else if (isLoadingProjects) {
+  } else if (isLoadingProjects && !projectsData) {
+    // Display spinner if project list is loading for the first time
     mainContent = (
       <Spin tip="Loading project list..." size="large" spinning={true}>
         <div
@@ -86,7 +107,8 @@ const AppContent: React.FC = () => {
         />
       </Spin>
     );
-  } else if (projectsError) {
+  } else if (projectsError && !isLoadingProjects) {
+    // Display error if project list failed to load
     const errorMessage =
       formattedProjectsError || 'An unknown error occurred loading projects.';
     mainContent = (
@@ -97,26 +119,27 @@ const AppContent: React.FC = () => {
       />
     );
   } else if (!isProjectSelected && projectsLoadSuccess) {
+    // Display welcome message if projects loaded but none selected
     mainContent = (
       <div style={{ textAlign: 'center', marginTop: '50px' }}>
         <Title level={3}>Welcome to BMDx Plus</Title>
         <Paragraph>
           Project list loaded ({projectsData?.length || 0} found). Please select
-          a project or add a new one using the header.
+          a project using the panel on the right.
         </Paragraph>
       </div>
     );
   } else if (isProjectSelected && selectedProjectName) {
+    // Render the appropriate view based on navigation state if a project is selected
     mainContent = (
-      <div>
-        <Title level={4} style={{ marginBottom: '20px' }}>
-          Project: {selectedProjectName}
-        </Title>
+      <>
+        {/* Default view or Experiment List view */}
         {(!activeView || activeView === 'experiments') && (
           <ExperimentListView projectName={selectedProjectName} />
         )}
-        {/* Pass projectName if GOUmapAnalysisUnit needs it */}
+        {/* Analysis View */}
         {activeView === 'categoryAnalysis' && <GOUmapAnalysisUnit />}
+        {/* Handle unknown views */}
         {activeView &&
           !['experiments', 'categoryAnalysis', 'settings'].includes(
             activeView
@@ -127,9 +150,10 @@ const AppContent: React.FC = () => {
               showIcon
             />
           )}
-      </div>
+      </>
     );
   } else {
+    // Fallback loading state (should ideally not be reached often with above logic)
     mainContent = (
       <Spin tip="Loading..." size="large" spinning={true}>
         <div
@@ -144,36 +168,44 @@ const AppContent: React.FC = () => {
     );
   }
 
+  // --- Render the Layout Structure ---
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <AppHeader
+    // Outermost Layout is now horizontal
+    <Layout style={{ minHeight: '100vh', flexDirection: 'row' }}>
+      {/* Left Sider (Navigation) - Always Rendered if Pyodide is OK */}
+      {!pyodideError && <AppSidebar projectSelected={isProjectSelected} />}
+
+      {/* Center Content Area - Takes remaining space */}
+      <Layout style={{ flexGrow: 1 }}>
+        <Content style={{ padding: '24px', margin: '16px', overflow: 'initial' }}>
+          {contentHeader} {/* Render the project title (if any) */}
+          {mainContent} {/* Render the main view */}
+        </Content>
+      </Layout>
+
+      {/* Right Sider (Project Selection) - Always Rendered */}
+      <ProjectSelectionSider
         projectList={projectsData}
         isLoading={isLoadingProjects}
         error={formattedProjectsError}
-        disabled={!!pyodideError} // Still uses pyodideError state
+        disabled={!!pyodideError}
+        width={220} // Adjust width as needed
       />
-      <Layout>
-        {isProjectSelected && !pyodideError && <AppSidebar />}
-        <Layout.Content style={{ padding: '24px', margin: '16px' }}>
-          {mainContent}
-        </Layout.Content>
-      </Layout>
+
+      {/* Pyodide Error Modal (rendered outside main layout flow) */}
+      <PyodideErrorNotifier />
     </Layout>
   );
 };
 
-// App component wraps everything
+// App component wraps everything in an Error Boundary
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
-      {/* --- PyodideProvider still needed here if AppContent uses usePyodide --- */}
-      {/* --- Or provide a mock context / handle the error --- */}
+      {/* PyodideProvider would wrap AppContent if used */}
       {/* <PyodideProvider> */}
       <AppContent />
-      <PyodideErrorNotifier />
       {/* </PyodideProvider> */}
-      {/* ----------------------------- */}
-      {/* -------------------------------------------------------------------- */}
     </ErrorBoundary>
   );
 };
