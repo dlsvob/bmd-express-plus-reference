@@ -61,7 +61,7 @@ from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 import js # Use js.console.log/error for debugging in Pyodide
 # import traceback # Uncomment for detailed tracebacks if needed
 
-print("=== categoryClustering.py LOADED (v2 - Direct Object Input) ===")
+print("=== categoryClustering.py LOADED (v3 - Include Gene Strings in Label) ===") # Version Bump
 
 
 ##############################################################################
@@ -85,13 +85,11 @@ def hierarchical_clustering_from_rows(
     method: str = "average",
     num_clusters: int = 0
 ) -> str:
-    js.console.log("=== [PY] hierarchical_clustering_from_rows START (v2) ===")
+    js.console.log("=== [PY] hierarchical_clustering_from_rows START (v3) ===") # Version Bump
     js.console.log("[PY DEBUG] Raw input type:", type(row_data_obj))
 
     row_list = None
     try:
-        # Check if it's a PyProxy and convert if necessary
-        # Direct conversion often works for list-of-dicts structures
         if hasattr(row_data_obj, 'to_py'):
             js.console.log("[PY DEBUG] Input is PyProxy, converting with .to_py()")
             row_list = row_data_obj.to_py()
@@ -99,33 +97,22 @@ def hierarchical_clustering_from_rows(
              js.console.log("[PY DEBUG] Input is already Python list.")
              row_list = row_data_obj
         else:
-            # Attempt to handle cases where it might already be converted implicitly
-            # or if it's passed in an unexpected format.
             js.console.warn("[PY DEBUG] Input is not PyProxy or list, attempting to use directly. Type:", type(row_data_obj))
-            row_list = row_data_obj # Assume it might work
-
-        # *** REMOVED DOUBLE JSON.LOADS ***
-        # intermediate_string = json.loads(row_data_json_str)
-        # row_list = json.loads(intermediate_string)
-        # ********************************
+            row_list = row_data_obj
 
         js.console.log("[PY DEBUG] Processed row_list type:", type(row_list))
 
     except Exception as e:
         js.console.error("[PY DEBUG] !!! EXCEPTION during data handling/conversion !!!", e)
-        # Uncomment for more detail if needed
-        # js.console.error(traceback.format_exc())
         msg = f"[PY DEBUG] ERROR during data handling: {e}"
         return json.dumps({"error": msg, "input_repr": repr(row_data_obj)})
 
-    # Check the type AFTER the try block
     if not isinstance(row_list, list):
         msg = f"[PY] ERROR: Expected a list after handling input, got {type(row_list)}"
         js.console.error(msg)
-        js.console.error("[PY] Value that failed isinstance(list):", repr(row_list)) # Log the problematic value
+        js.console.error("[PY] Value that failed isinstance(list):", repr(row_list))
         return json.dumps({"error": msg, "processed_data_repr": repr(row_list)})
 
-    # If we get here, row_list is a list
     js.console.log(f"[PY] Successfully obtained row_list, length: {len(row_list)}")
     if len(row_list) > 0:
         js.console.log("[PY] First row sample:", str(row_list[0]))
@@ -139,37 +126,52 @@ def hierarchical_clustering_from_rows(
     row_sets = []
     labels = []
     for i, row in enumerate(row_list): # row should be a dict
-        # js.console.log(f"[PY] Processing row {i}:", str(row)) # Optional: log each row
-        # Ensure row is a dictionary-like object
         if not hasattr(row, 'get'):
              msg = f"[PY] ERROR: Row {i} is not a dictionary-like object. Type: {type(row)}"
              js.console.error(msg)
              return json.dumps({"error": msg, "row_repr": repr(row)})
 
-        cat_id = row.get("Category ID", "") # Use keys expected from JS ('Category ID', 'Genes Up', etc.)
+        cat_id = row.get("Category ID", "")
         if not cat_id:
             msg = f"[PY] ERROR: Row {i} missing required 'Category ID' value."
             js.console.error(msg)
             return json.dumps({"error": msg, "data_repr": str(row)})
 
-        # Build composite label
-        label_parts = [f"Category ID: {cat_id}"]
-        # Use .items() if it's a dict, otherwise handle potential PyProxy iteration
-        items_to_iterate = row.items() if isinstance(row, dict) else row # Adjust if PyProxy needs different iteration
+        # --- MODIFIED LABEL BUILDING ---
+        label_parts = []
+        items_to_iterate = row.items() if isinstance(row, dict) else row
+
+        # Store the gene strings separately first to ensure they are included
+        # Use .get() to safely handle potentially missing keys
+        genes_up_str = row.get("Genes Up", "")
+        genes_down_str = row.get("Genes Down", "")
+        all_genes_str = row.get("All Genes", "") # Get All Genes string as well
+
+        # Add required fields first
+        label_parts.append(f"Category ID: {cat_id}")
+        # Explicitly add the gene strings to the label parts
+        label_parts.append(f"Genes Up: {genes_up_str}")
+        label_parts.append(f"Genes Down: {genes_down_str}")
+        label_parts.append(f"All Genes: {all_genes_str}") # Add All Genes string
+
+        # Iterate through the rest of the items for other metadata
         for key, value in items_to_iterate:
-            # Skip the keys used for gene sets and those already incorporated.
-            # Ensure these keys match exactly what JS sends ('Genes Up', 'Genes Down')
-            if key in ["Genes Up", "Genes Down", "Category ID", "categoryIdentifier", "All Genes"]:
+            # Skip keys already handled or not desired in the label
+            # *** REMOVED "Genes Up", "Genes Down", "All Genes" from this skip list ***
+            if key in ["Category ID", "categoryIdentifier", "Genes Up", "Genes Down", "All Genes"]:
                 continue
-            label_parts.append(f"{key}: {value}")
+            # Ensure value is stringified properly if it's not already a string
+            label_parts.append(f"{key}: {str(value)}")
+        # --- END MODIFIED LABEL BUILDING ---
+
         composite_label = " | ".join(label_parts)
         labels.append(composite_label)
 
-        # Process gene sets using keys expected from JS
-        up = parse_genes(row.get("Genes Up", ""))
-        down = parse_genes(row.get("Genes Down", ""))
+        # Process gene sets using keys expected from JS (for Jaccard distance)
+        # This part remains the same - uses the original strings for set creation
+        up = parse_genes(genes_up_str)
+        down = parse_genes(genes_down_str)
         active_set = up.union(down)
-        # js.console.log(f"[PY] Row {i} - Active set:", str(active_set)) # Optional: log active set
         row_sets.append(active_set)
 
     if not row_sets:
@@ -186,7 +188,7 @@ def hierarchical_clustering_from_rows(
             B = row_sets[j]
             union_len = len(A.union(B))
             if union_len == 0:
-                d = 0.0 # Define distance as 0 if both sets are empty
+                d = 0.0
             else:
                 d = 1.0 - (len(A.intersection(B)) / union_len) # Jaccard distance
             distance_matrix[i, j] = d
@@ -201,18 +203,16 @@ def hierarchical_clustering_from_rows(
     js.console.log(f"[PY] Clustering parameters: method={method}, num_clusters={num_clusters}")
 
     # --- Prepare data for pearson function ---
-    # The _pearson function still expects standard JSON string input
     distance_data = {"distanceMatrix": distance_matrix.tolist(), "labels": labels}
     distance_data_json_for_pearson = json.dumps(distance_data)
-    # js.console.log("[PY] Built distance_data for pearson func (truncated):", distance_data_json_for_pearson[:300] + "...")
 
     # --- Call the pearson function ---
     result_json = hierarchical_clustering_pearson(
-        distance_data_json_for_pearson, # Pass the standard JSON string
+        distance_data_json_for_pearson,
         method=method,
         num_clusters=num_clusters
     )
-    js.console.log("=== [PY] hierarchical_clustering_from_rows END (v2) ===")
+    js.console.log("=== [PY] hierarchical_clustering_from_rows END (v3) ===") # Version Bump
     return result_json
 
 
@@ -221,7 +221,7 @@ def hierarchical_clustering_from_rows(
 # NO CHANGES NEEDED HERE
 ##############################################################################
 def hierarchical_clustering_pearson(
-    distance_data_json: str, # Expects standard JSON string '{"distanceMatrix": ..., "labels": ...}'
+    distance_data_json: str,
     method: str = "average",
     num_clusters: int = 0
 ) -> str:
@@ -236,11 +236,9 @@ def hierarchical_clustering_pearson(
     Returns a JSON string with clustering results or an error object.
     """
     js.console.log("=== [PY] hierarchical_clustering_pearson START ===")
-    # js.console.log("[PY] Pearson received distance_data_json:", distance_data_json[:200] + "...")
 
     data = None
     try:
-        # Single parse is correct here
         data = json.loads(distance_data_json)
     except Exception as e:
         msg = f"[PY] ERROR in json.loads (pearson): {e}"
@@ -271,32 +269,24 @@ def hierarchical_clustering_pearson(
              js.console.error(msg)
              return json.dumps({"error": msg})
 
-        # Recalculate num_clusters if invalid
         if not isinstance(num_clusters, int) or num_clusters <= 0:
              guess = math.sqrt(N) / 2
              num_clusters = max(2, int(math.ceil(guess)))
              js.console.warn(f"[PY] Invalid num_clusters received by pearson, recalculating to: {num_clusters}")
 
-        # Ensure num_clusters is feasible (Linkage matrix has N-1 rows/merges)
         if num_clusters >= N:
              js.console.warn(f"[PY] num_clusters ({num_clusters}) >= N ({N}). Adjusting num_clusters to N-1.")
-             num_clusters = max(1, N - 1) # At least 1 cluster, max N-1 splits possible via fcluster
+             num_clusters = max(1, N - 1)
 
         js.console.log(f"[PY] Pearson func clustering method: {method}, final num_clusters: {num_clusters}")
 
-        # Perform clustering
-        # Ensure matrix is finite (no NaN/Infinity) before squareform
         if not np.all(np.isfinite(distance_matrix)):
              msg = "[PY] ERROR: Distance matrix contains non-finite values (NaN or Infinity)."
              js.console.error(msg)
-             # Optionally log where the non-finite values are
-             # js.console.log(str(distance_matrix[~np.isfinite(distance_matrix)]))
              return json.dumps({"error": msg})
 
         condensed = squareform(distance_matrix, checks=False)
         linked = linkage(condensed, method=method)
-
-        # js.console.log("[PY] Linkage matrix (sample):", str(linked[:5]))
 
         dendro = dendrogram(linked, labels=labels, no_plot=True)
         cluster_assignments = fcluster(linked, num_clusters, criterion="maxclust")
@@ -317,7 +307,7 @@ def hierarchical_clustering_pearson(
     result = {
         "clusterAssignments": cluster_assignments.tolist(),
         "leavesOrder": leaves_order,
-        "orderedLabels": ordered_labels,
+        "orderedLabels": ordered_labels, # These labels now include the gene strings
         "orderedClusters": ordered_clusters,
         "linkageMatrix": linked.tolist(),
     }
@@ -1075,9 +1065,9 @@ const AppContentInternal: React.FC = () => {
         // Pyodide is OK, but no project selected
         mainContent = (
             <div style={{ textAlign: 'center', marginTop: '50px', padding: '24px' }}>
-                <Typography.Title level={3}>Welcome to BMDx Plus</Typography.Title>
+                <Typography.Title level={3}>BMD Express...Plus!</Typography.Title>
                 <Typography.Paragraph>
-                    Please select or create a project using the controls in the header.
+                    Select a project for analysis, or create one.
                 </Typography.Paragraph>
             </div>
         );
@@ -5621,6 +5611,158 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
 };
 
 export default GOUmapAnalysisUnit;
+// src/components/analysis/GOClusteringScatterPlot.tsx
+import React, { useMemo } from 'react';
+import Plot from 'react-plotly.js';
+import type { Data, Layout } from 'plotly.js';
+import { DEFAULT_MARKER_COLOR, UNCLUSTERED_COLOR } from '../../utils/legendUtils';
+import { SummaryRow } from '../../utils/clusteringUtils';
+
+export interface ClusteringScatterPoint {
+    goId: string;
+    goTerm: string;
+    pyodideCluster: string;
+    referenceClusterId: number | string | null;
+    rank: number | null; // Y-axis value (numerical rank) - base position
+    bmdValue: number | null; // X-axis value (BMD)
+}
+
+interface GOClusteringScatterPlotProps {
+    plotData: ClusteringScatterPoint[] | null;
+    clusterColorMap: Map<string | number, string> | null;
+    summaryTableData: SummaryRow[] | null;
+}
+
+const BASE_MARKER_SIZE = 6;
+const JITTER_AMOUNT = 0.3;
+// --- Updated Grid Color ---
+const GRID_COLOR = '#cccccc'; // Darker solid grey for grid lines
+// --------------------------
+
+const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
+    plotData,
+    clusterColorMap,
+    summaryTableData,
+}) => {
+    const logPrefix = '[GOClusteringScatterPlot v5]'; // Version Bump
+
+    const plotlyData = useMemo((): Data[] => {
+        if (!plotData || plotData.length === 0) {
+            return [];
+        }
+
+        const jitteredY = plotData.map(p => {
+            if (p.rank === null) return null;
+            const jitter = (Math.random() - 0.5) * 2 * JITTER_AMOUNT;
+            return p.rank + jitter;
+        });
+
+        const pointColors = plotData.map(p => {
+            if (p.referenceClusterId === -1 || p.referenceClusterId === '-1') {
+                return UNCLUSTERED_COLOR;
+            }
+            if (p.referenceClusterId != null && clusterColorMap) {
+                return clusterColorMap.get(String(p.referenceClusterId)) || DEFAULT_MARKER_COLOR;
+            }
+            return DEFAULT_MARKER_COLOR;
+        });
+
+        const trace: Data = {
+            x: plotData.map((p) => p.bmdValue),
+            y: jitteredY,
+            mode: 'markers',
+            type: 'scattergl',
+            marker: {
+                size: BASE_MARKER_SIZE * 1.5,
+                color: pointColors,
+                // --- Set Opacity to 1 ---
+                opacity: 1.0,
+                // ------------------------
+            },
+            customdata: plotData.map((p) => ({
+                goId: p.goId,
+                goTerm: p.goTerm,
+                pyodideCluster: p.pyodideCluster,
+                referenceClusterId: p.referenceClusterId,
+                rank: p.rank,
+                bmd: p.bmdValue,
+            })),
+            hovertemplate:
+                `<b>%{customdata.goTerm}</b><br>` +
+                `GO ID: %{customdata.goId}<br>` +
+                `Pyodide Cluster: %{customdata.pyodideCluster}<br>` +
+                `Ref Cluster: %{customdata.referenceClusterId}<br>` +
+                `BMD (X): %{customdata.bmd:.2e}<br>` +
+                `Rank (Y): %{customdata.rank}<extra></extra>`,
+            hoverlabel: { bgcolor: '#FFF' },
+            name: 'Categories',
+        };
+
+        return [trace];
+    }, [plotData, clusterColorMap]);
+
+    const plotlyLayout = useMemo((): Partial<Layout> => {
+        let yTickVals: number[] = [];
+        let yTickText: string[] = [];
+        if (summaryTableData && summaryTableData.length > 0) {
+            const sortedSummary = [...summaryTableData].sort((a, b) => (a.sort ?? Infinity) - (b.sort ?? Infinity));
+            yTickVals = sortedSummary.map(item => item.sort).filter(rank => rank != null) as number[];
+            yTickText = sortedSummary.map(item => String(item.cluster));
+            console.log(`${logPrefix} Generated Y Ticks: Vals (Ranks)=`, yTickVals);
+            console.log(`${logPrefix} Generated Y Ticks: Text (Cluster IDs)=`, yTickText);
+        } else {
+            console.log(`${logPrefix} No summary data for Y ticks.`);
+        }
+
+        return {
+            title: '5th Percentile BMD vs. Cluster Rank',
+            xaxis: {
+                title: '5th Percentile BMD',
+                type: 'log',
+                showgrid: false,
+                side: 'bottom',
+            },
+            yaxis: {
+                title: 'Pyodide Cluster ID (Ordered by Rank)',
+                autorange: 'reversed',
+                type: 'linear',
+                tickmode: 'array',
+                tickvals: yTickVals.length > 0 ? yTickVals : undefined,
+                ticktext: yTickText.length > 0 ? yTickText : undefined,
+                showgrid: true,
+                gridcolor: GRID_COLOR, // Uses the updated constant
+                gridwidth: 1,
+            },
+            height: 500,
+            margin: { l: 80, r: 30, t: 50, b: 50 },
+            hovermode: 'closest',
+            showlegend: false,
+            autosize: true,
+        };
+    }, [summaryTableData]);
+
+    // ... (rest of the component remains the same) ...
+
+    if (!plotData) {
+        return <div>Preparing plot data...</div>;
+    }
+    if (plotlyData.length === 0) {
+        return <div>No valid data points to plot.</div>;
+    }
+    console.log(`${logPrefix} Rendering plot with ${plotData.length} points.`);
+
+    return (
+        <Plot
+            data={plotlyData}
+            layout={plotlyLayout}
+            style={{ width: '100%', height: '100%' }}
+            useResizeHandler={true}
+            config={{ responsive: true, displaylogo: false }}
+        />
+    );
+};
+
+export default GOClusteringScatterPlot;
 // src/components/analysis/AccumulationPlot.tsx
 import React, { useMemo, useCallback } from 'react';
 import type {
@@ -6355,32 +6497,33 @@ const FilterableTable: React.FC<FilterableTableProps> = ({
 
 export default FilterableTable;// src/components/analysis/GOClusteringAnalysisUnit.tsx
 import React, { useMemo } from 'react';
-import { Card, Spin, Alert, Collapse, Table, Empty } from 'antd';
+import { Card, Spin, Alert, Collapse, Table, Empty, Row, Col } from 'antd';
 import { useAppSelector } from '../../store/hooks';
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
 import { selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice';
+import { selectReferenceDataMap, selectReferenceData } from '../../store/selectors/referenceDataSelector';
 import { useGetRawAnalysisDataQuery } from '../../store/apis/experimentsApi';
 import {
-    transformDataForClustering, // Utility to format data for Python
     CategoryRow,
     SummaryRow,
     ApiClusteringInputItem,
-} from '../../utils/clusteringUtils'; // Adjust path
+} from '../../utils/clusteringUtils';
 import {
-    usePyodideClustering, // Hook to run clustering
+    usePyodideClustering,
     PyodideClusteringResult,
-} from '../../hooks/usePyodideClustering'; // Adjust path
-import {
-    useProcessedClusteringData, // Hook to process results
-} from '../../hooks/useProcessedClusteringData'; // Adjust path
-import { BMDResult } from '../../models/applicationModel'; // For title calculation
+} from '../../hooks/usePyodideClustering';
+import { useProcessedClusteringData } from '../../hooks/useProcessedClusteringData';
+import { BMDResult, CategoryAnalysisItem } from '../../models/BMDxExported';
+import GOClusteringScatterPlot, {
+    ClusteringScatterPoint,
+} from './GOClusteringScatterPlot'; // Ensure path is correct
+import { ReferenceUmapItem } from '../../data/referenceUmapData';
+import { generateHaltonColors } from '../../utils/colorUtils';
+import { UNCLUSTERED_COLOR, DEFAULT_MARKER_COLOR } from '../../utils/legendUtils';
 
 const { Panel } = Collapse;
+const PRIMARY_COLOR = '#1677ff';
 
-// Define the primary color for the border
-const PRIMARY_COLOR = '#1677ff'; // Default Ant Design primary blue
-
-// Helper function (keep as is)
 const getErrorMessage = (error: unknown): string => {
     if (!error) { return 'An unknown error occurred.'; }
     if (typeof error === 'string') { return error; }
@@ -6390,9 +6533,7 @@ const getErrorMessage = (error: unknown): string => {
     try { return JSON.stringify(error); } catch { return 'Could not stringify error object.'; }
 };
 
-interface GOClusteringAnalysisUnitProps {
-    // Add any specific props needed later, e.g., clustering method override
-}
+interface GOClusteringAnalysisUnitProps { }
 
 const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => {
     const logPrefix = '[GOClusteringAnalysisUnit]';
@@ -6400,9 +6541,10 @@ const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => 
     // --- Selectors ---
     const projectName = useAppSelector(selectSelectedProjectName);
     const selectedBmdResultRefs = useAppSelector(selectSelectedAnalysisRefs);
+    const referenceDataMap = useAppSelector(selectReferenceDataMap);
+    const referenceData = useAppSelector(selectReferenceData);
 
     // --- Data Fetching ---
-    // Fetch raw data needed to prepare input for clustering
     const {
         data: rawData,
         isLoading: isLoadingRaw,
@@ -6410,56 +6552,68 @@ const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => 
         isSuccess: rawSuccess,
     } = useGetRawAnalysisDataQuery(
         { projectName, selectedBmdResultRefs },
-        { skip: !projectName || !selectedBmdResultRefs || selectedBmdResultRefs.length === 0 }
+        {
+            skip:
+                !projectName ||
+                !selectedBmdResultRefs ||
+                selectedBmdResultRefs.length === 0,
+        }
     );
 
     // --- Prepare Data for Clustering ---
     const { rowDataForClustering, bmdRefToExperimentNameMap } = useMemo(() => {
+        const logPrefix = '[GOClusteringAnalysisUnit useMemo v2]';
         console.log(`${logPrefix} Preparing rowDataForClustering...`);
         const tempBmdRefToNameMap = new Map<number, string>();
-        let inputItems: ApiClusteringInputItem[] = [];
+        const finalInputItems: ApiClusteringInputItem[] = [];
 
-        if (rawSuccess && rawData?.rawCategoryAnalysisItems && rawData?.rawBmdResults) {
-            // Build name map first
-            rawData.rawBmdResults.forEach(r => {
+        if (
+            rawSuccess &&
+            rawData?.rawCategoryAnalysisItems &&
+            rawData?.rawBmdResults
+        ) {
+            rawData.rawBmdResults.forEach((r) => {
                 if (r && r['@ref'] != null) {
                     const numericRef = Number(r['@ref']);
                     if (!isNaN(numericRef)) {
-                        tempBmdRefToNameMap.set(numericRef, r.name || `BMD Result ${numericRef}`);
+                        tempBmdRefToNameMap.set(
+                            numericRef,
+                            r.name || `BMD Result ${numericRef}`
+                        );
                     }
                 }
             });
 
-            // Now transform category items
-            // Assuming rawCategoryAnalysisItems is Array<{ bmdResultRef: number | string; item: CategoryAnalysisItem }>
-            // We need to flatten the 'item' part for transformDataForClustering
-            const itemsToTransform = rawData.rawCategoryAnalysisItems.map(entry => entry.item);
-            // The transformDataForClustering expects a slightly different input structure based on its definition.
-            // Let's adapt the input preparation here based on what transformDataForClustering expects.
-            // It expects { value: Partial<CategoryRow> }[]
-
-            // We need to map the raw CategoryAnalysisItem to the structure expected by transformDataForClustering
-            const sourceDataForTransform: { value: Partial<CategoryRow> }[] = itemsToTransform.map(item => ({
-                value: {
-                    // Map fields from CategoryAnalysisItem to CategoryRow keys expected by the util
-                    categoryId: item.categoryIdentifier?.id,
-                    categoryTitle: item.categoryIdentifier?.title,
-                    // Cluster BMD might not be directly available on CategoryAnalysisItem,
-                    // it might need calculation or be sourced differently depending on your exact data model.
-                    // Using a placeholder or null for now. Adjust as needed.
-                    clusterBMD: String(item.bmdFifthPercentileTotalGenes ?? ''), // Example: Using 5th percentile as placeholder
-                    upGenes: item.genesUp ?? '',
-                    downGenes: item.genesDown ?? '',
-                    allGenes: item.geneSymbolsPrivate ?? '', // Assuming this holds all genes; adjust if needed
+            rawData.rawCategoryAnalysisItems.forEach((entry) => {
+                const item = entry.item;
+                if (!item || !item.categoryIdentifier?.id) {
+                    console.warn(
+                        `${logPrefix} Skipping item due to missing category ID:`,
+                        item
+                    );
+                    return;
                 }
-            }));
-
-            inputItems = transformDataForClustering(sourceDataForTransform);
-            console.log(`${logPrefix} Prepared ${inputItems.length} items for clustering.`);
+                finalInputItems.push({
+                    'Category ID': item.categoryIdentifier.id,
+                    'Category Title': item.categoryIdentifier.title ?? '',
+                    'Cluster BMD': String(item.bmdFifthPercentileTotalGenes ?? ''),
+                    'Genes Up': item.genesUp ?? '',
+                    'Genes Down': item.genesDown ?? '',
+                    'All Genes': item.geneSymbolsPrivate ?? '',
+                });
+            });
+            console.log(
+                `${logPrefix} Prepared ${finalInputItems.length} items directly for clustering.`
+            );
         } else {
-            console.log(`${logPrefix} Raw data not ready for clustering preparation.`);
+            console.log(
+                `${logPrefix} Raw data not ready for clustering preparation.`
+            );
         }
-        return { rowDataForClustering: inputItems, bmdRefToExperimentNameMap: tempBmdRefToNameMap };
+        return {
+            rowDataForClustering: finalInputItems,
+            bmdRefToExperimentNameMap: tempBmdRefToNameMap,
+        };
     }, [rawSuccess, rawData]);
 
     // --- Compute Cluster Count ---
@@ -6470,14 +6624,13 @@ const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => 
     );
 
     // --- Call Pyodide Clustering Hook ---
-    // Using 'average' method as default, can be made configurable via props later
     const {
         result: pyodideResult,
         isLoading: isPyodideLoading,
         error: pyodideError,
     } = usePyodideClustering(
-        rowDataForClustering, // Pass the prepared data
-        'average', // Default method
+        rowDataForClustering,
+        'average',
         computedNumClusters
     );
 
@@ -6489,40 +6642,106 @@ const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => 
             pyodideError ? getErrorMessage(pyodideError) : null
         );
 
-    // --- Define Table Columns (Copied from ClusteringDetails) ---
-    const categoryColumns = useMemo(() => { /* ... columns definition ... */
+    // --- Define Table Columns (Restored) ---
+    const categoryColumns = useMemo(() => {
         return [
-            { title: 'Group Size', dataIndex: 'groupSize', key: 'groupSize', width: 100, sorter: (a: CategoryRow, b: CategoryRow) => { const groupDiff = (a.groupSize ?? 0) - (b.groupSize ?? 0); if (groupDiff !== 0) return groupDiff; const aBMD = parseFloat(a.clusterBMD); const bBMD = parseFloat(b.clusterBMD); return (isNaN(aBMD) ? Infinity : aBMD) - (isNaN(bBMD) ? Infinity : bBMD); }, defaultSortOrder: 'descend' as const, },
-            { title: 'Category ID', dataIndex: 'categoryId', key: 'categoryId', width: 150, sorter: (a: CategoryRow, b: CategoryRow) => a.categoryId.localeCompare(b.categoryId) },
-            { title: 'Category Title', dataIndex: 'categoryTitle', key: 'categoryTitle', sorter: (a: CategoryRow, b: CategoryRow) => a.categoryTitle.localeCompare(b.categoryTitle), ellipsis: true },
-            { title: 'Cluster BMD', dataIndex: 'clusterBMD', key: 'clusterBMD', width: 120, sorter: (a: CategoryRow, b: CategoryRow) => (parseFloat(a.clusterBMD) || Infinity) - (parseFloat(b.clusterBMD) || Infinity), render: (text: string) => parseFloat(text)?.toFixed(4) ?? text },
-            { title: 'Up Genes (Count)', dataIndex: 'upGenesSize', key: 'upGenesSize', width: 100, sorter: (a: CategoryRow, b: CategoryRow) => a.upGenesSize - b.upGenesSize },
-            { title: 'Down Genes (Count)', dataIndex: 'downGenesSize', key: 'downGenesSize', width: 100, sorter: (a: CategoryRow, b: CategoryRow) => a.downGenesSize - b.downGenesSize },
-            { title: 'Cluster', dataIndex: 'cluster', key: 'cluster', width: 80, sorter: (a: CategoryRow, b: CategoryRow) => a.clusterValue - b.clusterValue },
+            {
+                title: 'Group Size',
+                dataIndex: 'groupSize',
+                key: 'groupSize',
+                width: 100,
+                sorter: (a: CategoryRow, b: CategoryRow) => {
+                    const groupDiff = (a.groupSize ?? 0) - (b.groupSize ?? 0);
+                    if (groupDiff !== 0) return groupDiff;
+                    const aBMD = parseFloat(a.clusterBMD);
+                    const bBMD = parseFloat(b.clusterBMD);
+                    return (isNaN(aBMD) ? Infinity : aBMD) - (isNaN(bBMD) ? Infinity : bBMD);
+                },
+                defaultSortOrder: 'descend' as const,
+            },
+            {
+                title: 'Category ID',
+                dataIndex: 'categoryId',
+                key: 'categoryId',
+                width: 150,
+                sorter: (a: CategoryRow, b: CategoryRow) =>
+                    a.categoryId.localeCompare(b.categoryId),
+            },
+            {
+                title: 'Category Title',
+                dataIndex: 'categoryTitle',
+                key: 'categoryTitle',
+                sorter: (a: CategoryRow, b: CategoryRow) =>
+                    a.categoryTitle.localeCompare(b.categoryTitle),
+                ellipsis: true,
+            },
+            {
+                title: 'Cluster BMD',
+                dataIndex: 'clusterBMD',
+                key: 'clusterBMD',
+                width: 120,
+                sorter: (a: CategoryRow, b: CategoryRow) =>
+                    (parseFloat(a.clusterBMD) || Infinity) -
+                    (parseFloat(b.clusterBMD) || Infinity),
+                render: (text: string) => parseFloat(text)?.toFixed(4) ?? text,
+            },
+            {
+                title: 'Up Genes (Count)',
+                dataIndex: 'upGenesSize',
+                key: 'upGenesSize',
+                width: 100,
+                sorter: (a: CategoryRow, b: CategoryRow) => a.upGenesSize - b.upGenesSize,
+            },
+            {
+                title: 'Down Genes (Count)',
+                dataIndex: 'downGenesSize',
+                key: 'downGenesSize',
+                width: 100,
+                sorter: (a: CategoryRow, b: CategoryRow) =>
+                    a.downGenesSize - b.downGenesSize,
+            },
+            {
+                title: 'Cluster',
+                dataIndex: 'cluster',
+                key: 'cluster',
+                width: 80,
+                sorter: (a: CategoryRow, b: CategoryRow) =>
+                    a.clusterValue - b.clusterValue,
+            },
         ];
     }, []);
-    const summaryColumns = useMemo(() => { /* ... columns definition ... */
+    const summaryColumns = useMemo(() => {
         return [
             { title: 'Cluster', dataIndex: 'cluster', key: 'cluster' },
-            { title: 'Min Cluster BMD', dataIndex: 'minClusterBMD', key: 'minClusterBMD', render: (value: number) => isNaN(value) ? 'N/A' : value.toExponential(4) },
+            {
+                title: 'Min Cluster BMD',
+                dataIndex: 'minClusterBMD',
+                key: 'minClusterBMD',
+                render: (value: number) => (isNaN(value) ? 'N/A' : value.toExponential(4)),
+            },
             { title: 'Num Categories', dataIndex: 'numCategoryIDs', key: 'numCategoryIDs' },
             { title: 'Rank', dataIndex: 'sort', key: 'sort' },
         ];
     }, []);
+    // --- End Restored Table Columns ---
 
-    // --- Calculate Dynamic Card Title ---
+    // --- Calculate Dynamic Card Title (Restored) ---
     const cardTitle = useMemo(() => {
-        const baseTitle = "GO Clustering Analysis";
-        if (!selectedBmdResultRefs || selectedBmdResultRefs.length === 0 || bmdRefToExperimentNameMap.size === 0) {
+        const baseTitle = 'GO Clustering Analysis';
+        if (
+            !selectedBmdResultRefs ||
+            selectedBmdResultRefs.length === 0 ||
+            bmdRefToExperimentNameMap.size === 0
+        ) {
             return baseTitle;
         }
         const names = selectedBmdResultRefs
-            .map(refStr => {
+            .map((refStr) => {
                 const numericRef = Number(refStr);
                 if (isNaN(numericRef)) return null;
                 return bmdRefToExperimentNameMap.get(numericRef) || `Ref ${numericRef}`;
             })
-            .filter(name => name !== null);
+            .filter((name) => name !== null);
 
         if (names.length === 0) return baseTitle;
 
@@ -6533,6 +6752,43 @@ const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => 
         }
         return `${baseTitle} - ${nameString}`;
     }, [selectedBmdResultRefs, bmdRefToExperimentNameMap]);
+    // --- End Restored Card Title ---
+
+    // --- Generate Cluster Color Map ---
+    const clusterColorMap = useMemo(() => {
+        const colorMapLogPrefix = '[GOClusteringAnalysisUnit clusterColorMap]';
+        console.log(`${colorMapLogPrefix} Generating...`);
+        if (!referenceData) {
+            console.log(`${colorMapLogPrefix} No reference data available.`);
+            return null;
+        }
+        const uniqueClusterIds = Array.from(
+            new Set(
+                referenceData
+                    .map(item => item.cluster_id)
+                    .filter(id => id != null && id !== -1 && id !== '-1')
+            )
+        );
+        uniqueClusterIds.sort((a, b) => {
+            const numA = Number(a);
+            const numB = Number(b);
+            if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+            return String(a).localeCompare(String(b));
+        });
+
+        if (uniqueClusterIds.length === 0) {
+            console.log(`${colorMapLogPrefix} No valid cluster IDs found in reference data.`);
+            return new Map<string | number, string>();
+        }
+
+        const colors = generateHaltonColors(uniqueClusterIds.length);
+        const map = new Map<string | number, string>();
+        uniqueClusterIds.forEach((id, index) => {
+            map.set(String(id), colors[index % colors.length]);
+        });
+        console.log(`${colorMapLogPrefix} Generated map for ${map.size} clusters.`);
+        return map;
+    }, [referenceData]);
 
     // --- Combined Loading/Error State ---
     const isLoading = isLoadingRaw || isPyodideLoading;
@@ -6540,19 +6796,68 @@ const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => 
     const hasDataToCluster = rowDataForClustering && rowDataForClustering.length > 0;
     const hasResults = categoryTableData.length > 0;
 
+    // --- Prepare Data for Scatter Plot ---
+    const scatterPlotData = useMemo((): ClusteringScatterPoint[] | null => {
+        const plotLogPrefix = '[GOClusteringAnalysisUnit ScatterData]';
+        if (!hasResults || summaryTableData.length === 0 || !referenceDataMap) {
+            console.log(`${plotLogPrefix} Prerequisites not met. HasResults: ${hasResults}, Summary Count: ${summaryTableData.length}, Has RefMap: ${!!referenceDataMap}`);
+            return null;
+        }
+
+        console.log(`${plotLogPrefix} Preparing data...`);
+        const clusterRankMap = new Map<string, number>();
+        summaryTableData.forEach(summary => {
+            if (summary.cluster && summary.sort != null) {
+                clusterRankMap.set(String(summary.cluster), summary.sort);
+            }
+        });
+        console.log(`${plotLogPrefix} Created rank map with ${clusterRankMap.size} entries.`);
+
+        const points: ClusteringScatterPoint[] = [];
+        categoryTableData.forEach(catRow => {
+            const rank = clusterRankMap.get(String(catRow.cluster));
+            const bmdValue = parseFloat(catRow.clusterBMD);
+            const goId = catRow.categoryId;
+            const goIdUpper = goId?.toUpperCase();
+
+            const refItem = goIdUpper ? referenceDataMap.get(goIdUpper) : null;
+            const referenceClusterId = refItem?.cluster_id ?? null;
+
+            if (rank != null && !isNaN(bmdValue) && isFinite(bmdValue)) {
+                points.push({
+                    goId: goId,
+                    goTerm: catRow.categoryTitle,
+                    pyodideCluster: String(catRow.cluster),
+                    referenceClusterId: referenceClusterId,
+                    rank: rank, // This is now Y
+                    bmdValue: bmdValue, // This is now X
+                });
+            }
+        });
+
+        console.log(`${plotLogPrefix} Prepared ${points.length} valid points for scatter plot.`);
+        return points;
+
+    }, [hasResults, categoryTableData, summaryTableData, referenceDataMap]);
+
+
     // === Render Logic ===
     return (
-        <div style={{
-            border: `2px solid ${PRIMARY_COLOR}`,
-            borderRadius: '8px',
-            padding: '1px',
-            marginTop: '24px' // Add margin to separate from other units
-        }}>
+        <div
+            style={{
+                border: `2px solid ${PRIMARY_COLOR}`,
+                borderRadius: '8px',
+                padding: '1px',
+                marginTop: '24px',
+            }}
+        >
             <Card title={cardTitle} bordered={false}>
                 {/* Loading Indicator */}
                 {isLoading && (
                     <div style={{ padding: '1rem', textAlign: 'center' }}>
-                        <Spin tip={isLoadingRaw ? "Loading data..." : "Running clustering..."} />
+                        <Spin
+                            tip={isLoadingRaw ? 'Loading data...' : 'Running clustering...'}
+                        />
                     </div>
                 )}
 
@@ -6567,53 +6872,83 @@ const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => 
                     />
                 )}
 
-                {/* Display Results */}
-                {!isLoading && !error && hasResults && (
-                    <Collapse defaultActiveKey={['cat_details']} accordion>
-                        <Panel
-                            header={`Category Details (${categoryTableData.length} items)`}
-                            key="cat_details"
-                        >
-                            <div style={{ marginTop: '0.5rem' }}>
-                                <Table<CategoryRow> // Explicit type for Table
-                                    dataSource={categoryTableData}
-                                    columns={categoryColumns}
-                                    rowKey="key"
-                                    pagination={{ pageSize: 15, showSizeChanger: true, size: 'small' }}
-                                    size="small"
-                                    scroll={{ x: 1000 }}
-                                />
-                            </div>
-                        </Panel>
-                        {summaryTableData.length > 0 && (
-                            <Panel
-                                header={`Cluster Summary (${summaryTableData.length} clusters)`}
-                                key="cat_summary"
-                            >
-                                <div style={{ marginTop: '0.5rem' }}>
-                                    <Table<SummaryRow> // Explicit type for Table
-                                        dataSource={summaryTableData}
-                                        columns={summaryColumns}
-                                        rowKey="key"
-                                        pagination={false}
-                                        size="small"
+                {/* Render Plot and Tables */}
+                {!isLoading && !error && hasDataToCluster && (
+                    <Row gutter={[16, 16]}>
+                        {/* Plot Area */}
+                        <Col xs={24} lg={12}>
+                            <Card size="small" title="5th Percentile BMD vs. Cluster Rank">
+                                {scatterPlotData ? (
+                                    <GOClusteringScatterPlot
+                                        plotData={scatterPlotData}
+                                        clusterColorMap={clusterColorMap}
+                                        summaryTableData={summaryTableData} // Pass summary data for ticks
                                     />
-                                </div>
-                            </Panel>
-                        )}
-                    </Collapse>
+                                ) : (
+                                    <Empty description="Not enough data to generate plot." />
+                                )}
+                            </Card>
+                        </Col>
+
+                        {/* Tables Area */}
+                        <Col xs={24} lg={12}>
+                            {hasResults ? (
+                                <Collapse defaultActiveKey={['cat_details']} accordion>
+                                    {/* Panel for Category Details */}
+                                    <Panel
+                                        header={`Category Details (${categoryTableData.length} items)`}
+                                        key="cat_details"
+                                    >
+                                        <div style={{ marginTop: '0.5rem' }}>
+                                            <Table<CategoryRow>
+                                                dataSource={categoryTableData}
+                                                columns={categoryColumns}
+                                                rowKey="key"
+                                                pagination={{ pageSize: 10, showSizeChanger: true, size: 'small' }}
+                                                size="small"
+                                                scroll={{ x: 800, y: 300 }}
+                                            />
+                                        </div>
+                                    </Panel>
+                                    {/* Panel for Summary */}
+                                    {summaryTableData.length > 0 && (
+                                        <Panel
+                                            header={`Cluster Summary (${summaryTableData.length} clusters)`}
+                                            key="cat_summary"
+                                        >
+                                            <div style={{ marginTop: '0.5rem' }}>
+                                                <Table<SummaryRow>
+                                                    dataSource={summaryTableData}
+                                                    columns={summaryColumns}
+                                                    rowKey="key"
+                                                    pagination={false}
+                                                    size="small"
+                                                />
+                                            </div>
+                                        </Panel>
+                                    )}
+                                </Collapse>
+                            ) : (
+                                pyodideResult && <Empty description="No categories found after processing clustering results." />
+                            )}
+                        </Col>
+                    </Row>
                 )}
 
                 {/* Empty States */}
-                {!isLoading && !error && !hasResults && pyodideResult && (
-                    <Empty description="No categories found after processing clustering results." />
-                )}
-                {!isLoading && !error && !hasDataToCluster && rawSuccess && ( // Show only if raw data loaded but was empty/filtered out
-                    <Empty description="No suitable data found in selected analyses for clustering." />
-                )}
-                {!isLoading && !error && !hasDataToCluster && !rawSuccess && !rawError && ( // Show if raw data query hasn't run/succeeded yet
-                    <Empty description="Select analyses from 'Experiments' to run clustering." />
-                )}
+                {!isLoading &&
+                    !error &&
+                    !hasDataToCluster &&
+                    rawSuccess && (
+                        <Empty description="No suitable data found in selected analyses for clustering." />
+                    )}
+                {!isLoading &&
+                    !error &&
+                    !hasDataToCluster &&
+                    !rawSuccess &&
+                    !rawError && (
+                        <Empty description="Select analyses from 'Experiments' to run clustering." />
+                    )}
             </Card>
         </div>
     );
@@ -7118,6 +7453,187 @@ export const GOUmapAnalysisTable: React.FC<GOUmapAnalysisTableProps> = React.mem
         );
     }
 );
+// src/components/ClusteringDetails.tsx
+import React, { useMemo } from 'react'; // Keep React import
+import { Table, Spin, Collapse, Alert, Empty } from 'antd';
+
+import {
+    CategoryRow,
+    ApiClusteringInputItem,
+} from '../utils/clusteringUtils';
+
+import { useProcessedClusteringData } from '../hooks/useProcessedClusteringData';
+
+// Import the hook modified for automatic execution
+import {
+    usePyodideClustering,
+} from '../hooks/usePyodideClustering'; // Ensure this is the automatic version
+
+const { Panel } = Collapse;
+
+// Helper function (keep as is)
+const getErrorMessage = (error: unknown): string => {
+    if (!error) { return 'An unknown error occurred.'; }
+    if (typeof error === 'string') { return error; }
+    if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
+        // If all checks pass, we know error.message is a string, so return it
+        return error.message;
+    }
+    try { return JSON.stringify(error); } catch { return 'Could not stringify error object.'; }
+};
+
+
+interface ClusteringDetailsProps {
+    rowData: ApiClusteringInputItem[] | null;
+    method?: string;
+    numClusters?: number;
+}
+
+// Define the base functional component
+const ClusteringDetailsComponent: React.FC<ClusteringDetailsProps> = ({
+    rowData,
+    method = 'average',
+}) => {
+
+    console.log('[ClusteringDetails] Rendering check (Base Component).');
+
+    // --- 1. Compute Cluster Count ---
+    const dataLength = rowData?.length ?? 0;
+    const computedNumClusters = useMemo(
+        () => Math.max(2, Math.ceil(Math.sqrt(dataLength) / 2)),
+        [dataLength] // Removed numClusters dependency if not used for override
+    );
+
+    // --- 2. Call Custom Pyodide Clustering Hook (Automatic Version) ---
+    const {
+        result: pyodideResult,
+        isLoading: isPyodideLoading,
+        error: pyodideError,
+    } = usePyodideClustering(
+        rowData,
+        method,
+        computedNumClusters
+    );
+
+    // --- 3. Process Data using Custom Hook ---
+    const clustersForProcessingHook = pyodideResult ? [pyodideResult] : null;
+    const { categoryTableData, summaryTableData, processingError } =
+        useProcessedClusteringData(
+            clustersForProcessingHook,
+            pyodideError ? getErrorMessage(pyodideError) : null // Pass error message string
+        );
+
+    // --- 4. Define Table Columns ---
+    const categoryColumns = useMemo(() => {
+        return [
+            {
+                title: 'Group Size', dataIndex: 'groupSize', key: 'groupSize', width: 100,
+                sorter: (a: CategoryRow, b: CategoryRow) => {
+                    const groupDiff = (a.groupSize ?? 0) - (b.groupSize ?? 0);
+                    if (groupDiff !== 0) return groupDiff;
+                    const aBMD = parseFloat(a.clusterBMD); const bBMD = parseFloat(b.clusterBMD);
+                    return (isNaN(aBMD) ? Infinity : aBMD) - (isNaN(bBMD) ? Infinity : bBMD);
+                },
+                defaultSortOrder: 'descend' as const,
+            },
+            { title: 'Category ID', dataIndex: 'categoryId', key: 'categoryId', width: 150, sorter: (a: CategoryRow, b: CategoryRow) => a.categoryId.localeCompare(b.categoryId) },
+            { title: 'Category Title', dataIndex: 'categoryTitle', key: 'categoryTitle', sorter: (a: CategoryRow, b: CategoryRow) => a.categoryTitle.localeCompare(b.categoryTitle), ellipsis: true },
+            { title: 'Cluster BMD', dataIndex: 'clusterBMD', key: 'clusterBMD', width: 120, sorter: (a: CategoryRow, b: CategoryRow) => (parseFloat(a.clusterBMD) || Infinity) - (parseFloat(b.clusterBMD) || Infinity), render: (text: string) => parseFloat(text)?.toFixed(4) ?? text },
+            { title: 'Up Genes (Count)', dataIndex: 'upGenesSize', key: 'upGenesSize', width: 100, sorter: (a: CategoryRow, b: CategoryRow) => a.upGenesSize - b.upGenesSize },
+            { title: 'Down Genes (Count)', dataIndex: 'downGenesSize', key: 'downGenesSize', width: 100, sorter: (a: CategoryRow, b: CategoryRow) => a.downGenesSize - b.downGenesSize },
+            { title: 'Cluster', dataIndex: 'cluster', key: 'cluster', width: 80, sorter: (a: CategoryRow, b: CategoryRow) => a.clusterValue - b.clusterValue },
+        ];
+    }, []);
+    const summaryColumns = useMemo(() => {
+        return [
+            { title: 'Cluster', dataIndex: 'cluster', key: 'cluster' },
+            { title: 'Min Cluster BMD', dataIndex: 'minClusterBMD', key: 'minClusterBMD', render: (value: number) => isNaN(value) ? 'N/A' : value.toExponential(4) },
+            { title: 'Num Categories', dataIndex: 'numCategoryIDs', key: 'numCategoryIDs' },
+            { title: 'Rank', dataIndex: 'sort', key: 'sort' },
+        ];
+    }, []);
+
+    // --- 5. Render Logic ---
+    const isLoading = isPyodideLoading; // Use loading state from hook
+    const error = pyodideError || processingError; // Combine errors
+
+    return (
+        <div>
+            {/* Loading Indicator */}
+            {isLoading && (
+                <div style={{ padding: '1rem', textAlign: 'center' }}>
+                    <Spin tip="Running clustering..." />
+                </div>
+            )}
+
+            {/* Error Display */}
+            {!isLoading && error && ( // Show error only if not loading
+                <Alert
+                    message="Clustering Error"
+                    description={getErrorMessage(error)}
+                    type="error"
+                    showIcon
+                    style={{ marginBottom: '1rem' }}
+                />
+            )}
+
+            {/* Display Results */}
+            {!isLoading && !error && categoryTableData.length > 0 && (
+                <Collapse defaultActiveKey={['cat_details']} accordion>
+                    <Panel
+                        header={`Category Details (${categoryTableData.length} items)`}
+                        key="cat_details"
+                    >
+                        <div style={{ marginTop: '0.5rem' }}>
+                            <Table
+                                dataSource={categoryTableData as CategoryRow[]}
+                                columns={categoryColumns}
+                                rowKey="key"
+                                pagination={{
+                                    pageSize: 15,
+                                    showSizeChanger: true,
+                                    size: 'small',
+                                }}
+                                size="small"
+                                scroll={{ x: 1000 }}
+                            />
+                        </div>
+                    </Panel>
+                    {summaryTableData.length > 0 && (
+                        <Panel
+                            header={`Cluster Summary (${summaryTableData.length} clusters)`}
+                            key="cat_summary"
+                        >
+                            <div style={{ marginTop: '0.5rem' }}>
+                                <Table
+                                    dataSource={summaryTableData}
+                                    columns={summaryColumns}
+                                    rowKey="key"
+                                    pagination={false}
+                                    size="small"
+                                />
+                            </div>
+                        </Panel>
+                    )}
+                </Collapse>
+            )}
+
+            {/* Empty States - Simplified */}
+            {!isLoading && !error && categoryTableData.length === 0 && pyodideResult && (
+                <Empty description="No categories found after processing clustering results." />
+            )}
+            {!isLoading && !error && (!rowData || rowData.length === 0) && (
+                <Empty description="No data provided for clustering (after filtering)." />
+            )}
+        </div>
+    );
+};
+
+// Apply React.memo to the base component
+const MemoizedClusteringDetails = React.memo(ClusteringDetailsComponent);
+
+// Use named export aliased to the original name
+export { MemoizedClusteringDetails as ClusteringDetails };
 // src/components/SlidingWindowFilter.tsx
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -8210,13 +8726,14 @@ export function useProcessedClusteringData(
     pyodideHookError: string | null // Accept the error string from the Pyodide hook
 ): UseProcessedClusteringDataResult {
     const result = useMemo<UseProcessedClusteringDataResult>(() => {
+        const hookLogPrefix = '[useProcessedClusteringData v2 - Debug Parse]'; // Version Bump
+
         // 1. Handle errors passed from the upstream Pyodide hook first
         if (pyodideHookError) {
             console.error(
-                '[useProcessedClusteringData] Received error from Pyodide hook:',
+                `${hookLogPrefix} Received error from Pyodide hook:`,
                 pyodideHookError
             );
-            // Convert the string error to an Error object for consistency
             return {
                 categoryTableData: [],
                 summaryTableData: [],
@@ -8227,7 +8744,7 @@ export function useProcessedClusteringData(
         // 2. Handle null or empty input cluster array
         if (!clusters || clusters.length === 0) {
             console.log(
-                '[useProcessedClusteringData] No cluster data provided or processing yielded no results.'
+                `${hookLogPrefix} No cluster data provided or processing yielded no results.`
             );
             return {
                 categoryTableData: [],
@@ -8239,35 +8756,45 @@ export function useProcessedClusteringData(
         // 3. Process the valid cluster data
         try {
             console.log(
-                '[useProcessedClusteringData] Processing cluster data:',
-                clusters
+                `${hookLogPrefix} Processing cluster data:`,
+                clusters // Log the raw cluster result object
             );
-            // --- 3a. Flatten results (if multiple), parse labels, prepare details ---
-            // flatMap will iterate once if `clusters` has one element.
+            // --- 3a. Flatten results, parse labels, prepare details ---
             const initialCategoryRows: CategoryRow[] = clusters.flatMap(
-                (clusterResult: PyodideClusteringResult) => {
-                    // Validate the structure of the result object
+                (clusterResult: PyodideClusteringResult, clusterIndex: number) => { // Added clusterIndex for logging
                     if (
-                        !clusterResult || // Check if clusterResult itself is null/undefined
+                        !clusterResult ||
                         !Array.isArray(clusterResult.orderedLabels) ||
                         !Array.isArray(clusterResult.orderedClusters) ||
                         clusterResult.orderedLabels.length !==
                         clusterResult.orderedClusters.length
                     ) {
                         console.warn(
-                            '[useProcessedClusteringData] Skipping malformed cluster result:',
+                            `${hookLogPrefix} Skipping malformed cluster result index ${clusterIndex}:`,
                             clusterResult
                         );
-                        return []; // Return empty array for this malformed result
+                        return [];
                     }
 
                     // Map over the labels/clusters within the single result object
                     return clusterResult.orderedLabels.map(
                         (label: string, i: number) => {
-                            // Parse the structured label string (e.g., "Key1: Val1 | Key2: Val2")
+                            // --- <<< ADD LOGGING HERE >>> ---
+                            if (i < 5) { // Log only first 5 labels per cluster result
+                                console.log(`${hookLogPrefix} Processing label ${i}: "${label}"`);
+                            }
+                            // --- <<< END LOGGING >>> ---
+
                             const parsedLabelData = parseLabelToObject(label);
 
-                            // Extract cluster info
+                            // --- <<< ADD LOGGING HERE >>> ---
+                            if (i < 5) {
+                                console.log(`${hookLogPrefix} Parsed label data ${i}:`, parsedLabelData);
+                                console.log(`${hookLogPrefix}   - Genes Up string:`, parsedLabelData['Genes Up']);
+                                console.log(`${hookLogPrefix}   - Genes Down string:`, parsedLabelData['Genes Down']);
+                            }
+                            // --- <<< END LOGGING >>> ---
+
                             const clusterString = (
                                 clusterResult.orderedClusters?.[i] ?? ''
                             )
@@ -8275,23 +8802,24 @@ export function useProcessedClusteringData(
                                 .trim();
                             const clusterValue = parseFloat(clusterString);
 
-                            // Create a partial row using data parsed from the label string.
-                            // Ensure the keys used here match EXACTLY the keys within the label string format.
+                            // Create partial row using data parsed from the label string.
                             const partialRow: Omit<
                                 CategoryRow,
                                 'allGenesSize' | 'upGenesSize' | 'downGenesSize' | 'groupSize'
                             > = {
                                 key:
                                     parsedLabelData['Category ID'] ||
-                                    `missing-key-${i}-${Date.now()}`, // Use Category ID from label as key
+                                    `missing-key-${i}-${Date.now()}`,
                                 categoryId: parsedLabelData['Category ID'] || '',
                                 categoryTitle: parsedLabelData['Category Title'] || '',
-                                clusterBMD: parsedLabelData['Cluster BMD'] || '', // Get BMD from label
-                                upGenes: parsedLabelData['Up Genes'] || '', // Get Up Genes from label
-                                downGenes: parsedLabelData['Down Genes'] || '', // Get Down Genes from label
-                                allGenes: parsedLabelData['All Genes'] || '', // Get All Genes from label
+                                clusterBMD: parsedLabelData['Cluster BMD'] || '',
+                                // --- Use the potentially extracted gene strings ---
+                                upGenes: parsedLabelData['Genes Up'] || '', // Default to empty string if not found
+                                downGenes: parsedLabelData['Genes Down'] || '', // Default to empty string if not found
+                                allGenes: parsedLabelData['All Genes'] || '', // Default to empty string if not found
+                                // -------------------------------------------------
                                 cluster: clusterString,
-                                clusterValue: isNaN(clusterValue) ? -1 : clusterValue, // Use -1 for non-numeric clusters
+                                clusterValue: isNaN(clusterValue) ? -1 : clusterValue,
                             };
 
                             // Calculate gene sizes and return the complete CategoryRow
@@ -8302,22 +8830,21 @@ export function useProcessedClusteringData(
             ); // End of .flatMap
 
             console.log(
-                '[useProcessedClusteringData] Initial Category Rows created:',
-                initialCategoryRows
+                `${hookLogPrefix} Initial Category Rows created (sample):`,
+                initialCategoryRows.slice(0, 5) // Log sample rows
             );
 
             // --- 3b. Group rows by cluster ID ---
             const groupedByCluster = initialCategoryRows.reduce(
                 (acc: { [key: string]: CategoryRow[] }, curr: CategoryRow) => {
                     const clusterKey = curr.cluster;
-                    // Ensure clusterKey is valid before grouping
                     if (
                         clusterKey === null ||
                         clusterKey === undefined ||
                         clusterKey === ''
                     ) {
                         console.warn(
-                            '[useProcessedClusteringData] Skipping row with invalid cluster key:',
+                            `${hookLogPrefix} Skipping row with invalid cluster key:`,
                             curr
                         );
                         return acc;
@@ -8328,16 +8855,15 @@ export function useProcessedClusteringData(
                     acc[clusterKey].push(curr);
                     return acc;
                 },
-                {} // Initial value for reduce
+                {}
             );
 
             console.log(
-                '[useProcessedClusteringData] Rows grouped by cluster:',
-                groupedByCluster
+                `${hookLogPrefix} Rows grouped by cluster (keys):`,
+                Object.keys(groupedByCluster)
             );
 
             // --- 3c. Add groupSize to each CategoryRow ---
-            // (groupSize is the number of categories in that row's cluster)
             const categoryTableDataWithGroupSize: CategoryRow[] =
                 initialCategoryRows.map((row: CategoryRow) => ({
                     ...row,
@@ -8345,38 +8871,38 @@ export function useProcessedClusteringData(
                 }));
 
             console.log(
-                '[useProcessedClusteringData] Category Rows with groupSize:',
-                categoryTableDataWithGroupSize
+                `${hookLogPrefix} Category Rows with groupSize (sample):`,
+                categoryTableDataWithGroupSize.slice(0, 5)
             );
 
             // --- 3d. Calculate Summaries ---
             const finalSummaryRows = calculateSummaries(groupedByCluster);
 
             console.log(
-                '[useProcessedClusteringData] Final Summary Rows:',
-                finalSummaryRows
+                `${hookLogPrefix} Final Summary Rows (count):`,
+                finalSummaryRows.length
             );
 
             // 4. Return the processed data
             return {
                 categoryTableData: categoryTableDataWithGroupSize,
                 summaryTableData: finalSummaryRows,
-                processingError: null, // No processing error occurred
+                processingError: null,
             };
         } catch (e) {
             // 5. Handle errors during processing within this hook
             console.error(
-                '[useProcessedClusteringData] Error processing clustering data:',
+                `${hookLogPrefix} Error processing clustering data:`,
                 e
             );
             return {
                 categoryTableData: [],
                 summaryTableData: [],
-                processingError: e instanceof Error ? e : new Error(String(e)), // Return the processing error
+                processingError: e instanceof Error ? e : new Error(String(e)),
             };
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [clusters, pyodideHookError]); // Dependencies: Re-run if cluster data or upstream error changes
+    }, [clusters, pyodideHookError]); // Dependencies remain the same
 
     return result;
 }
@@ -8502,8 +9028,9 @@ export function useProjectData(selectedProject: ProjectInfo | null): UseProjectD
 }
 // src/hooks/usePyodideClustering.ts
 import { useState, useEffect } from 'react';
+// Import the context hook correctly
 import { usePyodide } from '../contexts/PyodideProvider';
-import { ApiClusteringInputItem } from '../utils/clusteringUtils';
+import { ApiClusteringInputItem } from '../utils/clusteringUtils'; // Adjust path if needed
 
 // Define the expected structure of the successful result from Python
 export interface PyodideClusteringResult {
@@ -8525,94 +9052,109 @@ export function usePyodideClustering(
     method: string,
     numClusters: number
 ): UsePyodideClusteringReturn {
+    // Get initialization status from the context
     const {
-        pyContext,
-        loading: pyodideLoading,
-        error: pyodideError,
+        isLoading: isPyodideInitializing, // Status: Is Pyodide loading?
+        error: pyodideInitError,          // Status: Did Pyodide init fail?
+        // We don't need pyodideInstance here
     } = usePyodide();
 
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [error, setError] = useState<string | null>(null);
+    // Local state for the clustering execution itself
+    const [isClusteringRunning, setIsClusteringRunning] = useState<boolean>(false);
+    const [error, setError] = useState<string | null>(null); // Local error for clustering step
     const [result, setResult] = useState<PyodideClusteringResult | null>(null);
 
     useEffect(() => {
-        const logPrefix = '[usePyodideClustering Auto (v2)]';
-        console.log(`${logPrefix} useEffect triggered. Dependencies:`, { rowDataLength: rowData?.length, method, numClusters, pyContextExists: !!pyContext, pyodideLoading });
+        const logPrefix = '[usePyodideClustering Auto (v3 - Corrected)]'; // Version Bump
 
-        if (!rowData || rowData.length === 0 || pyodideLoading || !pyContext || !pyContext.hierarchical_clustering_from_rows) {
-            console.log(`${logPrefix} useEffect hook exiting early. Conditions:`, {
-                hasRowData: !!rowData && rowData.length > 0,
-                pyodideLoading,
-                pyContextExists: !!pyContext,
-                clusteringFuncExists: !!pyContext?.hierarchical_clustering_from_rows,
-            });
-            if (result) setResult(null);
-            if (error) setError(null);
-            if (isLoading) setIsLoading(false);
+        // --- Directly check window.pyContext for the function ---
+        // This assumes pyodideContextInitializer successfully attached it to window
+        const pyContextFromWindow = window.pyContext;
+        const clusteringFunc = pyContextFromWindow?.hierarchical_clustering_from_rows;
+        // ---------------------------------------------------------
+
+        console.log(`${logPrefix} useEffect triggered. Status check:`, {
+            rowDataLength: rowData?.length,
+            isPyodideInitializing, // From context
+            pyodideInitError: pyodideInitError ? pyodideInitError.message : null, // From context
+            clusteringFuncExistsOnWindow: !!clusteringFunc, // Check window
+            typeofClusteringFunc: typeof clusteringFunc,
+        });
+
+        // 1. Reset local state on dependency change before execution attempt
+        setResult(null);
+        setError(null);
+        setIsClusteringRunning(false);
+
+        // 2. Exit conditions (Check status from context first)
+        if (!rowData || rowData.length === 0) {
+            console.log(`${logPrefix} Exiting: No rowData.`);
             return;
         }
+        if (isPyodideInitializing) {
+            console.log(`${logPrefix} Exiting: Pyodide still initializing (from context).`);
+            return; // Wait for initialization to finish
+        }
+        if (pyodideInitError) {
+            console.log(`${logPrefix} Exiting: Pyodide initialization failed (from context).`);
+            setError(`Pyodide initialization failed: ${pyodideInitError.message}`);
+            return; // Don't proceed if Pyodide itself failed
+        }
+        // 3. NOW check if the function exists on the window context
+        if (!clusteringFunc) {
+            console.log(`${logPrefix} Exiting: Clustering function not found on window.pyContext.`);
+            // Set local error only if Pyodide init didn't already fail
+            if (!pyodideInitError) {
+                setError("Clustering function not available on window.pyContext after Pyodide init.");
+            }
+            return; // Function isn't ready
+        }
 
+        // --- Conditions met, proceed to execute ---
         let isMounted = true;
-        console.log(`${logPrefix} Conditions met. Preparing to execute.`);
+        console.log(`${logPrefix} Conditions met. Preparing to execute clustering.`);
 
         const execute = async () => {
             console.log(`${logPrefix} EXECUTE START. Method: ${method}, Clusters: ${numClusters}`);
-            setResult(null);
+            setIsClusteringRunning(true); // Start local loading
             setError(null);
-            setIsLoading(true);
+            setResult(null);
 
             try {
-                const clusteringFunc = pyContext.hierarchical_clustering_from_rows;
-                if (typeof clusteringFunc !== 'function') {
-                    throw new Error("Python clustering function 'hierarchical_clustering_from_rows' not found or not callable.");
-                }
-
-                // *** REMOVE DOUBLE STRINGIFICATION ***
-                // const rowDataStr = JSON.stringify(rowData);
-                // const doubleString = JSON.stringify(rowDataStr);
-                // *************************************
-
-                console.log(`${logPrefix} Calling Python function with direct rowData object...`);
-                // *** PASS rowData DIRECTLY ***
-                // Pyodide will handle converting the JS array of objects
+                // clusteringFunc is guaranteed to be a function here
+                console.log(`${logPrefix} Calling Python function...`);
                 const resultJsonString = await clusteringFunc(rowData, method, numClusters);
-                // *****************************
 
-                if (!isMounted) {
-                    console.log(`${logPrefix} Component unmounted during async execution.`);
-                    return;
-                }
+                if (!isMounted) return;
 
                 if (typeof resultJsonString !== 'string') {
                     throw new Error(`Python function did not return a string. Got: ${typeof resultJsonString}`);
                 }
 
-                console.log(`${logPrefix} Received result string from Python (truncated):`, resultJsonString.substring(0, 200) + "...");
+                console.log(`${logPrefix} Received result string (truncated):`, resultJsonString.substring(0, 200) + "...");
                 const parsedResult = JSON.parse(resultJsonString);
 
-                // Check if the parsed result itself indicates an error from Python
-                if (parsedResult && typeof parsedResult === 'object' && 'error' in parsedResult) {
-                    throw new Error(`Python script returned an error: ${parsedResult.error}`);
+                if (parsedResult?.error) {
+                    throw new Error(`Python script error: ${parsedResult.error}`);
+                }
+                if (!parsedResult?.orderedLabels || !parsedResult?.orderedClusters) {
+                    throw new Error("Parsed Python result missing expected fields.");
                 }
 
-                // Validate the structure of the successful result (optional but recommended)
-                if (!parsedResult || !Array.isArray(parsedResult.orderedLabels) || !Array.isArray(parsedResult.orderedClusters)) {
-                    throw new Error("Parsed result from Python is missing expected fields (orderedLabels, orderedClusters).");
-                }
-
-                console.log(`${logPrefix} Successfully parsed result from Python.`);
-                setResult(parsedResult as PyodideClusteringResult); // Cast after validation
+                console.log(`${logPrefix} Successfully parsed result.`);
+                setResult(parsedResult as PyodideClusteringResult);
+                setError(null);
 
             } catch (err: any) {
-                console.error(`${logPrefix} !!! EXECUTION FAILED !!! Error caught:`, err);
+                console.error(`${logPrefix} !!! EXECUTION FAILED !!!`, err);
                 if (isMounted) {
-                    setError(err.message || 'An error occurred during clustering.');
+                    setError(err.message || 'Clustering execution failed.');
                     setResult(null);
                 }
             } finally {
-                console.log(`${logPrefix} EXECUTE FINALLY block.`);
+                console.log(`${logPrefix} EXECUTE FINALLY.`);
                 if (isMounted) {
-                    setIsLoading(false);
+                    setIsClusteringRunning(false); // Stop local loading
                 }
             }
         };
@@ -8623,24 +9165,18 @@ export function usePyodideClustering(
             isMounted = false;
             console.log(`${logPrefix} Cleanup effect.`);
         };
-        // Ensure numClusters is in dependency array if used in execute
-    }, [rowData, method, numClusters, pyContext, pyodideLoading]); // Keep dependencies
+        // Depend on context status indicators + input data/params
+    }, [rowData, method, numClusters, isPyodideInitializing, pyodideInitError]);
 
-    // Handle Pyodide initialization errors
-    useEffect(() => {
-        if (pyodideError) {
-            const pyodideErrorMessage = `Pyodide failed to initialize: ${pyodideError.message || 'Unknown error'}`;
-            if (!error) { // Only set if no specific clustering error exists
-                setError(pyodideErrorMessage);
-            }
-            console.error('[usePyodideClustering Auto (v2)] Pyodide initialization error:', pyodideError);
-        }
-    }, [pyodideError, error]);
+    // Combine loading states
+    const combinedIsLoading = isPyodideInitializing || isClusteringRunning;
+    // Prioritize Pyodide init error, then local clustering error
+    const combinedError = pyodideInitError ? `Pyodide initialization failed: ${pyodideInitError.message}` : error;
 
     return {
         result,
-        isLoading: isLoading || pyodideLoading, // Combine loading states
-        error
+        isLoading: combinedIsLoading,
+        error: combinedError,
     };
 }
 // src/hooks/useProjectDatabase.ts

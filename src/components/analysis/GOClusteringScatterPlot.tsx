@@ -2,101 +2,181 @@
 import React, { useMemo } from 'react';
 import Plot from 'react-plotly.js';
 import type { Data, Layout } from 'plotly.js';
-import { DEFAULT_MARKER_COLOR, UNCLUSTERED_COLOR } from '../../utils/legendUtils';
+import {
+    DEFAULT_MARKER_COLOR,
+    UNCLUSTERED_COLOR,
+} from '../../utils/legendUtils';
 import { SummaryRow } from '../../utils/clusteringUtils';
+import type { ClusteringScatterPoint } from './GOClusteringAnalysisUnit'; // Adjust path if needed
 
-export interface ClusteringScatterPoint {
-    goId: string;
-    goTerm: string;
-    pyodideCluster: string;
-    referenceClusterId: number | string | null;
-    rank: number | null; // Y-axis value (numerical rank) - base position
-    bmdValue: number | null; // X-axis value (BMD)
-}
+// --- Define Styling Constants ---
+const BASE_ALPHA = 0.2;
+const HIGHLIGHT_ALPHA = 1.0;
+const BASE_SIZE = 6;
+const HIGHLIGHT_SIZE = 10;
+const GRID_COLOR = '#cccccc';
+// -----------------------------
 
-interface GOClusteringScatterPlotProps {
+// --- Props Interface (No change needed) ---
+export interface GOClusteringScatterPlotProps {
     plotData: ClusteringScatterPoint[] | null;
-    clusterColorMap: Map<string | number, string> | null;
     summaryTableData: SummaryRow[] | null;
+    highlightedRefClusterId: string | null;
 }
-
-const BASE_MARKER_SIZE = 6;
-const JITTER_AMOUNT = 0.3;
-// --- Updated Grid Color ---
-const GRID_COLOR = '#cccccc'; // Darker solid grey for grid lines
 // --------------------------
 
 const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
     plotData,
-    clusterColorMap,
     summaryTableData,
+    highlightedRefClusterId,
 }) => {
-    const logPrefix = '[GOClusteringScatterPlot v5]'; // Version Bump
+    const logPrefix = '[GOClusteringScatterPlot v8 - Highlight Top]'; // Version Bump
 
     const plotlyData = useMemo((): Data[] => {
         if (!plotData || plotData.length === 0) {
             return [];
         }
+        console.log(
+            `${logPrefix} plotlyData useMemo running. Highlighted ID: ${highlightedRefClusterId}`
+        );
 
-        const jitteredY = plotData.map(p => {
-            if (p.rank === null) return null;
-            const jitter = (Math.random() - 0.5) * 2 * JITTER_AMOUNT;
-            return p.rank + jitter;
-        });
+        // Define hovertemplate once
+        const hovertemplate =
+            `<b>%{customdata.goTerm}</b><br>` +
+            `GO ID: %{customdata.goId}<br>` +
+            `Pyodide Cluster: %{customdata.pyodideCluster}<br>` +
+            `Ref Cluster: %{customdata.referenceClusterId}<br>` +
+            `BMD (X): %{customdata.bmd:.2e}<br>` +
+            `Rank (Y): %{customdata.rank}<extra></extra>`;
 
-        const pointColors = plotData.map(p => {
-            if (p.referenceClusterId === -1 || p.referenceClusterId === '-1') {
-                return UNCLUSTERED_COLOR;
-            }
-            if (p.referenceClusterId != null && clusterColorMap) {
-                return clusterColorMap.get(String(p.referenceClusterId)) || DEFAULT_MARKER_COLOR;
-            }
-            return DEFAULT_MARKER_COLOR;
-        });
+        // --- Logic to create one or two traces ---
+        if (highlightedRefClusterId === null) {
+            // --- CASE 1: No highlight - Single trace ---
+            console.log(`${logPrefix} No highlight. Creating single base trace.`);
+            const trace: Data = {
+                x: plotData.map((p) => p.bmdValue),
+                y: plotData.map((p) => p.jitteredRank),
+                mode: 'markers',
+                type: 'scattergl',
+                marker: {
+                    size: BASE_SIZE, // Use base size
+                    color: plotData.map((p) => p.color),
+                    opacity: BASE_ALPHA, // Use base alpha
+                },
+                customdata: plotData.map((p) => ({
+                    goId: p.goId,
+                    goTerm: p.goTerm,
+                    pyodideCluster: p.pyodideCluster,
+                    referenceClusterId: p.referenceClusterId,
+                    rank: p.rank,
+                    bmd: p.bmdValue,
+                })),
+                hovertemplate: hovertemplate,
+                hoverlabel: { bgcolor: '#FFF' },
+                name: 'Categories', // Name for single trace
+            };
+            return [trace];
+        } else {
+            // --- CASE 2: Highlight active - Two traces ---
+            console.log(`${logPrefix} Highlight active (${highlightedRefClusterId}). Creating two traces.`);
+            // Prepare arrays for base and highlighted points
+            const basePoints = { x: [], y: [], color: [], customdata: [] };
+            const highlightPoints = { x: [], y: [], color: [], customdata: [] };
 
-        const trace: Data = {
-            x: plotData.map((p) => p.bmdValue),
-            y: jitteredY,
-            mode: 'markers',
-            type: 'scattergl',
-            marker: {
-                size: BASE_MARKER_SIZE * 1.5,
-                color: pointColors,
-                // --- Set Opacity to 1 ---
-                opacity: 1.0,
-                // ------------------------
-            },
-            customdata: plotData.map((p) => ({
-                goId: p.goId,
-                goTerm: p.goTerm,
-                pyodideCluster: p.pyodideCluster,
-                referenceClusterId: p.referenceClusterId,
-                rank: p.rank,
-                bmd: p.bmdValue,
-            })),
-            hovertemplate:
-                `<b>%{customdata.goTerm}</b><br>` +
-                `GO ID: %{customdata.goId}<br>` +
-                `Pyodide Cluster: %{customdata.pyodideCluster}<br>` +
-                `Ref Cluster: %{customdata.referenceClusterId}<br>` +
-                `BMD (X): %{customdata.bmd:.2e}<br>` +
-                `Rank (Y): %{customdata.rank}<extra></extra>`,
-            hoverlabel: { bgcolor: '#FFF' },
-            name: 'Categories',
-        };
+            plotData.forEach((p) => {
+                const refClusterIdStr =
+                    p.referenceClusterId != null ? String(p.referenceClusterId) : null;
+                const isHighlighted = refClusterIdStr === highlightedRefClusterId;
 
-        return [trace];
-    }, [plotData, clusterColorMap]);
+                // Prepare custom data object once
+                const customPtData = {
+                    goId: p.goId,
+                    goTerm: p.goTerm,
+                    pyodideCluster: p.pyodideCluster,
+                    referenceClusterId: p.referenceClusterId,
+                    rank: p.rank,
+                    bmd: p.bmdValue,
+                };
+
+                if (isHighlighted) {
+                    highlightPoints.x.push(p.bmdValue);
+                    highlightPoints.y.push(p.jitteredRank);
+                    highlightPoints.color.push(p.color);
+                    highlightPoints.customdata.push(customPtData);
+                } else {
+                    basePoints.x.push(p.bmdValue);
+                    basePoints.y.push(p.jitteredRank);
+                    basePoints.color.push(p.color);
+                    basePoints.customdata.push(customPtData);
+                }
+            });
+
+            // Define the base trace (drawn first)
+            const baseTrace: Data = {
+                x: basePoints.x,
+                y: basePoints.y,
+                mode: 'markers',
+                type: 'scattergl',
+                marker: {
+                    size: BASE_SIZE,
+                    color: basePoints.color,
+                    opacity: BASE_ALPHA,
+                },
+                customdata: basePoints.customdata,
+                hovertemplate: hovertemplate,
+                hoverlabel: { bgcolor: '#FFF' },
+                name: 'Other Clusters', // Name for base trace
+            };
+
+            // Define the highlight trace (drawn second, on top)
+            const highlightTrace: Data = {
+                x: highlightPoints.x,
+                y: highlightPoints.y,
+                mode: 'markers',
+                type: 'scattergl',
+                marker: {
+                    size: HIGHLIGHT_SIZE,
+                    color: highlightPoints.color,
+                    opacity: HIGHLIGHT_ALPHA,
+                    // Optional: Add border to highlighted points
+                    // line: {
+                    //   color: 'black',
+                    //   width: 1
+                    // }
+                },
+                customdata: highlightPoints.customdata,
+                hovertemplate: hovertemplate,
+                hoverlabel: { bgcolor: '#FFF' },
+                name: `Cluster ${highlightedRefClusterId}`, // Name for highlight trace
+            };
+
+            // Return array with base trace first, highlight trace second
+            return [baseTrace, highlightTrace];
+        }
+        // -----------------------------------------
+
+    }, [plotData, highlightedRefClusterId]); // Dependencies remain the same
 
     const plotlyLayout = useMemo((): Partial<Layout> => {
+        // ... (layout logic remains the same as v7) ...
         let yTickVals: number[] = [];
         let yTickText: string[] = [];
         if (summaryTableData && summaryTableData.length > 0) {
-            const sortedSummary = [...summaryTableData].sort((a, b) => (a.sort ?? Infinity) - (b.sort ?? Infinity));
-            yTickVals = sortedSummary.map(item => item.sort).filter(rank => rank != null) as number[];
-            yTickText = sortedSummary.map(item => String(item.cluster));
-            console.log(`${logPrefix} Generated Y Ticks: Vals (Ranks)=`, yTickVals);
-            console.log(`${logPrefix} Generated Y Ticks: Text (Cluster IDs)=`, yTickText);
+            const sortedSummary = [...summaryTableData].sort(
+                (a, b) => (a.sort ?? Infinity) - (b.sort ?? Infinity)
+            );
+            yTickVals = sortedSummary
+                .map((item) => item.sort)
+                .filter((rank): rank is number => rank != null && !isNaN(rank));
+            yTickText = sortedSummary.map((item) => String(item.cluster));
+            console.log(
+                `${logPrefix} Generated Y Ticks: Vals (Ranks)=`,
+                yTickVals
+            );
+            console.log(
+                `${logPrefix} Generated Y Ticks: Text (Cluster IDs)=`,
+                yTickText
+            );
         } else {
             console.log(`${logPrefix} No summary data for Y ticks.`);
         }
@@ -117,26 +197,25 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
                 tickvals: yTickVals.length > 0 ? yTickVals : undefined,
                 ticktext: yTickText.length > 0 ? yTickText : undefined,
                 showgrid: true,
-                gridcolor: GRID_COLOR, // Uses the updated constant
+                gridcolor: GRID_COLOR,
                 gridwidth: 1,
             },
             height: 500,
             margin: { l: 80, r: 30, t: 50, b: 50 },
             hovermode: 'closest',
-            showlegend: false,
+            showlegend: false, // Keep Plotly legend off
             autosize: true,
         };
     }, [summaryTableData]);
 
-    // ... (rest of the component remains the same) ...
-
+    // --- Render Logic (No change needed) ---
     if (!plotData) {
         return <div>Preparing plot data...</div>;
     }
     if (plotlyData.length === 0) {
         return <div>No valid data points to plot.</div>;
     }
-    console.log(`${logPrefix} Rendering plot with ${plotData.length} points.`);
+    console.log(`${logPrefix} Rendering plot with ${plotlyData.length} trace(s).`);
 
     return (
         <Plot

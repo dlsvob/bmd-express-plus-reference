@@ -1,23 +1,21 @@
 // src/components/CustomLegends.tsx
 import React from 'react';
 import { Card, Typography, Tooltip } from 'antd';
-import { EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons'; // Example icons
+// import { EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons'; // Removed as not needed for highlight
 
 const { Text } = Typography;
 
 // --- Component Props Interface ---
 interface CustomLegendsProps {
-    // Legend items (arrays of [label, value]) - Mark as optional
-    colorItems?: [string, string][]; // [label, hexColor]
-    shapeItems?: [string, string][]; // [label, shapeSymbolString] - Adapt value type if needed
-    sizeItems?: [string, number][];  // [label, sizeValue] - Adapt value type if needed
+    // Legend items (arrays of [label, value])
+    colorItems?: [string, string][];
+    shapeItems?: [string, string][]; // Assuming value is string symbol like 'circle'
+    sizeItems?: [string, number][]; // Assuming value is number for size
 
-    // Hidden item labels - Mark as optional
-    hiddenColorLabels?: string[];
-    hiddenShapeLabels?: string[];
-    hiddenSizeLabels?: string[];
+    // --- ADDED highlighted label prop ---
+    highlightedLabel?: string | null; // <<< ADDED (Highlighting Change): Label of the item to highlight
 
-    // Toggle visibility functions
+    // Toggle visibility/highlight functions (still expect label)
     onToggleColorVisibility: (label: string) => void;
     onToggleShapeVisibility: (label: string) => void;
     onToggleSizeVisibility: (label: string) => void;
@@ -36,89 +34,64 @@ interface CustomLegendsProps {
     sizeBy?: string;
 }
 
-/**
- * CustomLegends Component
- *
- * Displays interactive legends for color, shape, and size categories.
- * Allows users to click items to toggle their visibility on associated plots.
- */
 export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
     ({
-        // Provide default empty arrays during destructuring to prevent errors
         colorItems = [],
         shapeItems = [],
         sizeItems = [],
-        hiddenColorLabels = [],
-        hiddenShapeLabels = [],
-        hiddenSizeLabels = [],
+        highlightedLabel = null, // <<< ADDED default (Highlighting Change)
         onToggleColorVisibility,
         onToggleShapeVisibility,
         onToggleSizeVisibility,
-        showColor = false, // Default to false if not provided
+        showColor = false,
         showShape = false,
         showSize = false,
-        cardTitle = "Legend",
-        // colorBy, shapeBy, sizeBy // Destructure if needed
+        cardTitle = 'Legend',
     }) => {
-
-        console.log('[CustomLegends] Rendering. ColorItems:', colorItems.length, 'ShapeItems:', shapeItems.length, 'SizeItems:', sizeItems.length);
-
-        // ---> ADD THIS LOG <---
-        console.log(
-            `[CustomLegends Render] Title: ${cardTitle}, showC: ${showColor}, showSh: ${showShape}, showSz: ${showSize}`
-        );
-        console.log(
-            `  >> hiddenColorLabels prop:`, JSON.stringify(hiddenColorLabels)
-        );
-        console.log(
-            `  >> hiddenShapeLabels prop:`, JSON.stringify(hiddenShapeLabels)
-        );
-        console.log(
-            `  >> hiddenSizeLabels prop:`, JSON.stringify(hiddenSizeLabels)
-        );
-        console.log(
-            `  >> colorItems count: ${colorItems.length}`
-        );
-        // ---> END LOG <---
-
-        // Helper to check if a label is hidden
-        const isHidden = (label: string, hiddenLabels: string[]) => hiddenLabels.includes(label);
+        const logPrefix = '[CustomLegends v2 - Highlight Mode]'; // Version Bump
+        console.log(`${logPrefix} Rendering. Highlighted: ${highlightedLabel}`);
 
         // --- Render Color Legend Items ---
         const renderColorItems = () => {
-            // Safe check: Only render if showColor is true AND there are items
-            if (!showColor || colorItems.length === 0) {
-                return null;
-            }
+            if (!showColor || colorItems.length === 0) return null;
             return (
                 <div style={{ marginBottom: '10px' }}>
                     <Text strong>Color</Text>
                     {colorItems.map(([label, colorValue]) => {
-                        const hidden = isHidden(label, hiddenColorLabels);
+                        // Check if this item is the highlighted one
+                        const isHighlighted = label === highlightedLabel; // <<< UPDATED (Highlighting Change)
+                        // Apply base styling, modify if highlighted
+                        const itemStyle: React.CSSProperties = {
+                            display: 'flex',
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                            marginBottom: '4px',
+                            padding: '2px 4px',
+                            borderRadius: '3px',
+                            // --- Highlight styling ---
+                            fontWeight: isHighlighted ? 'bold' : 'normal', // <<< UPDATED (Highlighting Change)
+                            backgroundColor: isHighlighted ? '#e6f7ff' : 'transparent', // <<< UPDATED (Highlighting Change)
+                        };
+
                         return (
                             <Tooltip title={label} key={`color-${label}`}>
                                 <div
-                                    onClick={() => onToggleColorVisibility(label)}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        cursor: 'pointer',
-                                        marginBottom: '4px',
-                                        opacity: hidden ? 0.5 : 1, // Dim if hidden
-                                        textDecoration: hidden ? 'line-through' : 'none',
-                                    }}
+                                    onClick={() => onToggleColorVisibility(label)} // Pass label on click
+                                    style={itemStyle}
                                 >
-                                    <span style={{
-                                        display: 'inline-block',
-                                        width: '14px',
-                                        height: '14px',
-                                        backgroundColor: colorValue,
-                                        marginRight: '8px',
-                                        border: '1px solid #ccc', // Add border for light colors
-                                    }}></span>
-                                    <Text style={{ fontSize: '12px' }} ellipsis={{ tooltip: label }}>{label}</Text>
-                                    {/* Optional: Add eye icon */}
-                                    {/* {hidden ? <EyeInvisibleOutlined style={{ marginLeft: 'auto', color: '#888' }}/> : <EyeOutlined style={{ marginLeft: 'auto', color: '#888' }}/>} */}
+                                    <span
+                                        style={{
+                                            display: 'inline-block',
+                                            width: '14px',
+                                            height: '14px',
+                                            backgroundColor: colorValue,
+                                            marginRight: '8px',
+                                            border: '1px solid #ccc',
+                                        }}
+                                    ></span>
+                                    <Text style={{ fontSize: '12px' }} ellipsis={{ tooltip: label }}>
+                                        {label}
+                                    </Text>
                                 </div>
                             </Tooltip>
                         );
@@ -129,35 +102,48 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
 
         // --- Render Shape Legend Items ---
         const renderShapeItems = () => {
-            // Safe check
-            if (!showShape || shapeItems.length === 0) {
-                return null;
-            }
+            if (!showShape || shapeItems.length === 0) return null;
+            // Map Plotly symbols to displayable characters if needed
+            const shapeSymbolMap: { [key: string]: string } = {
+                circle: '●',
+                square: '■',
+                diamond: '♦',
+                cross: '+',
+                x: '✕',
+                triangle_up: '▲',
+                triangle_down: '▼',
+                // Add more as needed
+            };
+
             return (
                 <div style={{ marginBottom: '10px' }}>
                     <Text strong>Shape</Text>
                     {shapeItems.map(([label, shapeValue]) => {
-                        const hidden = isHidden(label, hiddenShapeLabels);
-                        // Note: Rendering actual Plotly shapes here is complex.
-                        // Displaying the symbol name or a simplified visual is more practical.
+                        const isHighlighted = label === highlightedLabel; // <<< ADDED (Highlighting Change)
+                        const itemStyle: React.CSSProperties = {
+                            display: 'flex',
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                            marginBottom: '4px',
+                            padding: '2px 4px',
+                            borderRadius: '3px',
+                            fontWeight: isHighlighted ? 'bold' : 'normal', // <<< ADDED (Highlighting Change)
+                            backgroundColor: isHighlighted ? '#e6f7ff' : 'transparent', // <<< ADDED (Highlighting Change)
+                        };
+                        const displaySymbol = shapeSymbolMap[shapeValue] || '?';
+
                         return (
                             <Tooltip title={label} key={`shape-${label}`}>
                                 <div
                                     onClick={() => onToggleShapeVisibility(label)}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        cursor: 'pointer',
-                                        marginBottom: '4px',
-                                        opacity: hidden ? 0.5 : 1,
-                                        textDecoration: hidden ? 'line-through' : 'none',
-                                    }}
+                                    style={itemStyle}
                                 >
-                                    {/* Example: Display shape name or simple icon */}
-                                    <span style={{ marginRight: '8px', width: '14px', textAlign: 'center' }}>
-                                        {shapeValue === 'circle' ? '●' : shapeValue === 'square' ? '■' : shapeValue === 'diamond' ? '♦' : '?'}
+                                    <span style={{ marginRight: '8px', width: '14px', textAlign: 'center', fontSize: '14px' }}>
+                                        {displaySymbol}
                                     </span>
-                                    <Text style={{ fontSize: '12px' }} ellipsis={{ tooltip: label }}>{label}</Text>
+                                    <Text style={{ fontSize: '12px' }} ellipsis={{ tooltip: label }}>
+                                        {label}
+                                    </Text>
                                 </div>
                             </Tooltip>
                         );
@@ -168,54 +154,70 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
 
         // --- Render Size Legend Items ---
         const renderSizeItems = () => {
-            // Safe check
-            if (!showSize || sizeItems.length === 0) {
-                return null;
-            }
-            // Sort sizes numerically if needed (assuming item[1] is the numeric size)
+            if (!showSize || sizeItems.length === 0) return null;
+            // Sort by size value for a sensible legend
             const sortedSizeItems = [...sizeItems].sort((a, b) => a[1] - b[1]);
+            // Determine min/max actual size values for scaling display circles
+            const sizeValues = sortedSizeItems.map(item => item[1]);
+            const minSizeVal = Math.min(...sizeValues);
+            const maxSizeVal = Math.max(...sizeValues);
+            const range = maxSizeVal - minSizeVal;
+
+            // Define min/max display circle sizes
+            const minDisplaySize = 4;
+            const maxDisplaySize = 14;
 
             return (
                 <div>
                     <Text strong>Size</Text>
                     {sortedSizeItems.map(([label, sizeValue]) => {
-                        const hidden = isHidden(label, hiddenSizeLabels);
-                        // Example: Show label and maybe a circle scaled roughly
-                        const displaySize = Math.max(4, Math.min(14, sizeValue)); // Clamp size for display
+                        const isHighlighted = label === highlightedLabel; // <<< ADDED (Highlighting Change)
+                        const itemStyle: React.CSSProperties = {
+                            display: 'flex',
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                            marginBottom: '4px',
+                            padding: '2px 4px',
+                            borderRadius: '3px',
+                            fontWeight: isHighlighted ? 'bold' : 'normal', // <<< ADDED (Highlighting Change)
+                            backgroundColor: isHighlighted ? '#e6f7ff' : 'transparent', // <<< ADDED (Highlighting Change)
+                        };
+
+                        // Scale the actual size value to the display size range
+                        let displaySize = minDisplaySize;
+                        if (range > 0) {
+                            displaySize = minDisplaySize + ((sizeValue - minSizeVal) / range) * (maxDisplaySize - minDisplaySize);
+                        } else if (sizeItems.length === 1) {
+                            displaySize = (minDisplaySize + maxDisplaySize) / 2; // Use medium size if only one item
+                        }
+                        displaySize = Math.max(minDisplaySize, Math.min(maxDisplaySize, Math.round(displaySize))); // Clamp and round
+
+
                         return (
-                            <Tooltip title={`${label} (${sizeValue})`} key={`size-${label}`}>
+                            <Tooltip title={`${label} (${sizeValue.toFixed(2)})`} key={`size-${label}`}>
                                 <div
                                     onClick={() => onToggleSizeVisibility(label)}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        cursor: 'pointer',
-                                        marginBottom: '4px',
-                                        opacity: hidden ? 0.5 : 1,
-                                        textDecoration: hidden ? 'line-through' : 'none',
-                                    }}
+                                    style={itemStyle}
                                 >
                                     <span style={{
-                                        display: 'inline-block',
+                                        marginRight: '8px',
                                         width: '14px', // Keep container consistent
                                         height: '14px',
-                                        marginRight: '8px',
-                                        textAlign: 'center',
-                                        position: 'relative', // For centering circle
+                                        display: 'inline-flex',
+                                        justifyContent: 'center',
+                                        alignItems: 'center'
                                     }}>
-                                        <span style={{ // The circle itself
+                                        <span style={{
                                             display: 'inline-block',
                                             width: `${displaySize}px`,
                                             height: `${displaySize}px`,
-                                            backgroundColor: '#888', // Example color
+                                            backgroundColor: '#888', // Grey circle for size
                                             borderRadius: '50%',
-                                            position: 'absolute', // Center it
-                                            top: '50%',
-                                            left: '50%',
-                                            transform: 'translate(-50%, -50%)',
                                         }}></span>
                                     </span>
-                                    <Text style={{ fontSize: '12px' }} ellipsis={{ tooltip: label }}>{label}</Text>
+                                    <Text style={{ fontSize: '12px' }} ellipsis={{ tooltip: label }}>
+                                        {label}
+                                    </Text>
                                 </div>
                             </Tooltip>
                         );
@@ -224,25 +226,22 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
             );
         };
 
-        // Only render the card if there's at least one legend to show
+        // --- Conditional Rendering & Card Wrapper ---
         if (!showColor && !showShape && !showSize) {
             return null;
         }
-        // Only render if there are items to display for the enabled legends
         if ((showColor && colorItems.length === 0) &&
             (showShape && shapeItems.length === 0) &&
             (showSize && sizeItems.length === 0)) {
-            // Optionally return null or a placeholder message
             return (
-                <Card size="small" title={cardTitle} styles={{ body: { padding: '10px', maxHeight: '500px', overflowY: 'auto'} }}>
+                <Card size="small" title={cardTitle} styles={{ body: { padding: '10px', maxHeight: '500px', overflowY: 'auto' } }}>
                     <Text type="secondary">No legend items to display.</Text>
                 </Card>
             );
         }
 
-
         return (
-            <Card size="small" title={cardTitle} styles={{ body: { padding: '10px', maxHeight: '500px', overflowY: 'auto'} }}>
+            <Card size="small" title={cardTitle} styles={{ body: { padding: '10px', maxHeight: '500px', overflowY: 'auto' } }}>
                 {renderColorItems()}
                 {renderShapeItems()}
                 {renderSizeItems()}
@@ -251,4 +250,4 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
     }
 );
 
-export default CustomLegends; // If using default export
+export default CustomLegends;
