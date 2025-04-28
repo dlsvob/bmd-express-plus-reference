@@ -1,6 +1,6 @@
 // src/hooks/usePyodideClustering.ts
-import { useState, useEffect, useMemo } from 'react'; // <<< Add useMemo
-import { usePyodide } from '../contexts/PyodideProvider';
+import { useState, useEffect, useMemo } from 'react';
+import { usePyodide } from '../contexts/PyodideProvider'; // Adjust path if needed
 import { ApiClusteringInputItem } from '../utils/clusteringUtils'; // Adjust path if needed
 
 // Define the expected structure of the successful result from Python
@@ -33,7 +33,7 @@ export function usePyodideClustering(
     const [result, setResult] = useState<PyodideClusteringResult | null>(null);
 
     useEffect(() => {
-        const logPrefix = '[usePyodideClustering Auto (v4 - Memo Return)]'; // Version Bump
+        const logPrefix = '[usePyodideClustering Auto (v4 - Memo Return)]';
         const pyContextFromWindow = window.pyContext;
         const clusteringFunc = pyContextFromWindow?.hierarchical_clustering_from_rows;
 
@@ -58,7 +58,6 @@ export function usePyodideClustering(
         }
         if (pyodideInitError) {
             console.log(`${logPrefix} Exiting: Pyodide initialization failed.`);
-            // Don't set local error here, let the combined error handle it below
             return;
         }
         if (!clusteringFunc) {
@@ -75,7 +74,7 @@ export function usePyodideClustering(
         const execute = async () => {
             console.log(`${logPrefix} EXECUTE START. Method: ${method}, Clusters: ${numClusters}`);
             setIsClusteringRunning(true);
-            setError(null); // Clear previous local error before running
+            setError(null);
             setResult(null);
 
             try {
@@ -99,13 +98,13 @@ export function usePyodideClustering(
 
                 console.log(`${logPrefix} Successfully parsed result.`);
                 setResult(parsedResult as PyodideClusteringResult);
-                setError(null); // Clear error on success
+                setError(null);
 
             } catch (err: any) {
                 console.error(`${logPrefix} !!! EXECUTION FAILED !!!`, err);
                 if (isMounted) {
                     setError(err.message || 'Clustering execution failed.');
-                    setResult(null); // Clear result on error
+                    setResult(null);
                 }
             } finally {
                 console.log(`${logPrefix} EXECUTE FINALLY.`);
@@ -128,9 +127,7 @@ export function usePyodideClustering(
     // Prioritize Pyodide init error, then local clustering error
     const combinedError = pyodideInitError ? `Pyodide initialization failed: ${pyodideInitError.message}` : error;
 
-    // --- Memoize the returned object ---
-    // This ensures the hook returns the same object reference if the underlying
-    // result, loading state, or error state haven't changed.
+    // Memoize the returned object
     const memoizedReturnValue = useMemo(() => {
         console.log('[usePyodideClustering] Memoizing return value.');
         return {
@@ -138,9 +135,7 @@ export function usePyodideClustering(
             isLoading: combinedIsLoading,
             error: combinedError,
         };
-        // Depend on the actual state values that constitute the return object
     }, [result, combinedIsLoading, combinedError]);
-    // ---------------------------------
 
-    return memoizedReturnValue; // Return the memoized object
+    return memoizedReturnValue;
 }

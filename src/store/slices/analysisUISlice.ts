@@ -11,7 +11,7 @@ export enum HighlightMode {
   CLUSTER = 'cluster', // For GO ID Filter "Cluster Match"
 }
 
-// Define the state interface - Replace hidden with highlighted for clustering
+// Define the state interface - Use array for multiple highlights
 export interface AnalysisUIState {
   // UMAP View Styling & Filtering
   colorBy: string;
@@ -26,8 +26,7 @@ export interface AnalysisUIState {
   committedRankSliderValue: [number, number]; // Current [minRank, maxRank] from SlidingWindowFilter
 
   // --- Clustering View Specific State ---
-  // hiddenClusteringRefClusters: string[]; // <<< REMOVED (Highlighting Change)
-  highlightedClusteringRefClusterId: string | null; // <<< ADDED (Highlighting Change): Stores STRING ID or null
+  highlightedClusteringRefClusterIds: string[]; // <<< Stores STRING IDs of highlighted clusters
 
   // Cross-component Interaction State
   accumulationPlotSelectedGoIds: string[]; // GO IDs selected via Accumulation plots
@@ -49,8 +48,7 @@ const initialState: AnalysisUIState = {
   committedRankSliderValue: [1, 5000], // Default wide range
 
   // --- Clustering Defaults ---
-  // hiddenClusteringRefClusters: [], // <<< REMOVED (Highlighting Change)
-  highlightedClusteringRefClusterId: null, // <<< ADDED (Highlighting Change): Initially nothing highlighted
+  highlightedClusteringRefClusterIds: [], // <<< Initially empty array
 
   // Interaction Defaults
   accumulationPlotSelectedGoIds: [],
@@ -95,18 +93,17 @@ const analysisUISlice = createSlice({
     // --- UMAP Styling Reducers ---
     setColorBy(state, action: PayloadAction<string>) {
       state.colorBy = action.payload;
-      state.hiddenColorLabels = []; // Reset hidden labels when changing category
+      state.hiddenColorLabels = [];
     },
     setShapeBy(state, action: PayloadAction<string>) {
       state.shapeBy = action.payload;
-      state.hiddenShapeLabels = []; // Reset hidden labels
+      state.hiddenShapeLabels = [];
     },
     setSizeBy(state, action: PayloadAction<string>) {
       state.sizeBy = action.payload;
-      state.hiddenSizeLabels = []; // Reset hidden labels
+      state.hiddenSizeLabels = [];
     },
     resetStyling(state) {
-      // Reset only visual styling, keep filters/selections
       state.colorBy = initialState.colorBy;
       state.shapeBy = initialState.shapeBy;
       state.sizeBy = initialState.sizeBy;
@@ -135,37 +132,34 @@ const analysisUISlice = createSlice({
       );
     },
 
-    // --- Clustering Legend Highlight Reducer ---
-    // toggleClusteringRefClusterVisibility(...) // <<< REMOVED (Highlighting Change)
-    setHighlightedClusteringRefCluster( // <<< ADDED (Highlighting Change)
+    // --- Clustering Legend Highlight Reducer (Toggle Add/Remove) ---
+    toggleClusteringRefClusterHighlight(
       state,
-      action: PayloadAction<string | null> // Expects string cluster ID or null
+      action: PayloadAction<string> // Expects string cluster ID
     ) {
-      const clickedId = action.payload;
-      // If clicking the currently highlighted one, unhighlight (set to null)
-      // Otherwise, set the new ID as highlighted
-      state.highlightedClusteringRefClusterId =
-        state.highlightedClusteringRefClusterId === clickedId ? null : clickedId;
+      // Use helper to add/remove the ID from the array
+      state.highlightedClusteringRefClusterIds = toggleItemInArray(
+        state.highlightedClusteringRefClusterIds,
+        action.payload
+      );
     },
 
     // --- GO ID Filter/Highlight Reducers ---
     setGoIdInputString(state, action: PayloadAction<string>) {
       state.goIdInputString = action.payload;
-      state.goIdFilterList = parseGoIdInput(action.payload); // Update derived list
+      state.goIdFilterList = parseGoIdInput(action.payload);
     },
     setHighlightMode(state, action: PayloadAction<HighlightMode>) {
-      // Ensure only valid enum values are set
       if (Object.values(HighlightMode).includes(action.payload)) {
         state.highlightMode = action.payload;
       } else {
         console.warn('Invalid HighlightMode payload:', action.payload);
-        state.highlightMode = HighlightMode.NONE; // Default to NONE if invalid
+        state.highlightMode = HighlightMode.NONE;
       }
     },
 
     // --- Cross-component Interaction Reducers ---
     setAccumulationPlotSelection(state, action: PayloadAction<string[]>) {
-      // Ensure payload is always an array, even if empty
       state.accumulationPlotSelectedGoIds = action.payload || [];
     },
     setTableSelectedGoId(state, action: PayloadAction<string | null>) {
@@ -177,14 +171,12 @@ const analysisUISlice = createSlice({
       state,
       action: PayloadAction<[number, number]>
     ) {
-      // Add validation for the payload
       if (
         Array.isArray(action.payload) &&
         action.payload.length === 2 &&
         typeof action.payload[0] === 'number' &&
         typeof action.payload[1] === 'number'
       ) {
-        // Only update if the value has actually changed to prevent unnecessary re-renders
         if (
           state.committedRankSliderValue[0] !== action.payload[0] ||
           state.committedRankSliderValue[1] !== action.payload[1]
@@ -212,9 +204,8 @@ export const {
   toggleColorLabelVisibility,
   toggleShapeLabelVisibility,
   toggleSizeLabelVisibility,
-  // --- Clustering Legends ---
-  // toggleClusteringRefClusterVisibility, // <<< REMOVED (Highlighting Change)
-  setHighlightedClusteringRefCluster, // <<< ADDED (Highlighting Change)
+  // Clustering Legends
+  toggleClusteringRefClusterHighlight,
   // GO ID Filter/Highlight
   setGoIdInputString,
   setHighlightMode,
@@ -229,7 +220,6 @@ export const {
 export default analysisUISlice.reducer;
 
 // --- Selectors ---
-// Select the whole slice state
 export const selectAnalysisUIState = (state: RootState): AnalysisUIState =>
   state.analysisUI;
 
@@ -268,12 +258,15 @@ export const selectAccumulationPlotSelectedGoIds = (state: RootState): string[] 
 export const selectTableSelectedGoId = (state: RootState): string | null =>
   state.analysisUI.tableSelectedGoId;
 
-// --- Selector for Clustering highlighted legend item ---
-// selectHiddenClusteringRefClusters, // <<< REMOVED (Highlighting Change)
-// selectHiddenClusteringRefClustersSet, // <<< REMOVED (Highlighting Change)
-export const selectHighlightedClusteringRefClusterId = ( // <<< ADDED (Highlighting Change)
+// Selectors for Clustering highlighted legend items
+export const selectHighlightedClusteringRefClusterIds = (
   state: RootState
-): string | null => state.analysisUI.highlightedClusteringRefClusterId;
+): string[] => state.analysisUI.highlightedClusteringRefClusterIds || [];
+
+export const selectHighlightedClusteringRefClusterIdsSet = createSelector(
+  [selectHighlightedClusteringRefClusterIds],
+  (idsArray): Set<string> => new Set(idsArray)
+);
 
 // --- Memoized selectors returning Sets (more efficient for lookups) ---
 export const selectHiddenColorLabelsSet = createSelector(
@@ -292,4 +285,3 @@ export const selectAccumulationPlotSelectedGoIdsSet = createSelector(
   [selectAccumulationPlotSelectedGoIds],
   (goIdArray): Set<string> => new Set(goIdArray)
 );
-// No Set needed for single highlighted ID

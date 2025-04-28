@@ -12,8 +12,8 @@ import {
 } from '../../store/selectors/referenceDataSelector';
 // --- Import correct action and selector ---
 import {
-    selectHighlightedClusteringRefClusterId, // <<< UPDATED (Highlighting Change)
-    setHighlightedClusteringRefCluster, // <<< UPDATED (Highlighting Change)
+    selectHighlightedClusteringRefClusterIdsSet,
+    toggleClusteringRefClusterHighlight,
 } from '../../store/slices/analysisUISlice';
 // -----------------------------------------
 import { useGetRawAnalysisDataQuery } from '../../store/apis/experimentsApi';
@@ -65,10 +65,22 @@ const getErrorMessage = (error: unknown): string => {
     }
 };
 
+// Define the point structure expected by the scatter plot
+export interface ClusteringScatterPoint {
+    goId: string;
+    goTerm: string;
+    pyodideCluster: string;
+    referenceClusterId: number | string | null;
+    rank: number | null;
+    bmdValue: number | null;
+    jitteredRank: number | null;
+    color: string;
+}
+
 interface GOClusteringAnalysisUnitProps { }
 
 const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => {
-    const logPrefix = '[GOClusteringAnalysisUnit v8 - Highlight Mode]'; // Version Bump
+    const logPrefix = '[GOClusteringAnalysisUnit v9 - Multi-Highlight]';
     const dispatch = useAppDispatch();
 
     // --- Selectors ---
@@ -76,11 +88,9 @@ const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => 
     const selectedBmdResultRefs = useAppSelector(selectSelectedAnalysisRefs);
     const referenceDataMap = useAppSelector(selectReferenceDataMap);
     const referenceData = useAppSelector(selectReferenceData);
-    // --- Use new selector ---
-    const highlightedRefClusterId = useAppSelector( // <<< UPDATED (Highlighting Change)
-        selectHighlightedClusteringRefClusterId
+    const highlightedRefClusterIdsSet = useAppSelector(
+        selectHighlightedClusteringRefClusterIdsSet
     );
-    // -----------------------
 
     // --- Data Fetching ---
     const {
@@ -475,15 +485,15 @@ const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => 
         return items;
     }, [clusterColorMap]);
 
-    // --- *** Callback for Legend Highlight *** ---
-    const handleHighlightRefCluster = useCallback( // <<< UPDATED (Highlighting Change)
+    // --- Callback for Legend Highlight Toggle ---
+    const handleToggleHighlightRefCluster = useCallback(
         (clusterIdLabel: string) => {
-            console.log(`${logPrefix} Setting highlight for Ref Cluster ID Label: ${clusterIdLabel}`);
-            dispatch(setHighlightedClusteringRefCluster(clusterIdLabel)); // <<< UPDATED (Highlighting Change)
+            console.log(`${logPrefix} Toggling highlight for Ref Cluster ID Label: ${clusterIdLabel}`);
+            dispatch(toggleClusteringRefClusterHighlight(clusterIdLabel));
         },
         [dispatch]
     );
-    // --- ********************************** ---
+    // --- End Callback ---
 
     // === Render Logic ===
     return (
@@ -524,11 +534,11 @@ const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => 
                             <CustomLegends
                                 cardTitle="Ref Clusters"
                                 colorItems={legendColorItems}
-                                // --- Pass highlighted ID for visual feedback ---
-                                highlightedLabel={highlightedRefClusterId} // <<< ADDED (Highlighting Change)
-                                // --- Pass the highlight handler ---
-                                onToggleColorVisibility={handleHighlightRefCluster} // <<< UPDATED (Highlighting Change)
-                                // ---------------------------------
+                                // Pass highlighted Set for visual feedback
+                                highlightedLabelsSet={highlightedRefClusterIdsSet}
+                                // Pass the toggle handler
+                                onToggleColorVisibility={handleToggleHighlightRefCluster}
+                                // Disable others
                                 onToggleShapeVisibility={() => { }}
                                 onToggleSizeVisibility={() => { }}
                                 showColor={true}
@@ -544,9 +554,8 @@ const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => 
                                     <GOClusteringScatterPlot
                                         plotData={scatterPlotData}
                                         summaryTableData={summaryTableData}
-                                        // --- Pass highlighted ID for marker styling ---
-                                        highlightedRefClusterId={highlightedRefClusterId} // <<< ADDED (Highlighting Change)
-                                    // -------------------------------------------
+                                        // Pass highlighted Set for marker styling
+                                        highlightedRefClusterIds={highlightedRefClusterIdsSet}
                                     />
                                 ) : (
                                     <Empty description={!hasResults ? "No clustering results to plot." : "Preparing plot data..."} />

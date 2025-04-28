@@ -17,27 +17,27 @@ const HIGHLIGHT_SIZE = 10;
 const GRID_COLOR = '#cccccc';
 // -----------------------------
 
-// --- Props Interface (No change needed) ---
+// --- UPDATE Props Interface ---
 export interface GOClusteringScatterPlotProps {
     plotData: ClusteringScatterPoint[] | null;
     summaryTableData: SummaryRow[] | null;
-    highlightedRefClusterId: string | null;
+    highlightedRefClusterIds: Set<string>; // <<< Expects Set
 }
 // --------------------------
 
 const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
     plotData,
     summaryTableData,
-    highlightedRefClusterId,
+    highlightedRefClusterIds, // <<< Use Set prop
 }) => {
-    const logPrefix = '[GOClusteringScatterPlot v8 - Highlight Top]'; // Version Bump
+    const logPrefix = '[GOClusteringScatterPlot v9 - Multi-Highlight Top]';
 
     const plotlyData = useMemo((): Data[] => {
         if (!plotData || plotData.length === 0) {
             return [];
         }
         console.log(
-            `${logPrefix} plotlyData useMemo running. Highlighted ID: ${highlightedRefClusterId}`
+            `${logPrefix} plotlyData useMemo running. Highlighted IDs count: ${highlightedRefClusterIds.size}`
         );
 
         // Define hovertemplate once
@@ -49,116 +49,87 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             `BMD (X): %{customdata.bmd:.2e}<br>` +
             `Rank (Y): %{customdata.rank}<extra></extra>`;
 
-        // --- Logic to create one or two traces ---
-        if (highlightedRefClusterId === null) {
-            // --- CASE 1: No highlight - Single trace ---
-            console.log(`${logPrefix} No highlight. Creating single base trace.`);
-            const trace: Data = {
-                x: plotData.map((p) => p.bmdValue),
-                y: plotData.map((p) => p.jitteredRank),
-                mode: 'markers',
-                type: 'scattergl',
-                marker: {
-                    size: BASE_SIZE, // Use base size
-                    color: plotData.map((p) => p.color),
-                    opacity: BASE_ALPHA, // Use base alpha
-                },
-                customdata: plotData.map((p) => ({
-                    goId: p.goId,
-                    goTerm: p.goTerm,
-                    pyodideCluster: p.pyodideCluster,
-                    referenceClusterId: p.referenceClusterId,
-                    rank: p.rank,
-                    bmd: p.bmdValue,
-                })),
-                hovertemplate: hovertemplate,
-                hoverlabel: { bgcolor: '#FFF' },
-                name: 'Categories', // Name for single trace
-            };
-            return [trace];
-        } else {
-            // --- CASE 2: Highlight active - Two traces ---
-            console.log(`${logPrefix} Highlight active (${highlightedRefClusterId}). Creating two traces.`);
-            // Prepare arrays for base and highlighted points
-            const basePoints = { x: [], y: [], color: [], customdata: [] };
-            const highlightPoints = { x: [], y: [], color: [], customdata: [] };
+        // --- Always use two traces for multi-highlight layering ---
+        console.log(`${logPrefix} Creating two traces for base and highlights.`);
+        const basePoints = { x: [], y: [], color: [], customdata: [] };
+        const highlightPoints = { x: [], y: [], color: [], customdata: [] };
 
-            plotData.forEach((p) => {
-                const refClusterIdStr =
-                    p.referenceClusterId != null ? String(p.referenceClusterId) : null;
-                const isHighlighted = refClusterIdStr === highlightedRefClusterId;
+        plotData.forEach((p) => {
+            const refClusterIdStr =
+                p.referenceClusterId != null ? String(p.referenceClusterId) : null;
+            // Check if the ID is in the Set of highlighted IDs
+            const isHighlighted =
+                refClusterIdStr !== null && highlightedRefClusterIds.has(refClusterIdStr);
 
-                // Prepare custom data object once
-                const customPtData = {
-                    goId: p.goId,
-                    goTerm: p.goTerm,
-                    pyodideCluster: p.pyodideCluster,
-                    referenceClusterId: p.referenceClusterId,
-                    rank: p.rank,
-                    bmd: p.bmdValue,
-                };
-
-                if (isHighlighted) {
-                    highlightPoints.x.push(p.bmdValue);
-                    highlightPoints.y.push(p.jitteredRank);
-                    highlightPoints.color.push(p.color);
-                    highlightPoints.customdata.push(customPtData);
-                } else {
-                    basePoints.x.push(p.bmdValue);
-                    basePoints.y.push(p.jitteredRank);
-                    basePoints.color.push(p.color);
-                    basePoints.customdata.push(customPtData);
-                }
-            });
-
-            // Define the base trace (drawn first)
-            const baseTrace: Data = {
-                x: basePoints.x,
-                y: basePoints.y,
-                mode: 'markers',
-                type: 'scattergl',
-                marker: {
-                    size: BASE_SIZE,
-                    color: basePoints.color,
-                    opacity: BASE_ALPHA,
-                },
-                customdata: basePoints.customdata,
-                hovertemplate: hovertemplate,
-                hoverlabel: { bgcolor: '#FFF' },
-                name: 'Other Clusters', // Name for base trace
+            // Prepare custom data object once
+            const customPtData = {
+                goId: p.goId,
+                goTerm: p.goTerm,
+                pyodideCluster: p.pyodideCluster,
+                referenceClusterId: p.referenceClusterId,
+                rank: p.rank,
+                bmd: p.bmdValue,
             };
 
-            // Define the highlight trace (drawn second, on top)
-            const highlightTrace: Data = {
-                x: highlightPoints.x,
-                y: highlightPoints.y,
-                mode: 'markers',
-                type: 'scattergl',
-                marker: {
-                    size: HIGHLIGHT_SIZE,
-                    color: highlightPoints.color,
-                    opacity: HIGHLIGHT_ALPHA,
-                    // Optional: Add border to highlighted points
-                    // line: {
-                    //   color: 'black',
-                    //   width: 1
-                    // }
-                },
-                customdata: highlightPoints.customdata,
-                hovertemplate: hovertemplate,
-                hoverlabel: { bgcolor: '#FFF' },
-                name: `Cluster ${highlightedRefClusterId}`, // Name for highlight trace
-            };
+            if (isHighlighted) {
+                highlightPoints.x.push(p.bmdValue);
+                highlightPoints.y.push(p.jitteredRank);
+                highlightPoints.color.push(p.color);
+                highlightPoints.customdata.push(customPtData);
+            } else {
+                basePoints.x.push(p.bmdValue);
+                basePoints.y.push(p.jitteredRank);
+                basePoints.color.push(p.color);
+                basePoints.customdata.push(customPtData);
+            }
+        });
 
-            // Return array with base trace first, highlight trace second
-            return [baseTrace, highlightTrace];
-        }
-        // -----------------------------------------
+        // Define the base trace (drawn first)
+        const baseTrace: Data = {
+            x: basePoints.x,
+            y: basePoints.y,
+            mode: 'markers',
+            type: 'scattergl',
+            marker: {
+                size: BASE_SIZE,
+                color: basePoints.color,
+                opacity: BASE_ALPHA,
+            },
+            customdata: basePoints.customdata,
+            hovertemplate: hovertemplate,
+            hoverlabel: { bgcolor: '#FFF' },
+            name: 'Other Clusters',
+        };
 
-    }, [plotData, highlightedRefClusterId]); // Dependencies remain the same
+        // Define the highlight trace (drawn second, on top)
+        const highlightTrace: Data = {
+            x: highlightPoints.x,
+            y: highlightPoints.y,
+            mode: 'markers',
+            type: 'scattergl',
+            marker: {
+                size: HIGHLIGHT_SIZE,
+                color: highlightPoints.color,
+                opacity: HIGHLIGHT_ALPHA,
+            },
+            customdata: highlightPoints.customdata,
+            hovertemplate: hovertemplate,
+            hoverlabel: { bgcolor: '#FFF' },
+            name: 'Highlighted Clusters',
+        };
+
+        // Return array with base trace first, highlight trace second
+        // Only include traces if they have data
+        const traces = [];
+        if (basePoints.x.length > 0) traces.push(baseTrace);
+        if (highlightPoints.x.length > 0) traces.push(highlightTrace);
+
+        return traces;
+        // -------------------------------------------------------
+
+    }, [plotData, highlightedRefClusterIds]); // Use Set dependency
 
     const plotlyLayout = useMemo((): Partial<Layout> => {
-        // ... (layout logic remains the same as v7) ...
         let yTickVals: number[] = [];
         let yTickText: string[] = [];
         if (summaryTableData && summaryTableData.length > 0) {
@@ -208,7 +179,7 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
         };
     }, [summaryTableData]);
 
-    // --- Render Logic (No change needed) ---
+    // --- Render Logic ---
     if (!plotData) {
         return <div>Preparing plot data...</div>;
     }
