@@ -9,7 +9,7 @@ from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 import js # Use js.console.log/error for debugging in Pyodide
 # import traceback # Uncomment for detailed tracebacks if needed
 
-print("=== categoryClustering.py LOADED (v2 - Direct Object Input) ===")
+print("=== categoryClustering.py LOADED (v3 - Include Gene Strings in Label) ===") # Version Bump
 
 
 ##############################################################################
@@ -33,13 +33,11 @@ def hierarchical_clustering_from_rows(
     method: str = "average",
     num_clusters: int = 0
 ) -> str:
-    js.console.log("=== [PY] hierarchical_clustering_from_rows START (v2) ===")
+    js.console.log("=== [PY] hierarchical_clustering_from_rows START (v3) ===") # Version Bump
     js.console.log("[PY DEBUG] Raw input type:", type(row_data_obj))
 
     row_list = None
     try:
-        # Check if it's a PyProxy and convert if necessary
-        # Direct conversion often works for list-of-dicts structures
         if hasattr(row_data_obj, 'to_py'):
             js.console.log("[PY DEBUG] Input is PyProxy, converting with .to_py()")
             row_list = row_data_obj.to_py()
@@ -47,33 +45,22 @@ def hierarchical_clustering_from_rows(
              js.console.log("[PY DEBUG] Input is already Python list.")
              row_list = row_data_obj
         else:
-            # Attempt to handle cases where it might already be converted implicitly
-            # or if it's passed in an unexpected format.
             js.console.warn("[PY DEBUG] Input is not PyProxy or list, attempting to use directly. Type:", type(row_data_obj))
-            row_list = row_data_obj # Assume it might work
-
-        # *** REMOVED DOUBLE JSON.LOADS ***
-        # intermediate_string = json.loads(row_data_json_str)
-        # row_list = json.loads(intermediate_string)
-        # ********************************
+            row_list = row_data_obj
 
         js.console.log("[PY DEBUG] Processed row_list type:", type(row_list))
 
     except Exception as e:
         js.console.error("[PY DEBUG] !!! EXCEPTION during data handling/conversion !!!", e)
-        # Uncomment for more detail if needed
-        # js.console.error(traceback.format_exc())
         msg = f"[PY DEBUG] ERROR during data handling: {e}"
         return json.dumps({"error": msg, "input_repr": repr(row_data_obj)})
 
-    # Check the type AFTER the try block
     if not isinstance(row_list, list):
         msg = f"[PY] ERROR: Expected a list after handling input, got {type(row_list)}"
         js.console.error(msg)
-        js.console.error("[PY] Value that failed isinstance(list):", repr(row_list)) # Log the problematic value
+        js.console.error("[PY] Value that failed isinstance(list):", repr(row_list))
         return json.dumps({"error": msg, "processed_data_repr": repr(row_list)})
 
-    # If we get here, row_list is a list
     js.console.log(f"[PY] Successfully obtained row_list, length: {len(row_list)}")
     if len(row_list) > 0:
         js.console.log("[PY] First row sample:", str(row_list[0]))
@@ -87,37 +74,52 @@ def hierarchical_clustering_from_rows(
     row_sets = []
     labels = []
     for i, row in enumerate(row_list): # row should be a dict
-        # js.console.log(f"[PY] Processing row {i}:", str(row)) # Optional: log each row
-        # Ensure row is a dictionary-like object
         if not hasattr(row, 'get'):
              msg = f"[PY] ERROR: Row {i} is not a dictionary-like object. Type: {type(row)}"
              js.console.error(msg)
              return json.dumps({"error": msg, "row_repr": repr(row)})
 
-        cat_id = row.get("Category ID", "") # Use keys expected from JS ('Category ID', 'Genes Up', etc.)
+        cat_id = row.get("Category ID", "")
         if not cat_id:
             msg = f"[PY] ERROR: Row {i} missing required 'Category ID' value."
             js.console.error(msg)
             return json.dumps({"error": msg, "data_repr": str(row)})
 
-        # Build composite label
-        label_parts = [f"Category ID: {cat_id}"]
-        # Use .items() if it's a dict, otherwise handle potential PyProxy iteration
-        items_to_iterate = row.items() if isinstance(row, dict) else row # Adjust if PyProxy needs different iteration
+        # --- MODIFIED LABEL BUILDING ---
+        label_parts = []
+        items_to_iterate = row.items() if isinstance(row, dict) else row
+
+        # Store the gene strings separately first to ensure they are included
+        # Use .get() to safely handle potentially missing keys
+        genes_up_str = row.get("Genes Up", "")
+        genes_down_str = row.get("Genes Down", "")
+        all_genes_str = row.get("All Genes", "") # Get All Genes string as well
+
+        # Add required fields first
+        label_parts.append(f"Category ID: {cat_id}")
+        # Explicitly add the gene strings to the label parts
+        label_parts.append(f"Genes Up: {genes_up_str}")
+        label_parts.append(f"Genes Down: {genes_down_str}")
+        label_parts.append(f"All Genes: {all_genes_str}") # Add All Genes string
+
+        # Iterate through the rest of the items for other metadata
         for key, value in items_to_iterate:
-            # Skip the keys used for gene sets and those already incorporated.
-            # Ensure these keys match exactly what JS sends ('Genes Up', 'Genes Down')
-            if key in ["Genes Up", "Genes Down", "Category ID", "categoryIdentifier", "All Genes"]:
+            # Skip keys already handled or not desired in the label
+            # *** REMOVED "Genes Up", "Genes Down", "All Genes" from this skip list ***
+            if key in ["Category ID", "categoryIdentifier", "Genes Up", "Genes Down", "All Genes"]:
                 continue
-            label_parts.append(f"{key}: {value}")
+            # Ensure value is stringified properly if it's not already a string
+            label_parts.append(f"{key}: {str(value)}")
+        # --- END MODIFIED LABEL BUILDING ---
+
         composite_label = " | ".join(label_parts)
         labels.append(composite_label)
 
-        # Process gene sets using keys expected from JS
-        up = parse_genes(row.get("Genes Up", ""))
-        down = parse_genes(row.get("Genes Down", ""))
+        # Process gene sets using keys expected from JS (for Jaccard distance)
+        # This part remains the same - uses the original strings for set creation
+        up = parse_genes(genes_up_str)
+        down = parse_genes(genes_down_str)
         active_set = up.union(down)
-        # js.console.log(f"[PY] Row {i} - Active set:", str(active_set)) # Optional: log active set
         row_sets.append(active_set)
 
     if not row_sets:
@@ -134,7 +136,7 @@ def hierarchical_clustering_from_rows(
             B = row_sets[j]
             union_len = len(A.union(B))
             if union_len == 0:
-                d = 0.0 # Define distance as 0 if both sets are empty
+                d = 0.0
             else:
                 d = 1.0 - (len(A.intersection(B)) / union_len) # Jaccard distance
             distance_matrix[i, j] = d
@@ -149,18 +151,16 @@ def hierarchical_clustering_from_rows(
     js.console.log(f"[PY] Clustering parameters: method={method}, num_clusters={num_clusters}")
 
     # --- Prepare data for pearson function ---
-    # The _pearson function still expects standard JSON string input
     distance_data = {"distanceMatrix": distance_matrix.tolist(), "labels": labels}
     distance_data_json_for_pearson = json.dumps(distance_data)
-    # js.console.log("[PY] Built distance_data for pearson func (truncated):", distance_data_json_for_pearson[:300] + "...")
 
     # --- Call the pearson function ---
     result_json = hierarchical_clustering_pearson(
-        distance_data_json_for_pearson, # Pass the standard JSON string
+        distance_data_json_for_pearson,
         method=method,
         num_clusters=num_clusters
     )
-    js.console.log("=== [PY] hierarchical_clustering_from_rows END (v2) ===")
+    js.console.log("=== [PY] hierarchical_clustering_from_rows END (v3) ===") # Version Bump
     return result_json
 
 
@@ -169,7 +169,7 @@ def hierarchical_clustering_from_rows(
 # NO CHANGES NEEDED HERE
 ##############################################################################
 def hierarchical_clustering_pearson(
-    distance_data_json: str, # Expects standard JSON string '{"distanceMatrix": ..., "labels": ...}'
+    distance_data_json: str,
     method: str = "average",
     num_clusters: int = 0
 ) -> str:
@@ -184,11 +184,9 @@ def hierarchical_clustering_pearson(
     Returns a JSON string with clustering results or an error object.
     """
     js.console.log("=== [PY] hierarchical_clustering_pearson START ===")
-    # js.console.log("[PY] Pearson received distance_data_json:", distance_data_json[:200] + "...")
 
     data = None
     try:
-        # Single parse is correct here
         data = json.loads(distance_data_json)
     except Exception as e:
         msg = f"[PY] ERROR in json.loads (pearson): {e}"
@@ -219,32 +217,24 @@ def hierarchical_clustering_pearson(
              js.console.error(msg)
              return json.dumps({"error": msg})
 
-        # Recalculate num_clusters if invalid
         if not isinstance(num_clusters, int) or num_clusters <= 0:
              guess = math.sqrt(N) / 2
              num_clusters = max(2, int(math.ceil(guess)))
              js.console.warn(f"[PY] Invalid num_clusters received by pearson, recalculating to: {num_clusters}")
 
-        # Ensure num_clusters is feasible (Linkage matrix has N-1 rows/merges)
         if num_clusters >= N:
              js.console.warn(f"[PY] num_clusters ({num_clusters}) >= N ({N}). Adjusting num_clusters to N-1.")
-             num_clusters = max(1, N - 1) # At least 1 cluster, max N-1 splits possible via fcluster
+             num_clusters = max(1, N - 1)
 
         js.console.log(f"[PY] Pearson func clustering method: {method}, final num_clusters: {num_clusters}")
 
-        # Perform clustering
-        # Ensure matrix is finite (no NaN/Infinity) before squareform
         if not np.all(np.isfinite(distance_matrix)):
              msg = "[PY] ERROR: Distance matrix contains non-finite values (NaN or Infinity)."
              js.console.error(msg)
-             # Optionally log where the non-finite values are
-             # js.console.log(str(distance_matrix[~np.isfinite(distance_matrix)]))
              return json.dumps({"error": msg})
 
         condensed = squareform(distance_matrix, checks=False)
         linked = linkage(condensed, method=method)
-
-        # js.console.log("[PY] Linkage matrix (sample):", str(linked[:5]))
 
         dendro = dendrogram(linked, labels=labels, no_plot=True)
         cluster_assignments = fcluster(linked, num_clusters, criterion="maxclust")
@@ -265,7 +255,7 @@ def hierarchical_clustering_pearson(
     result = {
         "clusterAssignments": cluster_assignments.tolist(),
         "leavesOrder": leaves_order,
-        "orderedLabels": ordered_labels,
+        "orderedLabels": ordered_labels, # These labels now include the gene strings
         "orderedClusters": ordered_clusters,
         "linkageMatrix": linked.tolist(),
     }

@@ -1,4 +1,4 @@
-// index.tsx
+// src/index.tsx
 import React from 'react';
 import './index.css';
 import { createRoot } from 'react-dom/client';
@@ -6,6 +6,8 @@ import { Provider } from 'react-redux';
 import App from './App';
 import { store } from './store/store';
 import '@ant-design/v5-patch-for-react-19';
+
+console.log('[index.tsx] Script loaded, attempting to render App...'); // <-- ADD LOG
 
 const container = document.getElementById('root');
 if (container) {
@@ -17,215 +19,32 @@ if (container) {
       </Provider>
     </React.StrictMode>
   );
+  console.log('[index.tsx] App rendering initiated.'); // <-- ADD LOG
+} else {
+  console.error('[index.tsx] Root container not found!'); // <-- ADD LOG
 }
 // src/App.tsx
 import React from 'react';
-import { Layout, Typography, Spin, Alert } from 'antd';
-import { useAppSelector } from './store/hooks';
-import { useGetProjectsQuery } from './store/apis/projectsApi';
-import { selectSelectedProjectName } from './store/selectors/projectSelectors';
-import { selectCurrentView } from './store/slices/navigationSlice';
-// --- Import Siders and other components ---
-import ProjectSelectionSider from './components/layout/ProjectSelectionSider';
-import AppSidebar from './components/layout/AppSidebar'; // Left Sider content
-import ErrorBoundary from './components/ErrorBoundary';
-import PyodideErrorNotifier from './components/PyodideErrorNotifier';
-import ExperimentListView from './components/views/ExperimentListView';
-import GOUmapAnalysisUnit from './components/analysis/GOUmapAnalysisUnit';
+import { Provider } from 'react-redux'; // Keep Redux Provider
+import { store } from './store/store'; // Keep store import
+import ErrorBoundary from './components/ErrorBoundary'; // Keep ErrorBoundary
+import { PyodideProvider } from './contexts/PyodideProvider'; // Keep PyodideProvider
+import AppLayoutController from './AppLayoutController'; // Import the new controller component
+import '@ant-design/v5-patch-for-react-19'; // Keep AntD patch
+import './index.css'; // Keep CSS
 
-// Use Title and Paragraph from Ant Design
-const { Title, Paragraph } = Typography;
-// Use Content from Ant Design Layout
-const { Content } = Layout;
-
-const AppContent: React.FC = () => {
-  // --- State and Data Fetching ---
-  // Assuming temporary Pyodide state for now
-  const pyodideLoading = false;
-  const pyodideError = null;
-
-  // Fetch project list using RTK Query
-  const {
-    data: projectsData,
-    isLoading: isLoadingProjects,
-    error: projectsError,
-    isSuccess: projectsLoadSuccess,
-  } = useGetProjectsQuery();
-
-  // Get relevant state from Redux
-  const selectedProjectName = useAppSelector(selectSelectedProjectName);
-  const activeView = useAppSelector(selectCurrentView);
-  const isProjectSelected = !!selectedProjectName; // Boolean flag
-
-  // Format potential project loading error
-  const formattedProjectsError = projectsError
-    ? typeof projectsError === 'object' &&
-      projectsError !== null &&
-      'message' in projectsError
-      ? String(projectsError.message)
-      : String(projectsError)
-    : null;
-
-  // Variables to hold the main content view and the header within the content area
-  let mainContent: React.ReactNode;
-  let contentHeader: React.ReactNode = null;
-
-  // --- Determine Content Header (Project Title) ---
-  // Display the title only if a project is selected
-  if (isProjectSelected && selectedProjectName) {
-    contentHeader = (
-      <Title
-        level={2} // Prominent title size
-        style={{
-          marginBottom: '24px', // Space below title
-          marginTop: '0px', // Adjust as needed
-          textAlign: 'left', // Align with content
-          padding: 0,
-        }}
-      >
-        {selectedProjectName}
-      </Title>
-    );
-  }
-
-  // --- Determine Main Content View based on application state ---
-  if (pyodideLoading) {
-    // Display spinner if Pyodide is initializing
-    mainContent = (
-      <Spin tip="Initializing Pyodide..." size="large" spinning={true}>
-        <div
-          style={{
-            padding: '50px',
-            background: 'rgba(0, 0, 0, 0.02)',
-            minHeight: '200px',
-            borderRadius: '4px',
-          }}
-        />
-      </Spin>
-    );
-  } else if (pyodideError) {
-    // Display error if Pyodide failed (Error Notifier modal will also show)
-    mainContent = (
-      <Alert
-        message="Pyodide Initialization Failed"
-        description="The core Python environment failed to load. Some application features will be unavailable. Please try refreshing the page."
-        type="error"
-        showIcon
-      />
-    );
-  } else if (isLoadingProjects && !projectsData) {
-    // Display spinner if project list is loading for the first time
-    mainContent = (
-      <Spin tip="Loading project list..." size="large" spinning={true}>
-        <div
-          style={{
-            padding: '50px',
-            background: 'rgba(0, 0, 0, 0.02)',
-            minHeight: '200px',
-            borderRadius: '4px',
-          }}
-        />
-      </Spin>
-    );
-  } else if (projectsError && !isLoadingProjects) {
-    // Display error if project list failed to load
-    const errorMessage =
-      formattedProjectsError || 'An unknown error occurred loading projects.';
-    mainContent = (
-      <Alert
-        message={`Error loading projects: ${errorMessage}`}
-        type="error"
-        showIcon
-      />
-    );
-  } else if (!isProjectSelected && projectsLoadSuccess) {
-    // Display welcome message if projects loaded but none selected
-    mainContent = (
-      <div style={{ textAlign: 'center', marginTop: '50px' }}>
-        <Title level={3}>Welcome to BMDx Plus</Title>
-        <Paragraph>
-          Project list loaded ({projectsData?.length || 0} found). Please select
-          a project using the panel on the right.
-        </Paragraph>
-      </div>
-    );
-  } else if (isProjectSelected && selectedProjectName) {
-    // Render the appropriate view based on navigation state if a project is selected
-    mainContent = (
-      <>
-        {/* Default view or Experiment List view */}
-        {(!activeView || activeView === 'experiments') && (
-          <ExperimentListView projectName={selectedProjectName} />
-        )}
-        {/* Analysis View */}
-        {activeView === 'categoryAnalysis' && <GOUmapAnalysisUnit />}
-        {/* Handle unknown views */}
-        {activeView &&
-          !['experiments', 'categoryAnalysis', 'settings'].includes(
-            activeView
-          ) && (
-            <Alert
-              message={`Error: Unknown view requested (${activeView})`}
-              type="warning"
-              showIcon
-            />
-          )}
-      </>
-    );
-  } else {
-    // Fallback loading state (should ideally not be reached often with above logic)
-    mainContent = (
-      <Spin tip="Loading..." size="large" spinning={true}>
-        <div
-          style={{
-            padding: '50px',
-            background: 'rgba(0, 0, 0, 0.02)',
-            minHeight: '200px',
-            borderRadius: '4px',
-          }}
-        />
-      </Spin>
-    );
-  }
-
-  // --- Render the Layout Structure ---
-  return (
-    // Outermost Layout is now horizontal
-    <Layout style={{ minHeight: '100vh', flexDirection: 'row' }}>
-      {/* Left Sider (Navigation) - Always Rendered if Pyodide is OK */}
-      {!pyodideError && <AppSidebar projectSelected={isProjectSelected} />}
-
-      {/* Center Content Area - Takes remaining space */}
-      <Layout style={{ flexGrow: 1 }}>
-        <Content style={{ padding: '24px', margin: '16px', overflow: 'initial' }}>
-          {contentHeader} {/* Render the project title (if any) */}
-          {mainContent} {/* Render the main view */}
-        </Content>
-      </Layout>
-
-      {/* Right Sider (Project Selection) - Always Rendered */}
-      <ProjectSelectionSider
-        projectList={projectsData}
-        isLoading={isLoadingProjects}
-        error={formattedProjectsError}
-        disabled={!!pyodideError}
-        width={220} // Adjust width as needed
-      />
-
-      {/* Pyodide Error Modal (rendered outside main layout flow) */}
-      <PyodideErrorNotifier />
-    </Layout>
-  );
-};
-
-// App component wraps everything in an Error Boundary
+// The main App component now only sets up providers and renders the layout controller
 const App: React.FC = () => {
+  console.log('[App.tsx] App component rendering...'); // Keep log
+
   return (
     <ErrorBoundary>
-      {/* PyodideProvider would wrap AppContent if used */}
-      {/* <PyodideProvider> */}
-      <AppContent />
-      {/* </PyodideProvider> */}
+      <Provider store={store}>
+        <PyodideProvider>
+          {/* Render the component that will consume the context */}
+          <AppLayoutController />
+        </PyodideProvider>
+      </Provider>
     </ErrorBoundary>
   );
 };
@@ -534,12 +353,15 @@ export const PyodideContext = createContext<PyodideContextState | undefined>(und
 
 // 3. Define the Provider component (keep your existing logic)
 export const PyodideProvider = ({ children }: { children: ReactNode }) => {
+    console.log('[PyodideProvider.tsx] PyodideProvider component rendering...'); 
     const [pyodideInstance, setPyodideInstance] = useState<PyodideInterface | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<Error | null>(null);
 
     useEffect(() => {
+        console.log('[PyodideProvider.tsx] useEffect running...');
         const init = async () => {
+            console.log('[PyodideProvider.tsx] init() function called...'); 
             // Check if already initialized or errored to avoid re-running unnecessarily
             // Although StrictMode will still cause double run in dev
             if (pyodideInstance || error) return;
@@ -1168,6 +990,271 @@ export const SHAPE_PALETTE = [
 // -------------------------
 
 
+// src/AppLayoutController.tsx
+import React, { useState, useCallback } from 'react';
+import {
+    Layout,
+    Drawer,
+    Button,
+    Menu,
+    Spin,
+    Alert,
+    Typography,
+} from 'antd';
+import {
+    MenuOutlined,
+    ExperimentOutlined,
+    BarChartOutlined,
+    SettingOutlined,
+} from '@ant-design/icons';
+import type { MenuProps } from 'antd';
+import { useAppSelector, useAppDispatch } from './store/hooks';
+import { useGetProjectsQuery } from './store/apis/projectsApi';
+import { selectSelectedProjectName } from './store/selectors/projectSelectors';
+import {
+    selectCurrentView,
+    setActiveView,
+} from './store/slices/navigationSlice';
+import PyodideErrorNotifier from './components/PyodideErrorNotifier';
+import ExperimentListView from './components/views/ExperimentListView';
+import GOUmapAnalysisUnit from './components/analysis/GOUmapAnalysisUnit';
+import GOClusteringAnalysisUnit from './components/analysis/GOClusteringAnalysisUnit';
+import AppHeader from './components/layout/AppHeader';
+// *** Import usePyodide hook HERE ***
+import { usePyodide } from './contexts/PyodideProvider';
+
+const { Content } = Layout;
+
+// Define view keys type
+type AppViewKey =
+    | 'experiments'
+    | 'categoryAnalysis'
+    | 'goClustering'
+    | 'settings'
+    | string;
+
+// Define the menu items
+const menuItems: MenuProps['items'] = [
+    { key: 'experiments', icon: <ExperimentOutlined />, label: 'Experiments' },
+    {
+        key: 'analysis',
+        label: 'Analysis',
+        icon: <BarChartOutlined />,
+        children: [
+            { key: 'categoryAnalysis', label: 'Category Analysis (UMAP)' },
+            { key: 'goClustering', label: 'GO Clustering' },
+        ],
+    },
+    { key: 'settings', icon: <SettingOutlined />, label: 'Project Settings' },
+];
+
+// --- AppContentInternal Component (Renders the specific view) ---
+// This component assumes Pyodide loading is handled by the parent (AppLayoutController)
+// but it can check for Pyodide errors itself if needed for specific view logic.
+const AppContentInternal: React.FC = () => {
+    const { error: pyodideError } = usePyodide(); // Check error state
+
+    const selectedProjectName = useAppSelector(selectSelectedProjectName);
+    const activeView = useAppSelector(selectCurrentView);
+    const isProjectSelected = !!selectedProjectName;
+
+    let mainContent: React.ReactNode;
+
+    // Render based on Pyodide error, project selection, and active view
+    if (pyodideError) {
+        mainContent = (
+            <Alert
+                message="Pyodide Initialization Failed"
+                description="Core Python features may be unavailable. Please see the error modal for details or try reloading."
+                type="error"
+                showIcon
+                style={{ margin: '24px' }}
+            />
+        );
+    } else if (!isProjectSelected) {
+        // Pyodide is OK, but no project selected
+        mainContent = (
+            <div style={{ textAlign: 'center', marginTop: '50px', padding: '24px' }}>
+                <Typography.Title level={3}>Welcome to BMDx Plus</Typography.Title>
+                <Typography.Paragraph>
+                    Please select or create a project using the controls in the header.
+                </Typography.Paragraph>
+            </div>
+        );
+    } else if (isProjectSelected && selectedProjectName) {
+        // Project selected, Pyodide OK - render based on activeView
+        switch (activeView) {
+            case 'experiments':
+            default: // Default to experiment list
+                mainContent = <ExperimentListView projectName={selectedProjectName} />;
+                break;
+            case 'categoryAnalysis':
+                mainContent = <GOUmapAnalysisUnit />;
+                break;
+            case 'goClustering':
+                mainContent = <GOClusteringAnalysisUnit />;
+                break;
+            case 'settings':
+                mainContent = (
+                    <Alert message="Project Settings View (Not Implemented)" type="info" />
+                );
+                break;
+            // Handle potential unknown views explicitly if needed
+            // case 'someOtherView': ...
+        }
+    } else {
+        // Fallback loading state (e.g., project selected but name missing)
+        mainContent = (
+            <div style={{ textAlign: 'center', marginTop: '50px' }}>
+                <Spin tip="Loading project content..." size="large" />
+            </div>
+        );
+    }
+
+    // Render the content area itself
+    return (
+        <Content
+            style={{
+                padding: '24px',
+                margin: 0,
+                minHeight: 280, // Example min height
+                background: '#fff', // Or use Ant Design token
+                overflow: 'auto', // Ensure content scrolls if needed
+            }}
+        >
+            {mainContent}
+        </Content>
+    );
+};
+
+// --- Navigation Menu Component (Extracted for clarity) ---
+// Receives disabled state based on project selection from parent
+const NavigationMenu: React.FC<{
+    currentViewKey: string | null;
+    onClick: MenuProps['onClick'];
+    disabled: boolean; // Is the menu generally disabled (e.g., no project)?
+}> = ({ currentViewKey, onClick, disabled }) => {
+    // Use hook here to get Pyodide error state specifically for this component
+    const { error: pyodideError } = usePyodide();
+
+    return (
+        <Menu
+            mode="inline"
+            defaultOpenKeys={
+                currentViewKey &&
+                    ['categoryAnalysis', 'goClustering'].includes(currentViewKey)
+                    ? ['analysis']
+                    : []
+            }
+            selectedKeys={currentViewKey ? [currentViewKey] : []}
+            style={{ height: '100%', borderRight: 0 }}
+            items={menuItems}
+            onClick={onClick}
+            // Final disabled state depends on parent AND Pyodide status
+            disabled={disabled || !!pyodideError}
+        />
+    );
+};
+
+// --- AppLayoutController Component (Manages Layout, Consumes Pyodide Context) ---
+const AppLayoutController: React.FC = () => {
+    console.log('[AppLayoutController] Rendering...'); // Log when this renders
+    const dispatch = useAppDispatch();
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+    // *** Consume Pyodide context HERE ***
+    const { isLoading: pyodideLoading, error: pyodideError } = usePyodide();
+
+    // --- Global State Needed for Layout/Header ---
+    const selectedProjectName = useAppSelector(selectSelectedProjectName);
+    const currentViewKey = useAppSelector(selectCurrentView);
+    const isProjectSelected = !!selectedProjectName;
+
+    // --- Fetch Project List ---
+    const {
+        data: projectsData,
+        isLoading: isLoadingProjects,
+        error: projectsError,
+    } = useGetProjectsQuery();
+
+    const formattedProjectsError = projectsError
+        ? typeof projectsError === 'object' &&
+            projectsError !== null &&
+            'message' in projectsError
+            ? String(projectsError.message)
+            : String(projectsError)
+        : null;
+
+    // --- Callbacks ---
+    const showDrawer = useCallback(() => {
+        setIsDrawerOpen(true);
+    }, []);
+
+    const closeDrawer = useCallback(() => {
+        setIsDrawerOpen(false);
+    }, []);
+
+    const handleMenuClick: MenuProps['onClick'] = useCallback(
+        (e) => {
+            console.log('Drawer menu clicked:', e.key);
+            dispatch(setActiveView(e.key as AppViewKey));
+            closeDrawer();
+        },
+        [dispatch, closeDrawer]
+    );
+
+    // --- Render Structure ---
+    // This component now renders the main layout structure
+    return (
+        <Layout style={{ minHeight: '100vh' }}>
+            {/* AppHeader receives disabled state based on Pyodide error */}
+            <AppHeader
+                projectList={projectsData}
+                isLoading={isLoadingProjects}
+                error={formattedProjectsError}
+                // Pass Pyodide error status down to disable header controls if needed
+                disabled={!!pyodideError}
+                projectSelected={isProjectSelected}
+                onMenuClick={showDrawer}
+            />
+            {/* Main Content Area Layout */}
+            <Layout>
+                {/* Conditionally render loading spinner OR the main content */}
+                {pyodideLoading ? (
+                    <Content style={{ padding: '50px', textAlign: 'center' }}>
+                        <Spin tip="Initializing Pyodide Environment..." size="large" />
+                    </Content>
+                ) : (
+                    // Render the internal content component once Pyodide is done loading (or failed)
+                    <AppContentInternal />
+                )}
+            </Layout>
+
+            {/* Navigation Drawer */}
+            <Drawer
+                title="Navigation"
+                placement="left"
+                onClose={closeDrawer}
+                open={isDrawerOpen}
+                bodyStyle={{ padding: 0 }}
+            >
+                {/* Render the extracted NavigationMenu component */}
+                <NavigationMenu
+                    currentViewKey={currentViewKey}
+                    onClick={handleMenuClick}
+                    // Disable menu if no project is selected
+                    disabled={!isProjectSelected}
+                // The menu component itself checks for pyodideError via context
+                />
+            </Drawer>
+
+            {/* Pyodide Error Modal (Needs access to context, so rendered here) */}
+            <PyodideErrorNotifier />
+        </Layout>
+    );
+};
+
+export default AppLayoutController;
 #root {
   max-width: 1280px;
   margin: 0 auto;
@@ -2225,6 +2312,8 @@ import { PyodideInterface } from 'pyodide'; // Assuming types are available
 
 // @ts-ignore - Assuming Vite handles this import type
 import categoryClusteringCode from '../py/categoryClustering.py?raw';
+
+console.log('[pyodideContextInitializer.ts] File loaded, starting execution...'); 
 
 // --- Helper Functions ---
 
@@ -6572,11 +6661,9 @@ export default GroupFilterControl;/* src/components/SlidingWindow.css */
 .sliding-window-width-input .ant-input-number-input {
     text-align: right;
 }// src/components/layout/AppHeader.tsx
-// Reverted to the simpler version - Title is NOT displayed here.
-
 import React from 'react';
 import { Layout, Select, Button, Space, Typography, Tooltip } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, MenuOutlined } from '@ant-design/icons'; // Import MenuOutlined
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setActiveProject } from '../../store/slices/projectSlice';
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
@@ -6585,15 +6672,19 @@ const { Header } = Layout;
 const { Option } = Select;
 const { Text } = Typography;
 
+// Keep interface for project list items
 interface ProjectListItem {
     name: string;
 }
 
+// Update props interface
 interface AppHeaderProps {
     projectList: ProjectListItem[] | undefined;
     isLoading: boolean;
     error: string | null;
-    disabled?: boolean;
+    disabled?: boolean; // General disabled state (e.g., Pyodide error)
+    projectSelected: boolean; // Is a project currently selected?
+    onMenuClick: () => void; // Callback to open the navigation drawer
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({
@@ -6601,25 +6692,31 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     isLoading,
     error,
     disabled = false,
+    projectSelected, // Receive new prop
+    onMenuClick,     // Receive new prop
 }) => {
     const dispatch = useAppDispatch();
     const activeProjectName = useAppSelector(selectSelectedProjectName);
 
     const handleProjectChange = (value: string | null) => {
         dispatch(setActiveProject(value));
+        // Optionally dispatch action to clear analysis state if needed
+        // dispatch(clearSelectedAnalyses());
     };
 
     const handleAddNewProject = () => {
         console.log('Add New Project clicked - Implement me!');
+        // Example: dispatch(uiSlice.actions.showAddProjectModal());
     };
 
+    // Determine placeholder text based on state (same logic as before)
     let placeholderText = 'Select Project...';
     if (isLoading) {
-        placeholderText = 'Loading projects...';
+        placeholderText = 'Loading...';
     } else if (error) {
-        placeholderText = 'Error loading projects';
+        placeholderText = 'Error';
     } else if (!projectList || projectList.length === 0) {
-        placeholderText = 'No projects found';
+        placeholderText = 'No projects';
     }
 
     return (
@@ -6627,56 +6724,62 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             style={{
                 display: 'flex',
                 alignItems: 'center',
-                padding: '0 24px',
+                padding: '0 16px', // Adjust padding as needed
                 background: '#fff',
                 borderBottom: '1px solid #f0f0f0',
             }}
         >
-            {/* Left Section: App Title */}
-            <div style={{ marginRight: 'auto' }}> {/* Pushes controls to the right */}
-                <Text strong style={{ fontSize: '1.2em' }}>
+            {/* Left Section: Hamburger Menu & App Title */}
+            <Space align="center">
+                <Button
+                    type="text" // Use text button for icon-only
+                    icon={<MenuOutlined />}
+                    onClick={onMenuClick}
+                    // Disable hamburger if no project is selected OR header is generally disabled
+                    disabled={!projectSelected || disabled}
+                    aria-label="Open navigation menu"
+                />
+                <Text strong style={{ fontSize: '1.2em', marginLeft: '8px' }}>
                     BMDx Plus
                 </Text>
-            </div>
+            </Space>
 
-            {/* Right Section: Controls */}
-            <div>
-                <Space>
-                    <Select
-                        style={{ width: 200 }}
-                        placeholder={placeholderText}
-                        onChange={handleProjectChange}
-                        value={activeProjectName}
-                        loading={isLoading}
-                        disabled={
-                            disabled ||
-                            isLoading ||
-                            !!error ||
-                            !projectList ||
-                            projectList.length === 0
-                        }
-                        allowClear
-                        onClear={() => handleProjectChange(null)}
+            {/* Right Section: Controls (Pushed to the right) */}
+            <Space style={{ marginLeft: 'auto' }}>
+                <Select
+                    style={{ width: 200 }}
+                    placeholder={placeholderText}
+                    onChange={handleProjectChange}
+                    value={activeProjectName}
+                    loading={isLoading}
+                    disabled={
+                        disabled || // General disabled state
+                        isLoading ||
+                        !!error ||
+                        !projectList ||
+                        projectList.length === 0
+                    }
+                    allowClear
+                    onClear={() => handleProjectChange(null)}
+                >
+                    {projectList?.map((project) => (
+                        <Option key={project.name} value={project.name}>
+                            {project.name}
+                        </Option>
+                    ))}
+                </Select>
+
+                <Tooltip title="Add New Project">
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={handleAddNewProject}
+                        disabled={disabled || isLoading || !!error} // General disabled state
                     >
-                        {projectList?.map((project) => (
-                            <Option key={project.name} value={project.name}>
-                                {project.name}
-                            </Option>
-                        ))}
-                    </Select>
-
-                    <Tooltip title="Add New Project">
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={handleAddNewProject}
-                            disabled={disabled || isLoading || !!error}
-                        >
-                            New
-                        </Button>
-                    </Tooltip>
-                </Space>
-            </div>
+                        New
+                    </Button>
+                </Tooltip>
+            </Space>
         </Header>
     );
 };

@@ -83,9 +83,9 @@ const AppContentInternal: React.FC = () => {
         // Pyodide is OK, but no project selected
         mainContent = (
             <div style={{ textAlign: 'center', marginTop: '50px', padding: '24px' }}>
-                <Typography.Title level={3}>Welcome to BMDx Plus</Typography.Title>
+                <Typography.Title level={3}>BMD Express...Plus!</Typography.Title>
                 <Typography.Paragraph>
-                    Please select or create a project using the controls in the header.
+                    Select a project for analysis, or create one.
                 </Typography.Paragraph>
             </div>
         );

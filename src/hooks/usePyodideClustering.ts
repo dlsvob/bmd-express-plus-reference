@@ -1,7 +1,8 @@
 // src/hooks/usePyodideClustering.ts
 import { useState, useEffect } from 'react';
+// Import the context hook correctly
 import { usePyodide } from '../contexts/PyodideProvider';
-import { ApiClusteringInputItem } from '../utils/clusteringUtils';
+import { ApiClusteringInputItem } from '../utils/clusteringUtils'; // Adjust path if needed
 
 // Define the expected structure of the successful result from Python
 export interface PyodideClusteringResult {
@@ -23,94 +24,109 @@ export function usePyodideClustering(
     method: string,
     numClusters: number
 ): UsePyodideClusteringReturn {
+    // Get initialization status from the context
     const {
-        pyContext,
-        loading: pyodideLoading,
-        error: pyodideError,
+        isLoading: isPyodideInitializing, // Status: Is Pyodide loading?
+        error: pyodideInitError,          // Status: Did Pyodide init fail?
+        // We don't need pyodideInstance here
     } = usePyodide();
 
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [error, setError] = useState<string | null>(null);
+    // Local state for the clustering execution itself
+    const [isClusteringRunning, setIsClusteringRunning] = useState<boolean>(false);
+    const [error, setError] = useState<string | null>(null); // Local error for clustering step
     const [result, setResult] = useState<PyodideClusteringResult | null>(null);
 
     useEffect(() => {
-        const logPrefix = '[usePyodideClustering Auto (v2)]';
-        console.log(`${logPrefix} useEffect triggered. Dependencies:`, { rowDataLength: rowData?.length, method, numClusters, pyContextExists: !!pyContext, pyodideLoading });
+        const logPrefix = '[usePyodideClustering Auto (v3 - Corrected)]'; // Version Bump
 
-        if (!rowData || rowData.length === 0 || pyodideLoading || !pyContext || !pyContext.hierarchical_clustering_from_rows) {
-            console.log(`${logPrefix} useEffect hook exiting early. Conditions:`, {
-                hasRowData: !!rowData && rowData.length > 0,
-                pyodideLoading,
-                pyContextExists: !!pyContext,
-                clusteringFuncExists: !!pyContext?.hierarchical_clustering_from_rows,
-            });
-            if (result) setResult(null);
-            if (error) setError(null);
-            if (isLoading) setIsLoading(false);
+        // --- Directly check window.pyContext for the function ---
+        // This assumes pyodideContextInitializer successfully attached it to window
+        const pyContextFromWindow = window.pyContext;
+        const clusteringFunc = pyContextFromWindow?.hierarchical_clustering_from_rows;
+        // ---------------------------------------------------------
+
+        console.log(`${logPrefix} useEffect triggered. Status check:`, {
+            rowDataLength: rowData?.length,
+            isPyodideInitializing, // From context
+            pyodideInitError: pyodideInitError ? pyodideInitError.message : null, // From context
+            clusteringFuncExistsOnWindow: !!clusteringFunc, // Check window
+            typeofClusteringFunc: typeof clusteringFunc,
+        });
+
+        // 1. Reset local state on dependency change before execution attempt
+        setResult(null);
+        setError(null);
+        setIsClusteringRunning(false);
+
+        // 2. Exit conditions (Check status from context first)
+        if (!rowData || rowData.length === 0) {
+            console.log(`${logPrefix} Exiting: No rowData.`);
             return;
         }
+        if (isPyodideInitializing) {
+            console.log(`${logPrefix} Exiting: Pyodide still initializing (from context).`);
+            return; // Wait for initialization to finish
+        }
+        if (pyodideInitError) {
+            console.log(`${logPrefix} Exiting: Pyodide initialization failed (from context).`);
+            setError(`Pyodide initialization failed: ${pyodideInitError.message}`);
+            return; // Don't proceed if Pyodide itself failed
+        }
+        // 3. NOW check if the function exists on the window context
+        if (!clusteringFunc) {
+            console.log(`${logPrefix} Exiting: Clustering function not found on window.pyContext.`);
+            // Set local error only if Pyodide init didn't already fail
+            if (!pyodideInitError) {
+                setError("Clustering function not available on window.pyContext after Pyodide init.");
+            }
+            return; // Function isn't ready
+        }
 
+        // --- Conditions met, proceed to execute ---
         let isMounted = true;
-        console.log(`${logPrefix} Conditions met. Preparing to execute.`);
+        console.log(`${logPrefix} Conditions met. Preparing to execute clustering.`);
 
         const execute = async () => {
             console.log(`${logPrefix} EXECUTE START. Method: ${method}, Clusters: ${numClusters}`);
-            setResult(null);
+            setIsClusteringRunning(true); // Start local loading
             setError(null);
-            setIsLoading(true);
+            setResult(null);
 
             try {
-                const clusteringFunc = pyContext.hierarchical_clustering_from_rows;
-                if (typeof clusteringFunc !== 'function') {
-                    throw new Error("Python clustering function 'hierarchical_clustering_from_rows' not found or not callable.");
-                }
-
-                // *** REMOVE DOUBLE STRINGIFICATION ***
-                // const rowDataStr = JSON.stringify(rowData);
-                // const doubleString = JSON.stringify(rowDataStr);
-                // *************************************
-
-                console.log(`${logPrefix} Calling Python function with direct rowData object...`);
-                // *** PASS rowData DIRECTLY ***
-                // Pyodide will handle converting the JS array of objects
+                // clusteringFunc is guaranteed to be a function here
+                console.log(`${logPrefix} Calling Python function...`);
                 const resultJsonString = await clusteringFunc(rowData, method, numClusters);
-                // *****************************
 
-                if (!isMounted) {
-                    console.log(`${logPrefix} Component unmounted during async execution.`);
-                    return;
-                }
+                if (!isMounted) return;
 
                 if (typeof resultJsonString !== 'string') {
                     throw new Error(`Python function did not return a string. Got: ${typeof resultJsonString}`);
                 }
 
-                console.log(`${logPrefix} Received result string from Python (truncated):`, resultJsonString.substring(0, 200) + "...");
+                console.log(`${logPrefix} Received result string (truncated):`, resultJsonString.substring(0, 200) + "...");
                 const parsedResult = JSON.parse(resultJsonString);
 
-                // Check if the parsed result itself indicates an error from Python
-                if (parsedResult && typeof parsedResult === 'object' && 'error' in parsedResult) {
-                    throw new Error(`Python script returned an error: ${parsedResult.error}`);
+                if (parsedResult?.error) {
+                    throw new Error(`Python script error: ${parsedResult.error}`);
+                }
+                if (!parsedResult?.orderedLabels || !parsedResult?.orderedClusters) {
+                    throw new Error("Parsed Python result missing expected fields.");
                 }
 
-                // Validate the structure of the successful result (optional but recommended)
-                if (!parsedResult || !Array.isArray(parsedResult.orderedLabels) || !Array.isArray(parsedResult.orderedClusters)) {
-                    throw new Error("Parsed result from Python is missing expected fields (orderedLabels, orderedClusters).");
-                }
-
-                console.log(`${logPrefix} Successfully parsed result from Python.`);
-                setResult(parsedResult as PyodideClusteringResult); // Cast after validation
+                console.log(`${logPrefix} Successfully parsed result.`);
+                setResult(parsedResult as PyodideClusteringResult);
+                setError(null);
 
             } catch (err: any) {
-                console.error(`${logPrefix} !!! EXECUTION FAILED !!! Error caught:`, err);
+                console.error(`${logPrefix} !!! EXECUTION FAILED !!!`, err);
                 if (isMounted) {
-                    setError(err.message || 'An error occurred during clustering.');
+                    setError(err.message || 'Clustering execution failed.');
                     setResult(null);
                 }
             } finally {
-                console.log(`${logPrefix} EXECUTE FINALLY block.`);
+                console.log(`${logPrefix} EXECUTE FINALLY.`);
                 if (isMounted) {
-                    setIsLoading(false);
+                    setIsClusteringRunning(false); // Stop local loading
                 }
             }
         };
@@ -121,23 +137,17 @@ export function usePyodideClustering(
             isMounted = false;
             console.log(`${logPrefix} Cleanup effect.`);
         };
-        // Ensure numClusters is in dependency array if used in execute
-    }, [rowData, method, numClusters, pyContext, pyodideLoading]); // Keep dependencies
+        // Depend on context status indicators + input data/params
+    }, [rowData, method, numClusters, isPyodideInitializing, pyodideInitError]);
 
-    // Handle Pyodide initialization errors
-    useEffect(() => {
-        if (pyodideError) {
-            const pyodideErrorMessage = `Pyodide failed to initialize: ${pyodideError.message || 'Unknown error'}`;
-            if (!error) { // Only set if no specific clustering error exists
-                setError(pyodideErrorMessage);
-            }
-            console.error('[usePyodideClustering Auto (v2)] Pyodide initialization error:', pyodideError);
-        }
-    }, [pyodideError, error]);
+    // Combine loading states
+    const combinedIsLoading = isPyodideInitializing || isClusteringRunning;
+    // Prioritize Pyodide init error, then local clustering error
+    const combinedError = pyodideInitError ? `Pyodide initialization failed: ${pyodideInitError.message}` : error;
 
     return {
         result,
-        isLoading: isLoading || pyodideLoading, // Combine loading states
-        error
+        isLoading: combinedIsLoading,
+        error: combinedError,
     };
 }
