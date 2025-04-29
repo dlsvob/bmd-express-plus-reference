@@ -1,0 +1,89 @@
+/* src/components/layout/AppLayoutController.module.css */
+
+/* --- Fixed Header --- */
+.fixedHeader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 100;
+    background: #fff;
+    box-shadow: 0 2px 8px #f0f1f2;
+    /* height is set inline */
+}
+
+/* ----------------------------------------- */
+
+/* --- REMOVED .contentLayout styles as it's no longer needed for positioning --- */
+
+
+/* --- Fixed Analysis Container --- */
+.analysisUnitContainer {
+    position: fixed;
+    /* Position relative to viewport */
+    /* top, left, right, bottom are set inline */
+    border: 2px solid #1677ff;
+    border-radius: 8px;
+    background-color: #ffffff;
+    display: flex;
+    /* Use flexbox for Spin */
+    flex-direction: column;
+    overflow: hidden;
+    /* CRITICAL: This container must not scroll */
+    z-index: 1;
+    /* Below header but above default content */
+}
+
+/* ----------------------------------------- */
+
+/* Spin wrappers - Ensure they fill the fixed container */
+.spinWrapperFullHeight {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+    height: 100%;
+}
+
+.spinWrapperFullHeight> :global(.ant-spin-container) {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+    height: 100%;
+}
+
+/* The actual scrollable content area (AntD's <Content>) */
+.scrollableContent {
+    flex-grow: 1;
+    /* Fill the space within .ant-spin-container */
+    overflow-y: auto !important;
+    /* Add vertical scrollbar ONLY when needed */
+    overflow-x: hidden !important;
+    padding: 24px;
+    /* Internal padding */
+    background-color: #ffffff;
+    min-height: 0;
+    /* Allow shrinking */
+}
+
+/* Scrollbar styling (optional) */
+.scrollableContent::-webkit-scrollbar {
+    width: 8px;
+}
+
+.scrollableContent::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.scrollableContent::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.scrollableContent::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
