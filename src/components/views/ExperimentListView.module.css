@@ -1,0 +1,75 @@
+/* src/components/views/ExperimentListView.module.css */
+
+.viewContainer {
+    max-width: 800px;
+    /* Adjust max-width as desired */
+    margin: 0 auto;
+    /* Center horizontally */
+    height: 100%;
+    /* Try to fill parent height */
+    display: flex;
+    /* Needed for child flex container */
+    flex-direction: column;
+}
+
+.flexContainer {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    /* Fill the viewContainer */
+    width: 100%;
+    overflow: hidden;
+    /* Prevent this container itself from scrolling */
+}
+
+.headerArea {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 16px;
+    /* Space below the header */
+    margin-bottom: 16px;
+    /* Space below the header */
+    border-bottom: 1px solid #f0f0f0;
+    /* Separator line */
+    flex-shrink: 0;
+    /* Prevent header from shrinking */
+}
+
+.listArea {
+    flex-grow: 1;
+    /* Allow list area to take remaining space */
+    overflow-y: auto;
+    /* Enable vertical scrolling ONLY for this area */
+    overflow-x: hidden;
+    /* Hide horizontal scrollbar */
+    min-height: 0;
+    /* Crucial for flex scrolling */
+    border: 1px solid #d9d9d9;
+    /* Optional: border around the list */
+    border-radius: 6px;
+    /* Optional: rounded corners */
+    padding: 12px;
+    /* Internal padding for the list */
+    background-color: #fff;
+    /* Ensure background for list area */
+}
+
+/* Optional: Style scrollbar */
+.listArea::-webkit-scrollbar {
+    width: 6px;
+}
+
+.listArea::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.listArea::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.listArea::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}

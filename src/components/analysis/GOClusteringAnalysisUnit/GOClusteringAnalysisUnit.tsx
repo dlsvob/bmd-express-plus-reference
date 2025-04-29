@@ -1,57 +1,51 @@
 // src/components/analysis/GOClusteringAnalysisUnit/GOClusteringAnalysisUnit.tsx
-// Handles multiple selected analyses via Tabs. Adds Copy/Export controls and Enrichment Analysis.
-// Adds container and inner section borders.
-
+// Full listing - Verify against your working version before this change.
 import React, { useMemo, useCallback, useEffect, useState } from 'react';
 import {
   Card, Spin, Alert, Empty, Row, Col, Tabs, message, Space, Typography
 } from 'antd';
 import {
   CopyOutlined, DownloadOutlined, ExperimentOutlined
-} from '@ant-design/icons'; // Keep icons needed by AnalysisControls
+} from '@ant-design/icons';
 import debounce from 'lodash.debounce';
-import { useAppSelector, useAppDispatch } from '../../../store/hooks'; // Adjusted path
-import { selectSelectedProjectName } from '../../../store/selectors/projectSelectors'; // Adjusted path
-import { selectSelectedAnalysisRefs } from '../../../store/slices/selectedAnalysisSlice'; // Adjusted path
+import { useAppSelector, useAppDispatch } from '../../../store/hooks';
+import { selectSelectedProjectName } from '../../../store/selectors/projectSelectors';
+import { selectSelectedAnalysisRefs } from '../../../store/slices/selectedAnalysisSlice';
 import {
   selectActiveClusteringRef,
   setActiveClusteringRef,
   selectHighlightedClusteringRefClusterIdsSet,
   toggleClusteringRefClusterHighlight,
-} from '../../../store/slices/analysisUISlice'; // Adjusted path
+} from '../../../store/slices/analysisUISlice';
 import {
   selectReferenceDataMap,
   selectReferenceData,
-} from '../../../store/selectors/referenceDataSelector'; // Adjusted path
-import { useGetRawAnalysisDataQuery } from '../../../store/apis/experimentsApi'; // Adjusted path
+} from '../../../store/selectors/referenceDataSelector';
+import { useGetRawAnalysisDataQuery } from '../../../store/apis/experimentsApi';
 import {
   ApiClusteringInputItem,
   CategoryRow,
   SummaryRow,
-} from '../../../utils/clusteringUtils'; // Adjusted path
+} from '../../../utils/clusteringUtils';
 import {
   usePyodideClustering,
   PyodideClusteringResult,
-} from '../../../hooks/usePyodideClustering'; // Adjusted path
-import { useProcessedClusteringData } from '../../../hooks/useProcessedClusteringData'; // Adjusted path
-import { useClusteringVisualizationData } from '../../../hooks/useClusteringVisualizationData'; // Adjusted path
-import { BMDResult, CategoryAnalysisItem } from '../../../models/BMDxExported'; // Adjusted path
+} from '../../../hooks/usePyodideClustering';
+import { useProcessedClusteringData } from '../../../hooks/useProcessedClusteringData';
+import { useClusteringVisualizationData } from '../../../hooks/useClusteringVisualizationData';
+import { BMDResult, CategoryAnalysisItem } from '../../../models/BMDxExported';
 import GOClusteringScatterPlot, {
   ClusteringScatterPoint,
-} from './GOClusteringScatterPlot'; // Relative path
-import GOClusteringSummaryTable from './GOClusteringSummaryTable'; // Relative path
-import GOClusteringDetailsTable from './GOClusteringDetailsTable'; // Relative path
-import CustomLegends from '../shared/CustomLegends'; // Adjusted path
-import AnalysisControls from '../controls/AnalysisControls'; // Relative path
-import GeneEnrichmentAnalysis from './GeneEnrichmentAnalysis'; // Relative path
+} from './GOClusteringScatterPlot';
+import GOClusteringSummaryTable from './GOClusteringSummaryTable';
+import GOClusteringDetailsTable from './GOClusteringDetailsTable';
+import CustomLegends from '../shared/CustomLegends';
+import AnalysisControls from '../controls/AnalysisControls'; // Corrected path
+import GeneEnrichmentAnalysis from './GeneEnrichmentAnalysis';
+import styles from './GOClusteringAnalysisUnit.module.css';
 
-// --- Import CSS Module ---
-import styles from './GOClusteringAnalysisUnit.module.css'; // Import the CSS module
+const { Text } = Typography;
 
-const PRIMARY_COLOR = '#1677ff'; // Example color (adjust if needed)
-const { Text } = Typography; // Keep Text if used
-
-// Helper function to get a displayable error message
 const getErrorMessage = (error: unknown): string => {
   if (!error) return 'An unknown error occurred.';
   if (typeof error === 'string') return error;
@@ -59,24 +53,21 @@ const getErrorMessage = (error: unknown): string => {
   try { return JSON.stringify(error); } catch { return 'Could not stringify error object.'; }
 };
 
-// Define structure for cluster dropdown options used in AnalysisControls
 interface ClusterOption {
-  value: string; // Cluster ID (as string)
-  label: string; // Text to display (e.g., "Cluster 1")
+  value: string;
+  label: string;
 }
 
 const GOClusteringAnalysisUnit: React.FC = () => {
-  const logPrefix = '[GOClusteringAnalysisUnit v21 - Borders]'; // Version Bump
+  const logPrefix = '[GOClusteringAnalysisUnit v22 - Inner Borders]';
   const dispatch = useAppDispatch();
 
-  // --- State for Enrichment Controls ---
   const [networkNodesCount, setNetworkNodesCount] = useState<number>(50);
   const [selectedClusterForEnrichment, setSelectedClusterForEnrichment] = useState<string | null>(null);
   const [enrichmentBackground, setEnrichmentBackground] = useState<string | undefined>(undefined);
   const [runEnrichmentTrigger, setRunEnrichmentTrigger] = useState<boolean>(false);
   const [geneListForEnrichment, setGeneListForEnrichment] = useState<string[] | null>(null);
 
-  // --- Selectors ---
   const projectName = useAppSelector(selectSelectedProjectName);
   const selectedBmdResultRefs = useAppSelector(selectSelectedAnalysisRefs);
   const activeClusteringRef = useAppSelector(selectActiveClusteringRef);
@@ -84,7 +75,6 @@ const GOClusteringAnalysisUnit: React.FC = () => {
   const referenceData = useAppSelector(selectReferenceData);
   const highlightedRefClusterIdsSet = useAppSelector(selectHighlightedClusteringRefClusterIdsSet);
 
-  // --- Data Fetching ---
   const {
     data: rawData,
     isLoading: isLoadingRaw,
@@ -95,7 +85,6 @@ const GOClusteringAnalysisUnit: React.FC = () => {
     { skip: !projectName || !selectedBmdResultRefs || selectedBmdResultRefs.length === 0 }
   );
 
-  // --- Generate Name Map (Memoized) ---
   const bmdRefToExperimentNameMap = useMemo(() => {
     const tempMap = new Map<number, string>();
     if (rawSuccess && rawData?.rawBmdResults) {
@@ -111,7 +100,6 @@ const GOClusteringAnalysisUnit: React.FC = () => {
     return tempMap;
   }, [rawSuccess, rawData]);
 
-  // --- Effect to manage activeClusteringRef and reset enrichment state ---
   useEffect(() => {
     const effectLogPrefix = `${logPrefix} [useEffect activeRef]`;
     if (!isLoadingRaw && selectedBmdResultRefs && selectedBmdResultRefs.length > 0) {
@@ -119,10 +107,7 @@ const GOClusteringAnalysisUnit: React.FC = () => {
       if (activeClusteringRef === null || !selectedBmdResultRefs.includes(activeClusteringRef)) {
         console.log(`${effectLogPrefix} Initializing or resetting activeClusteringRef to first selected: ${firstRef}`);
         dispatch(setActiveClusteringRef(firstRef));
-        setSelectedClusterForEnrichment(null);
-        setRunEnrichmentTrigger(false);
-        setGeneListForEnrichment(null);
-        setEnrichmentBackground(undefined);
+        setSelectedClusterForEnrichment(null); setRunEnrichmentTrigger(false); setGeneListForEnrichment(null); setEnrichmentBackground(undefined);
       } else {
         console.log(`${effectLogPrefix} Active ref ${activeClusteringRef} is valid.`);
       }
@@ -130,26 +115,16 @@ const GOClusteringAnalysisUnit: React.FC = () => {
       if (activeClusteringRef !== null) {
         console.log(`${effectLogPrefix} No refs selected, clearing activeClusteringRef.`);
         dispatch(setActiveClusteringRef(null));
-        setSelectedClusterForEnrichment(null);
-        setRunEnrichmentTrigger(false);
-        setGeneListForEnrichment(null);
-        setEnrichmentBackground(undefined);
+        setSelectedClusterForEnrichment(null); setRunEnrichmentTrigger(false); setGeneListForEnrichment(null); setEnrichmentBackground(undefined);
       }
     }
   }, [selectedBmdResultRefs, activeClusteringRef, isLoadingRaw, dispatch, logPrefix]);
 
-  // --- Calculate Active Analysis Name ---
-  const activeAnalysisName = activeClusteringRef
-    ? bmdRefToExperimentNameMap.get(Number(activeClusteringRef)) || `Analysis ${activeClusteringRef}`
-    : 'No Analysis Selected';
+  const activeAnalysisName = activeClusteringRef ? bmdRefToExperimentNameMap.get(Number(activeClusteringRef)) || `Analysis ${activeClusteringRef}` : 'No Analysis Selected';
 
-  // --- Prepare Data for Clustering (Based on active ref) ---
   const rowDataForClustering = useMemo(() => {
     const prepLogPrefix = `${logPrefix} [rowDataForClustering]`;
-    if (!activeClusteringRef || !rawData?.rawCategoryAnalysisItems || rawData.rawCategoryAnalysisItems.length === 0) {
-      console.log(`${prepLogPrefix} Skipping: No active ref (${activeClusteringRef}) or no raw category items.`);
-      return null;
-    }
+    if (!activeClusteringRef || !rawData?.rawCategoryAnalysisItems || rawData.rawCategoryAnalysisItems.length === 0) { return null; }
     console.log(`${prepLogPrefix} Preparing input data for active ref: ${activeClusteringRef}`);
     const finalInputItems: ApiClusteringInputItem[] = [];
     const itemsToProcess = rawData.rawCategoryAnalysisItems || [];
@@ -158,179 +133,71 @@ const GOClusteringAnalysisUnit: React.FC = () => {
       const item = entry.item;
       if (!item || !item.categoryIdentifier?.id) return;
       finalInputItems.push({
-        'Category ID': item.categoryIdentifier.id,
-        'Category Title': item.categoryIdentifier.title ?? '',
-        'Cluster BMD': String(item.bmdFifthPercentileTotalGenes ?? ''),
-        'Genes Up': item.genesUp ?? '',
-        'Genes Down': item.genesDown ?? '',
-        'All Genes': item.geneSymbolsPrivate ?? '',
+        'Category ID': item.categoryIdentifier.id, 'Category Title': item.categoryIdentifier.title ?? '', 'Cluster BMD': String(item.bmdFifthPercentileTotalGenes ?? ''), 'Genes Up': item.genesUp ?? '', 'Genes Down': item.genesDown ?? '', 'All Genes': item.geneSymbolsPrivate ?? '',
       });
     });
     console.log(`${prepLogPrefix} Prepared ${finalInputItems.length} items for clustering (ref: ${activeClusteringRef}).`);
     return finalInputItems.length > 0 ? finalInputItems : null;
   }, [rawData?.rawCategoryAnalysisItems, activeClusteringRef, logPrefix]);
 
-  // --- Compute Cluster Count ---
   const dataLength = rowDataForClustering?.length ?? 0;
   const computedNumClusters = useMemo(() => Math.max(2, Math.ceil(Math.sqrt(dataLength) / 2)), [dataLength]);
 
-  // --- Call Pyodide Clustering Hook ---
-  const {
-    result: pyodideResult,
-    isLoading: isPyodideLoading,
-    error: pyodideError,
-  } = usePyodideClustering(rowDataForClustering, 'average', computedNumClusters);
-
-  // --- Process Clustering Results ---
+  const { result: pyodideResult, isLoading: isPyodideLoading, error: pyodideError, } = usePyodideClustering(rowDataForClustering, 'average', computedNumClusters);
   const clustersForProcessingHook = useMemo(() => (pyodideResult ? [pyodideResult] : null), [pyodideResult]);
-  const { categoryTableData, summaryTableData, processingError } = useProcessedClusteringData(
-    clustersForProcessingHook,
-    pyodideError ? getErrorMessage(pyodideError) : null
-  );
+  const { categoryTableData, summaryTableData, processingError } = useProcessedClusteringData(clustersForProcessingHook, pyodideError ? getErrorMessage(pyodideError) : null);
+  const { scatterPlotData, legendColorItems, presentClusterIds } = useClusteringVisualizationData({ categoryTableData, summaryTableData, referenceDataMap, referenceData, });
 
-  // --- Call the Visualization Data Hook ---
-  const { scatterPlotData, legendColorItems, presentClusterIds } = useClusteringVisualizationData({
-    categoryTableData, summaryTableData, referenceDataMap, referenceData,
-  });
-
-  // --- Derive Cluster Options for Dropdown ---
   const clusterOptionsForDropdown = useMemo((): ClusterOption[] => {
     if (!summaryTableData) return [];
-    return [...summaryTableData]
-      .sort((a, b) => (a.sort ?? Infinity) - (b.sort ?? Infinity))
-      .map((summary) => ({
-        value: String(summary.cluster),
-        label: `Cluster ${summary.cluster} (${summary.numCategoryIDs} cats)`,
-      }));
+    return [...summaryTableData].sort((a, b) => (a.sort ?? Infinity) - (b.sort ?? Infinity)).map((summary) => ({ value: String(summary.cluster), label: `Cluster ${summary.cluster} (${summary.numCategoryIDs} cats)`, }));
   }, [summaryTableData]);
 
-  // --- Combined Loading/Error State ---
   const isLoading = isLoadingRaw || isPyodideLoading;
   const error = rawError || pyodideError || processingError;
   const hasActiveDataToCluster = rowDataForClustering && rowDataForClustering.length > 0;
   const hasActiveResults = categoryTableData && categoryTableData.length > 0;
 
-  // --- Callbacks ---
-  const handleToggleHighlightRefCluster = useCallback((clusterIdLabel: string) => {
-    dispatch(toggleClusteringRefClusterHighlight(clusterIdLabel));
-  }, [dispatch]);
+  const handleToggleHighlightRefCluster = useCallback((clusterIdLabel: string) => { dispatch(toggleClusteringRefClusterHighlight(clusterIdLabel)); }, [dispatch]);
+  const handleActiveRefChange = useCallback((activeKey: string) => { console.log(`${logPrefix} handleActiveRefChange called with key: ${activeKey}`); dispatch(setActiveClusteringRef(activeKey)); setSelectedClusterForEnrichment(null); setRunEnrichmentTrigger(false); setGeneListForEnrichment(null); setEnrichmentBackground(undefined); }, [dispatch, logPrefix]);
+  const handleNetworkNodesChange = (value: number | null) => { setNetworkNodesCount(value ?? 50); };
+  const handleClusterForEnrichmentChange = (value: string | null) => { setSelectedClusterForEnrichment(value); setRunEnrichmentTrigger(false); setGeneListForEnrichment(null); };
+  const handleEnrichmentBackgroundChange = (value: string) => { setEnrichmentBackground(value); setRunEnrichmentTrigger(false); };
 
-  const handleActiveRefChange = useCallback((activeKey: string) => {
-    console.log(`${logPrefix} handleActiveRefChange called with key: ${activeKey}`);
-    dispatch(setActiveClusteringRef(activeKey));
-    setSelectedClusterForEnrichment(null);
-    setRunEnrichmentTrigger(false);
-    setGeneListForEnrichment(null);
-    setEnrichmentBackground(undefined);
-  }, [dispatch, logPrefix]);
-
-  // --- Handlers for Enrichment controls ---
-  const handleNetworkNodesChange = (value: number | null) => {
-    const newValue = value ?? 50;
-    setNetworkNodesCount(newValue);
-  };
-  const handleClusterForEnrichmentChange = (value: string | null) => {
-    setSelectedClusterForEnrichment(value);
-    setRunEnrichmentTrigger(false);
-    setGeneListForEnrichment(null);
-  };
-  const handleEnrichmentBackgroundChange = (value: string) => {
-    setEnrichmentBackground(value);
-    setRunEnrichmentTrigger(false);
-  };
-
-  // --- Debounced Enrichment Submit Logic ---
   const debouncedSubmitLogic = useMemo(() => debounce(() => {
-    if (!selectedClusterForEnrichment || !enrichmentBackground || !categoryTableData) {
-      setRunEnrichmentTrigger(false);
-      setGeneListForEnrichment(null);
-      return;
-    }
-    const genes = categoryTableData
-      .filter(row => String(row.cluster) === String(selectedClusterForEnrichment))
-      .map(row => (row.allGenes || '').split(';')).flat()
-      .map(g => g.trim()).filter(g => g.length > 0);
+    if (!selectedClusterForEnrichment || !enrichmentBackground || !categoryTableData) { setRunEnrichmentTrigger(false); setGeneListForEnrichment(null); return; }
+    const genes = categoryTableData.filter(row => String(row.cluster) === String(selectedClusterForEnrichment)).map(row => (row.allGenes || '').split(';')).flat().map(g => g.trim()).filter(g => g.length > 0);
     const uniqueGenes = [...new Set(genes)];
-    if (uniqueGenes.length === 0) {
-      setRunEnrichmentTrigger(false);
-      setGeneListForEnrichment(null);
-      return;
-    }
-    setGeneListForEnrichment(uniqueGenes);
-    setRunEnrichmentTrigger(true);
+    if (uniqueGenes.length === 0) { setRunEnrichmentTrigger(false); setGeneListForEnrichment(null); return; }
+    setGeneListForEnrichment(uniqueGenes); setRunEnrichmentTrigger(true);
   }, 500), [selectedClusterForEnrichment, enrichmentBackground, categoryTableData]);
 
-  const handleEnrichmentSubmit = useCallback(() => {
-    if (!selectedClusterForEnrichment || !enrichmentBackground) {
-      message.warning('Please select a cluster and a background gene set.');
-      return;
-    }
-    debouncedSubmitLogic();
-  }, [debouncedSubmitLogic, selectedClusterForEnrichment, enrichmentBackground]);
-
+  const handleEnrichmentSubmit = useCallback(() => { if (!selectedClusterForEnrichment || !enrichmentBackground) { message.warning('Please select a cluster and a background gene set.'); return; } debouncedSubmitLogic(); }, [debouncedSubmitLogic, selectedClusterForEnrichment, enrichmentBackground]);
   useEffect(() => () => debouncedSubmitLogic.cancel(), [debouncedSubmitLogic]);
 
-  // --- Export Handlers ---
   const formatDataForExport = (data: ClusteringScatterPoint[] | null): string => {
     if (!data || data.length === 0) return '';
     const header = ['GO_ID', 'GO_Term', 'Pyodide_Cluster', 'Reference_Cluster', 'Rank', 'BMD_5th_Percentile', 'Jittered_Rank'].join('\t');
-    const rows = data.map(p => [
-      p.goId ?? 'N/A', `"${p.goTerm?.replace(/"/g, '""') ?? 'N/A'}"`, p.pyodideCluster ?? 'N/A',
-      p.referenceClusterId ?? 'N/A', p.rank ?? 'N/A', p.bmdValue?.toExponential(4) ?? 'N/A',
-      p.jitteredRank?.toFixed(4) ?? 'N/A',
-    ].join('\t'));
+    const rows = data.map(p => [p.goId ?? 'N/A', `"${p.goTerm?.replace(/"/g, '""') ?? 'N/A'}"`, p.pyodideCluster ?? 'N/A', p.referenceClusterId ?? 'N/A', p.rank ?? 'N/A', p.bmdValue?.toExponential(4) ?? 'N/A', p.jitteredRank?.toFixed(4) ?? 'N/A',].join('\t'));
     return [header, ...rows].join('\n');
   };
 
-  const handleCopyToClipboard = useCallback(async () => {
-    const tsvData = formatDataForExport(scatterPlotData);
-    if (!tsvData) { message.warning('No data available to copy.'); return; }
-    try { await navigator.clipboard.writeText(tsvData); message.success('Scatter plot data copied!'); }
-    catch (err) { console.error('Failed to copy:', err); message.error('Failed to copy data.'); }
-  }, [scatterPlotData]);
+  const handleCopyToClipboard = useCallback(async () => { const tsvData = formatDataForExport(scatterPlotData); if (!tsvData) { message.warning('No data available to copy.'); return; } try { await navigator.clipboard.writeText(tsvData); message.success('Scatter plot data copied!'); } catch (err) { console.error('Failed to copy:', err); message.error('Failed to copy data.'); } }, [scatterPlotData]);
+  const handleExportToFile = useCallback(() => { const tsvData = formatDataForExport(scatterPlotData); if (!tsvData) { message.warning('No data available to export.'); return; } const blob = new Blob([tsvData], { type: 'text/tab-separated-values;charset=utf-8;' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.setAttribute('href', url); const safeAnalysisName = activeAnalysisName.replace(/[^a-z0-9]/gi, '_'); link.setAttribute('download', `clustering_scatter_data_${safeAnalysisName}.txt`); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url); message.success('Scatter plot data export initiated.'); }, [scatterPlotData, activeAnalysisName]);
 
-  const handleExportToFile = useCallback(() => {
-    const tsvData = formatDataForExport(scatterPlotData);
-    if (!tsvData) { message.warning('No data available to export.'); return; }
-    const blob = new Blob([tsvData], { type: 'text/tab-separated-values;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    const safeAnalysisName = activeAnalysisName.replace(/[^a-z0-9]/gi, '_');
-    link.setAttribute('download', `clustering_scatter_data_${safeAnalysisName}.txt`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    message.success('Scatter plot data export initiated.');
-  }, [scatterPlotData, activeAnalysisName]);
-
-  // === Render Logic ===
   const PLOT_AREA_MIN_HEIGHT = 550;
-  const tabItems = useMemo(() => {
-    if (!selectedBmdResultRefs) return [];
-    return selectedBmdResultRefs.map((refStr) => {
-      const numericRef = Number(refStr);
-      const name = !isNaN(numericRef) ? bmdRefToExperimentNameMap.get(numericRef) || `Analysis ${refStr}` : `Analysis ${refStr}`;
-      return { key: refStr, label: name };
-    });
-  }, [selectedBmdResultRefs, bmdRefToExperimentNameMap]);
-
+  const tabItems = useMemo(() => { if (!selectedBmdResultRefs) return []; return selectedBmdResultRefs.map((refStr) => { const numericRef = Number(refStr); const name = !isNaN(numericRef) ? bmdRefToExperimentNameMap.get(numericRef) || `Analysis ${refStr}` : `Analysis ${refStr}`; return { key: refStr, label: name }; }); }, [selectedBmdResultRefs, bmdRefToExperimentNameMap]);
   const isExportDisabled = !scatterPlotData || scatterPlotData.length === 0;
 
-  // --- Loading/Error/No Selection checks ---
   if (isLoadingRaw) { return <div style={{ textAlign: 'center', padding: '50px' }}><Spin tip="Loading analysis data..." size="large" /></div>; }
   if (rawError) { return <Alert message="Error Loading Data for Clustering" description={getErrorMessage(rawError)} type="error" showIcon style={{ margin: '24px' }} />; }
   if (!projectName || !selectedBmdResultRefs || selectedBmdResultRefs.length === 0) { return <div style={{ padding: '24px' }}><Empty description="Please select one or more analyses from the 'Experiments' view to run GO Clustering." /></div>; }
 
-  // --- Spin Tip Fix ---
   const spinTip = isLoading && activeClusteringRef ? <>Running clustering for {activeAnalysisName}...</> : undefined;
-  // --------------------
 
   return (
-    // Apply the container style from the CSS module
-    <div className={styles.analysisUnitContainer}>
+    // Root element - no border class here
+    <div>
       <Tabs
         type="card"
         activeKey={activeClusteringRef ?? undefined}
@@ -340,41 +207,22 @@ const GOClusteringAnalysisUnit: React.FC = () => {
       />
 
       <>
-        {isLoading && activeClusteringRef && (
-          <div style={{ padding: '1rem', textAlign: 'center' }}>
-            {/* --- Use spinTip variable --- */}
-            <Spin tip={spinTip} />
-            {/* ------------------------- */}
-          </div>
-        )}
-        {!isLoading && error && activeClusteringRef && (
-          <Alert
-            message={`Clustering Error for ${activeAnalysisName}`}
-            description={getErrorMessage(error)}
-            type="error"
-            showIcon
-            style={{ marginBottom: '1rem' }}
-          />
-        )}
+        {isLoading && activeClusteringRef && (<div style={{ padding: '1rem', textAlign: 'center' }}> <Spin tip={spinTip} /> </div>)}
+        {!isLoading && error && activeClusteringRef && (<Alert message={`Clustering Error for ${activeAnalysisName}`} description={getErrorMessage(error)} type="error" showIcon style={{ marginBottom: '1rem' }} />)}
 
         {!isLoading && !error && activeClusteringRef && (
           <>
-            {!hasActiveDataToCluster && (
-              <Empty description="No suitable category data found for this specific analysis to perform clustering." />
-            )}
-            {hasActiveDataToCluster && !hasActiveResults && pyodideResult && (
-              <Empty description="No categories found after processing clustering results for this analysis." />
-            )}
+            {!hasActiveDataToCluster && (<Empty description="No suitable category data found for this specific analysis to perform clustering." />)}
+            {hasActiveDataToCluster && !hasActiveResults && pyodideResult && (<Empty description="No categories found after processing clustering results for this analysis." />)}
             {hasActiveDataToCluster && hasActiveResults && (
               <Space direction="vertical" size="large" style={{ width: '100%' }}>
 
-                {/* Plot/Summary/Legend Row - Wrapped in Card */}
-                {/* --- Removed bordered prop --- */}
-                <Card size="small" className={styles.innerSectionCard}>
+                {/* Plot/Summary/Legend Row - Card with border removed */}
+                <Card size="small" bordered={false} className={styles.innerSectionCard}>
                   <Row gutter={[16, 16]}>
                     <Col xs={24} md={4} lg={3}>
                       <CustomLegends
-                        cardTitle="Ref Clusters"
+                        cardTitle="Ref Clusters" // Keep title for this legend
                         colorItems={legendColorItems}
                         highlightedLabelsSet={highlightedRefClusterIdsSet}
                         presentClusterIds={presentClusterIds}
@@ -414,7 +262,7 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                   </Row>
                 </Card>
 
-                {/* Analysis Controls */}
+                {/* Analysis Controls - border removed inside its component */}
                 <AnalysisControls
                   isExportDisabled={isExportDisabled}
                   onCopy={handleCopyToClipboard}
@@ -429,7 +277,7 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                   onEnrichmentSubmit={handleEnrichmentSubmit}
                 />
 
-                {/* Enrichment Analysis */}
+                {/* Enrichment Analysis - border removed inside its component */}
                 {runEnrichmentTrigger && geneListForEnrichment && enrichmentBackground && selectedClusterForEnrichment && (
                   <GeneEnrichmentAnalysis
                     geneList={geneListForEnrichment}
@@ -440,9 +288,8 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                   />
                 )}
 
-                {/* Details Table */}
-                {/* --- Removed bordered prop --- */}
-                <Card size="small" title="Clustered Category Details" className={styles.innerSectionCard}>
+                {/* Details Table - Card with border removed */}
+                <Card size="small" title="Clustered Category Details" bordered={false} className={styles.innerSectionCard}>
                   <Row gutter={[16, 16]}>
                     <Col span={24}>
                       <GOClusteringDetailsTable
