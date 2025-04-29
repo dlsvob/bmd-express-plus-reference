@@ -112,9 +112,10 @@ const AppContentInternal: React.FC = () => {
         }
     } else {
         // Fallback loading state (e.g., project selected but name missing)
+        // This Spin should ideally not have a tip, as it's just a placeholder
         mainContent = (
             <div style={{ textAlign: 'center', marginTop: '50px' }}>
-                <Spin tip="Loading project content..." size="large" />
+                <Spin size="large" />
             </div>
         );
     }
@@ -213,6 +214,8 @@ const AppLayoutController: React.FC = () => {
 
     // --- Render Structure ---
     // This component now renders the main layout structure
+    const pyodideSpinTip = pyodideLoading ? <>Initializing Pyodide Environment...</> : undefined;
+
     return (
         <Layout style={{ minHeight: '100vh' }}>
             {/* AppHeader receives disabled state based on Pyodide error */}
@@ -227,15 +230,14 @@ const AppLayoutController: React.FC = () => {
             />
             {/* Main Content Area Layout */}
             <Layout>
-                {/* Conditionally render loading spinner OR the main content */}
-                {pyodideLoading ? (
-                    <Content style={{ padding: '50px', textAlign: 'center' }}>
-                        <Spin tip="Initializing Pyodide Environment..." size="large" />
-                    </Content>
-                ) : (
-                    // Render the internal content component once Pyodide is done loading (or failed)
+                {/* --- Spin Usage Correction --- */}
+                {/* Wrap the Content area with Spin when Pyodide is loading */}
+                <Spin spinning={pyodideLoading} tip={pyodideSpinTip} size="large">
+                    {/* Render the internal content component */}
+                    {/* It will handle its own display logic based on Pyodide error/project selection */}
                     <AppContentInternal />
-                )}
+                </Spin>
+                {/* --- End Spin Usage Correction --- */}
             </Layout>
 
             {/* Navigation Drawer */}
@@ -244,7 +246,10 @@ const AppLayoutController: React.FC = () => {
                 placement="left"
                 onClose={closeDrawer}
                 open={isDrawerOpen}
-                bodyStyle={{ padding: 0 }}
+                // --- Drawer bodyStyle Correction ---
+                // bodyStyle={{ padding: 0 }} // REMOVED deprecated prop
+                styles={{ body: { padding: 0 } }} // ADDED new prop
+            // ----------------------------------
             >
                 {/* Render the extracted NavigationMenu component */}
                 <NavigationMenu

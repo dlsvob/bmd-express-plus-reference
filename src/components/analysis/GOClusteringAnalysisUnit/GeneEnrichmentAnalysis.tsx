@@ -232,11 +232,17 @@ const GeneEnrichmentAnalysis: React.FC<GeneEnrichmentAnalysisProps> = ({
         );
     }
 
+    // --- Spin Tip Fix ---
+    const spinTip = isLoading ? <>Running enrichment analysis...</> : undefined;
+    // --------------------
+
     if (isLoading) {
         return (
             <Card title={`Gene Enrichment for ${analysisName}`}>
                 <div style={{ textAlign: 'center', padding: '20px' }}>
-                    <Spin tip="Running enrichment analysis..." />
+                    {/* --- Use spinTip variable --- */}
+                    <Spin tip={spinTip} />
+                    {/* ------------------------- */}
                 </div>
             </Card>
         );

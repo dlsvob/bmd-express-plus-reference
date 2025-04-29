@@ -6,7 +6,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-    Row, Col, Spin, Alert, Space, Switch, Typography, Card, RadioChangeEvent // Added Card
+    Row, Col, Spin, Alert, Space, Switch, Typography, Card, RadioChangeEvent
 } from 'antd';
 import type { TableProps } from 'antd';
 import UmapPlotComponent from './UmapPlotComponent'; // Relative path
@@ -335,12 +335,9 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
     }, []);
 
     // === Render Logic Checks ===
+    const spinTip = isLoading ? <>Loading UMAP data...</> : undefined;
     if (isLoading) {
-        return (
-            <Spin tip="Loading analysis data..." size="large">
-                <div style={{ minHeight: '200px' }} />
-            </Spin>
-        );
+        return <Spin spinning={isLoading} tip={spinTip} />
     }
     if (queryError) {
         const errorMessage =
@@ -365,7 +362,8 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
 
                 {/* Filters Row - Wrapped in a Card */}
-                <Card size="small" bordered className={styles.innerSectionCard}>
+                {/* 'bordered' prop removed */}
+                <Card size="small" className={styles.innerSectionCard}>
                     <Row gutter={[16, 16]} align="middle">
                         <Col span={24}>
                             <GoIdFilterUI
@@ -439,7 +437,8 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
                         <Col flex="auto">
                             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                                 {/* Accumulation Plots Section */}
-                                <Card size="small" title="Accumulation Plots" bordered className={styles.innerSectionCard}>
+                                {/* 'bordered' prop removed */}
+                                <Card size="small" title="Accumulation Plots" className={styles.innerSectionCard}>
                                     <Row gutter={[16, 16]}>
                                         {selectedBmdResultRefs?.map((refStr) => {
                                             const numericRef = Number(refStr);
@@ -461,7 +460,8 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
                                 </Card>
 
                                 {/* UMAP Plot Section */}
-                                <Card size="small" title="UMAP Visualization" bordered className={styles.innerSectionCard}>
+                                {/* 'bordered' prop removed */}
+                                <Card size="small" title="UMAP Visualization" className={styles.innerSectionCard}>
                                     {umapViewMode === 'single' ? (
                                         <UmapPlotComponent
                                             data={analysisPoints}
@@ -511,7 +511,8 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
                 </div>
 
                 {/* Table Row */}
-                <Card size="small" title="Analysis Data Table" bordered className={styles.innerSectionCard}>
+                {/* 'bordered' prop removed */}
+                <Card size="small" title="Analysis Data Table" className={styles.innerSectionCard}>
                     <Row>
                         <Col span={24}>
                             <GOUmapAnalysisTable
@@ -522,7 +523,7 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
                                 highlightGoIdsSet={highlightGoIdsSet}
                                 selectedAccumGoIdsSet={selectedAccumGoIdsSet}
                                 size="small"
-                                // bordered // Card provides border
+                                // 'bordered' prop removed from here too (was commented out)
                                 scroll={{ y: 400, x: 'max-content' }}
                                 pagination={tablePagination}
                                 onChange={handleTableChange}
@@ -538,3 +539,21 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
 };
 
 export default GOUmapAnalysisUnit;
+
+// --- GOUmapAnalysisUnit.module.css (Ensure this exists and defines styles) ---
+/* Example content for src/components/analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit.module.css */
+/* .analysisUnitContainer {
+    padding: 16px;
+    background-color: #f9f9f9;
+} */
+
+/* .innerSectionCard { */
+/* Default AntD Card border is usually fine. */
+/* If you specifically wanted NO border previously (from bordered={false}), add: */
+/* border: none !important; */
+
+/* If you want a custom border: */
+/* border: 1px solid #e8e8e8; */
+/* margin-bottom: 16px; Add spacing if needed */
+/* } */
+

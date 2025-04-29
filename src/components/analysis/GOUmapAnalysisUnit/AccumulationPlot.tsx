@@ -278,8 +278,14 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             console.log(`${logPrefix} FINAL plotData length:`, plotData.length);
         }
 
+        // --- Spin Tip Fix ---
+        const spinTip = styledPointsForPlot === null ? <>Processing plot data...</> : undefined;
+        // --------------------
+
         if (styledPointsForPlot === null) {
-            return <Spin tip="Processing plot data..." />;
+            // --- Use spinTip variable ---
+            return <Spin tip={spinTip} />;
+            // -------------------------
         }
         if (!plotData || !plotLayout) {
             return (

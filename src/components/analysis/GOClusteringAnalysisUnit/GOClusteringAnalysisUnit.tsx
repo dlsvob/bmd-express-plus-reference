@@ -4,7 +4,7 @@
 
 import React, { useMemo, useCallback, useEffect, useState } from 'react';
 import {
-  Card, Spin, Alert, Empty, Row, Col, Tabs, message, Space, Typography // Added Space, Typography
+  Card, Spin, Alert, Empty, Row, Col, Tabs, message, Space, Typography
 } from 'antd';
 import {
   CopyOutlined, DownloadOutlined, ExperimentOutlined
@@ -324,6 +324,10 @@ const GOClusteringAnalysisUnit: React.FC = () => {
   if (rawError) { return <Alert message="Error Loading Data for Clustering" description={getErrorMessage(rawError)} type="error" showIcon style={{ margin: '24px' }} />; }
   if (!projectName || !selectedBmdResultRefs || selectedBmdResultRefs.length === 0) { return <div style={{ padding: '24px' }}><Empty description="Please select one or more analyses from the 'Experiments' view to run GO Clustering." /></div>; }
 
+  // --- Spin Tip Fix ---
+  const spinTip = isLoading && activeClusteringRef ? <>Running clustering for {activeAnalysisName}...</> : undefined;
+  // --------------------
+
   return (
     // Apply the container style from the CSS module
     <div className={styles.analysisUnitContainer}>
@@ -338,7 +342,9 @@ const GOClusteringAnalysisUnit: React.FC = () => {
       <>
         {isLoading && activeClusteringRef && (
           <div style={{ padding: '1rem', textAlign: 'center' }}>
-            <Spin tip={`Running clustering for ${activeAnalysisName}...`} />
+            {/* --- Use spinTip variable --- */}
+            <Spin tip={spinTip} />
+            {/* ------------------------- */}
           </div>
         )}
         {!isLoading && error && activeClusteringRef && (
@@ -363,7 +369,8 @@ const GOClusteringAnalysisUnit: React.FC = () => {
               <Space direction="vertical" size="large" style={{ width: '100%' }}>
 
                 {/* Plot/Summary/Legend Row - Wrapped in Card */}
-                <Card size="small" bordered className={styles.innerSectionCard}>
+                {/* --- Removed bordered prop --- */}
+                <Card size="small" className={styles.innerSectionCard}>
                   <Row gutter={[16, 16]}>
                     <Col xs={24} md={4} lg={3}>
                       <CustomLegends
@@ -372,8 +379,8 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                         highlightedLabelsSet={highlightedRefClusterIdsSet}
                         presentClusterIds={presentClusterIds}
                         onToggleColorVisibility={handleToggleHighlightRefCluster}
-                        onToggleShapeVisibility={() => {}}
-                        onToggleSizeVisibility={() => {}}
+                        onToggleShapeVisibility={() => { }}
+                        onToggleSizeVisibility={() => { }}
                         showColor={true}
                         showShape={false}
                         showSize={false}
@@ -382,7 +389,7 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                     <Col xs={24} md={20} lg={21}>
                       <Row gutter={[16, 16]}>
                         <Col xs={24} lg={14}>
-                           <div style={{ minHeight: `${PLOT_AREA_MIN_HEIGHT}px`, border: '1px solid #f0f0f0', borderRadius: '4px', padding: '8px' }}>
+                          <div style={{ minHeight: `${PLOT_AREA_MIN_HEIGHT}px`, border: '1px solid #f0f0f0', borderRadius: '4px', padding: '8px' }}>
                             {scatterPlotData ? (
                               <GOClusteringScatterPlot
                                 plotData={scatterPlotData}
@@ -394,7 +401,7 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                                 <Empty description="Preparing plot data..." />
                               </div>
                             )}
-                           </div>
+                          </div>
                         </Col>
                         <Col xs={24} lg={10}>
                           <GOClusteringSummaryTable
@@ -434,7 +441,8 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                 )}
 
                 {/* Details Table */}
-                <Card size="small" title="Clustered Category Details" bordered className={styles.innerSectionCard}>
+                {/* --- Removed bordered prop --- */}
+                <Card size="small" title="Clustered Category Details" className={styles.innerSectionCard}>
                   <Row gutter={[16, 16]}>
                     <Col span={24}>
                       <GOClusteringDetailsTable
