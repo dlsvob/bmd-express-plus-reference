@@ -1,38 +1,52 @@
-// src/components/analysis/GOUmapAnalysisUnit.tsx
+// src/components/analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit.tsx
 // Integrates GOUmapAnalysisTable, manages its state (sorting), handles row clicks.
 // Includes loading/error checks and passes all necessary props.
+// Allows toggling between single combined UMAP plot and multiple individual plots.
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { Row, Col, Spin, Alert, Space, RadioChangeEvent } from 'antd';
-import UmapPlotComponent from './UmapPlotComponent';
-import { useAppSelector, useAppDispatch } from '../../../store/hooks';
 import {
-    usePreparedPlotData
-} from '../../../hooks/usePreparedPlotData'; // Adjust path if needed
+    Row,
+    Col,
+    Spin,
+    Alert,
+    Space,
+    Switch, // Added for toggle
+    Typography, // Added for toggle label
+    Card, // Added for wrapping multiple plots
+    RadioChangeEvent,
+} from 'antd';
+import type { TableProps } from 'antd';
+import UmapPlotComponent from './UmapPlotComponent'; // Relative path
+import { useAppSelector, useAppDispatch } from '../../../store/hooks'; // Adjusted path
 import {
+    usePreparedPlotData,
+    PreparedPlotHookData,
+} from '../../../hooks/usePreparedPlotData'; // Adjusted path
+import {
+    UmapAnalysisDataPoint,
     AnalysisTableRow,
     BMDResult,
-} from '../../../models/applicationModel'; // Adjust path
-
-import { selectSelectedAnalysisRefs } from '../../../store/slices/selectedAnalysisSlice';
+} from '../../../models/applicationModel'; // Adjusted path
+import { ReferenceUmapItem } from '../../../data/referenceUmapData'; // Adjusted path
+import { selectSelectedAnalysisRefs } from '../../../store/slices/selectedAnalysisSlice'; // Adjusted path
 import {
     selectReferenceDataMap,
     selectReferenceData,
-} from '../../../store/selectors/referenceDataSelector';
+} from '../../../store/selectors/referenceDataSelector'; // Adjusted path
 import {
     HighlightMode,
     selectColorBy,
     selectShapeBy,
     selectSizeBy,
-    selectHiddenColorLabels,
-    selectHiddenShapeLabels,
-    selectHiddenSizeLabels,
+    selectHiddenColorLabelsSet, // Use Set selector
+    selectHiddenShapeLabelsSet, // Use Set selector
+    selectHiddenSizeLabelsSet, // Use Set selector
     selectHighlightMode,
     selectCommittedSlidingWindowValue,
     selectGoIdInputString,
     selectGoIdFilterList,
     selectAccumulationPlotSelectedGoIdsSet,
-    selectTableSelectedGoId, // Import selector for table selection
+    selectTableSelectedGoId,
     // Actions
     setCommittedRankSliderValue,
     setColorBy,
@@ -43,44 +57,52 @@ import {
     toggleSizeLabelVisibility,
     setGoIdInputString,
     setHighlightMode as setHighlightModeAction,
-    setTableSelectedGoId, // Import action for table selection
-} from '../../../store/slices/analysisUISlice'; // Adjust path if needed
-import { selectSelectedProjectName } from '../../../store/selectors/projectSelectors';
-import { useGetRawAnalysisDataQuery } from '../../../store/apis/experimentsApi';
+    setTableSelectedGoId,
+} from '../../../store/slices/analysisUISlice'; // Adjusted path
+import { selectSelectedProjectName } from '../../../store/selectors/projectSelectors'; // Adjusted path
+import { useGetRawAnalysisDataQuery } from '../../../store/apis/experimentsApi'; // Adjusted path
 
 // --- Import Table Component and Column Definitions ---
-import { GOUmapAnalysisTable } from './GOUmapAnalysisTable'; // Adjust path if needed
-import { DEFAULT_GOUMAP_TABLE_COLUMNS } from '../../../config/tableColumnDefinitions'; // Adjust path
+import { GOUmapAnalysisTable } from './GOUmapAnalysisTable'; // Relative path
+import { DEFAULT_GOUMAP_TABLE_COLUMNS } from '../../../config/tableColumnDefinitions'; // Adjusted path
 import type {
     TablePaginationConfig,
     TableColumnType,
     SorterResult,
     FilterValue,
-} from 'antd/es/table/interface'; // Import specific AntD table types
-// ----------------------------------------------------
+} from 'antd/es/table/interface';
 
 // --- Import Child Components ---
 import CustomLegends from '../shared/CustomLegends'; // Adjusted path
 import StylingSelectors from '../controls/StylingSelectors'; // Adjusted path
 import SlidingWindowFilter from '../controls/SlidingWindowFilter'; // Adjusted path
-import AccumulationPlot from './AccumulationPlot'; // Use the functional component
-import GoIdFilterUI from '../controls/GoUIdFilterUI'; // Use the functional component (Adjusted path)
+import AccumulationPlot from './AccumulationPlot'; // Relative path
+import GoIdFilterUI from '../controls/GoUIdFilterUI'; // Adjusted path
 // -----------------------------
 import {
     COLOR_BY_OPTIONS,
     SHAPE_BY_OPTIONS,
     SIZE_BY_OPTIONS,
-} from '../../../config/analysisConstants'; // Adjust path if needed
+} from '../../../config/analysisConstants'; // Adjusted path
+
+const { Text } = Typography; // Added
 
 // --- Props Interface (if needed) ---
 interface GOUmapAnalysisUnitProps { }
 
+// --- Define View Mode Type ---
+type UmapViewMode = 'single' | 'multiple';
+
 // --- Border Colors & Helper (Unchanged) ---
-const borderStyle = () => ({});
+const borderStyle = () => ({}); // Example: { border: '1px dashed grey' }
 
 // --- GOUmapAnalysisUnit Component ---
 const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
     const dispatch = useAppDispatch();
+
+    // --- Add State for View Mode ---
+    const [umapViewMode, setUmapViewMode] =
+        useState<UmapViewMode>('multiple'); // Default to 'multiple'
 
     // --- Selectors needed by THIS component or its direct children ---
     const projectName = useAppSelector(selectSelectedProjectName);
@@ -88,9 +110,10 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
     const colorByOption = useAppSelector(selectColorBy);
     const shapeByOption = useAppSelector(selectShapeBy);
     const sizeByOption = useAppSelector(selectSizeBy);
-    const hiddenColorLabelsArray = useAppSelector(selectHiddenColorLabels);
-    const hiddenShapeLabelsArray = useAppSelector(selectHiddenShapeLabels);
-    const hiddenSizeLabelsArray = useAppSelector(selectHiddenSizeLabels);
+    // Use Set selectors directly for hidden labels
+    const hiddenColorLabelsSet = useAppSelector(selectHiddenColorLabelsSet);
+    const hiddenShapeLabelsSet = useAppSelector(selectHiddenShapeLabelsSet);
+    const hiddenSizeLabelsSet = useAppSelector(selectHiddenSizeLabelsSet);
     const highlightMode = useAppSelector(selectHighlightMode);
     const committedRankValue = useAppSelector(selectCommittedSlidingWindowValue);
     const referenceData = useAppSelector(selectReferenceData);
@@ -165,9 +188,11 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
     }, [rawSuccess, rawData]);
 
     // === Prepare Plot Data (Hook selects UI state internally) ===
+    // *** IMPORTANT: We need styledGroupedData from this hook now ***
     const {
-        analysisPoints, // Filtered for plot
+        analysisPoints, // Filtered for SINGLE plot
         allStyledPoints, // All points after styling - USE THIS FOR TABLE
+        styledGroupedData, // <-- NEED THIS: Map<string, UmapAnalysisDataPoint[]>
         colorItems,
         shapeItems,
         sizeItems,
@@ -292,7 +317,12 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
             sorter: SorterResult<AnalysisTableRow> | SorterResult<AnalysisTableRow>[],
             extra: { currentDataSource: AnalysisTableRow[]; action: string }
         ) => {
-            console.log('[GOUmapAnalysisUnit] handleTableChange:', { pagination, filters, sorter, action: extra.action });
+            console.log('[GOUmapAnalysisUnit] handleTableChange:', {
+                pagination,
+                filters,
+                sorter,
+                action: extra.action,
+            });
             setTablePagination(pagination);
             setTableSorter(sorter);
         },
@@ -310,6 +340,11 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
         },
         [dispatch, currentTableSelectedGoId]
     );
+    // --- Callback for the Toggle Switch ---
+    const handleViewModeChange = useCallback((checked: boolean) => {
+        // 'checked' is true for 'Multiple', false for 'Single' if using Switch
+        setUmapViewMode(checked ? 'multiple' : 'single');
+    }, []);
     // --------------------------------------
 
     // === Render Logic Checks ===
@@ -322,7 +357,9 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
     }
     if (queryError) {
         const errorMessage =
-            typeof queryError === 'object' && queryError !== null && 'message' in queryError
+            typeof queryError === 'object' &&
+                queryError !== null &&
+                'message' in queryError
                 ? String(queryError.message)
                 : String(queryError);
         return (
@@ -348,7 +385,8 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
                 {/* Filters Row */}
                 <div style={borderStyle()}>
-                    <Row gutter={[16, 16]}>
+                    <Row gutter={[16, 16]} align="middle">
+                        {/* Existing Filter UI */}
                         <Col span={24}>
                             <GoIdFilterUI
                                 goIdInputString={goIdInputString}
@@ -384,6 +422,19 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
                                 sizeOptions={SIZE_BY_OPTIONS}
                                 disabled={isLoading || !hasSelection}
                             />
+
+                            {/* --- NEW: View Mode Toggle --- */}
+                            <Space style={{ marginTop: '10px', marginLeft: '15px' }}>
+                                <Text strong>UMAP View:</Text>
+                                <Switch
+                                    checkedChildren="Multiple"
+                                    unCheckedChildren="Single"
+                                    checked={umapViewMode === 'multiple'}
+                                    onChange={handleViewModeChange}
+                                    disabled={isLoading || !hasSelection} // Disable if loading or no selection
+                                />
+                            </Space>
+                            {/* --------------------------- */}
                         </Col>
                     </Row>
                 </div>
@@ -396,16 +447,18 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
                             <CustomLegends
                                 cardTitle="Color"
                                 colorItems={colorItems}
-                                hiddenColorLabels={hiddenColorLabelsArray}
-                                onToggleColorVisibility={handleToggleColorVisibility} // Pass the function
-                                onToggleShapeVisibility={handleToggleShapeVisibility} // Pass the function
-                                onToggleSizeVisibility={handleToggleSizeVisibility}   // Pass the function
+                                // Pass Set directly
+                                hiddenColorLabelsSet={hiddenColorLabelsSet}
+                                onToggleColorVisibility={handleToggleColorVisibility}
+                                onToggleShapeVisibility={handleToggleShapeVisibility}
+                                onToggleSizeVisibility={handleToggleSizeVisibility}
                                 showColor={true}
                                 showShape={false} // Explicitly false for this instance
-                                showSize={false}  // Explicitly false for this instance
+                                showSize={false} // Explicitly false for this instance
                             />
                         </Col>
-                        {/* Main Content Area */}
+
+                        {/* Main Content Area (Plots + Accumulation) */}
                         <Col flex="auto" style={borderStyle()}>
                             <Space
                                 direction="vertical"
@@ -427,7 +480,7 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
                                                 )
                                                 : null;
                                             return (
-                                                <Col key={refStr} xs={24} sm={12} md={8} lg={6}>
+                                                <Col key={`accum-${refStr}`} xs={24} sm={12} md={8} lg={6}>
                                                     <AccumulationPlot
                                                         analysisName={analysisNameForPlot}
                                                         styledPointsForPlot={pointsForThisAccumPlot}
@@ -438,26 +491,65 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
                                         })}
                                     </Row>
                                 </div>
-                                {/* UMAP Plot Section */}
+
+                                {/* --- UMAP Plot Section (Conditional Rendering) --- */}
                                 <div style={borderStyle()}>
-                                    <UmapPlotComponent
-                                        data={analysisPoints}
-                                        referenceData={referenceData}
-                                    />
+                                    {umapViewMode === 'single' ? (
+                                        // --- Render Single Combined Plot ---
+                                        <UmapPlotComponent
+                                            data={analysisPoints} // Use points filtered for opacity
+                                            referenceData={referenceData}
+                                        />
+                                    ) : (
+                                        // --- Render Multiple Plots ---
+                                        <Row gutter={[16, 16]}>
+                                            {selectedBmdResultRefs?.map((refStr) => {
+                                                const numericRef = Number(refStr);
+                                                if (isNaN(numericRef)) return null;
+
+                                                // Get data specifically for this experiment's plot
+                                                const pointsForThisPlot =
+                                                    styledGroupedData?.get(refStr) || null;
+
+                                                // Get the name for the title
+                                                const plotTitle =
+                                                    bmdRefToExperimentNameMap.get(numericRef) ||
+                                                    `Analysis ${refStr}`;
+
+                                                return (
+                                                    <Col key={`umap-${refStr}`} xs={24} sm={12} md={8} lg={6}>
+                                                        <Card
+                                                            size="small"
+                                                            title={plotTitle}
+                                                            bodyStyle={{ padding: 0 }}
+                                                        >
+                                                            <UmapPlotComponent
+                                                                data={pointsForThisPlot}
+                                                                referenceData={referenceData}
+                                                            />
+                                                        </Card>
+                                                    </Col>
+                                                );
+                                            })}
+                                        </Row>
+                                    )}
                                 </div>
+                                {/* ------------------------------------------------- */}
                             </Space>
                         </Col>
+
                         {/* Shape/Size Legend */}
                         <Col flex="200px" style={borderStyle()}>
                             <CustomLegends
                                 cardTitle="Shape & Size"
                                 shapeItems={shapeItems}
                                 sizeItems={sizeItems}
-                                hiddenShapeLabels={hiddenShapeLabelsArray}
-                                hiddenSizeLabels={hiddenSizeLabelsArray}
-                                onToggleColorVisibility={handleToggleColorVisibility} // Pass the function
-                                onToggleShapeVisibility={handleToggleShapeVisibility} // Pass the function
-                                onToggleSizeVisibility={handleToggleSizeVisibility}   // Pass the function
+                                // Pass Sets directly
+                                hiddenShapeLabelsSet={hiddenShapeLabelsSet}
+                                // highlightedSizeLabelsSet={hiddenSizeLabelsSet} // Assuming highlight applies to shape/size too? Check CustomLegends props
+                                onToggleColorVisibility={handleToggleColorVisibility}
+                                onToggleShapeVisibility={handleToggleShapeVisibility}
+                                onToggleSizeVisibility={handleToggleSizeVisibility}
                                 showColor={false} // Explicitly false for this instance
                                 showShape={true}
                                 showSize={true}
@@ -471,7 +563,7 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
                     <Row>
                         <Col span={24}>
                             <GOUmapAnalysisTable
-                                dataSource={tableDataSource}
+                                dataSource={tableDataSource || []} // Ensure dataSource is always an array
                                 columns={tableColumns}
                                 loading={isLoading}
                                 highlightMode={highlightMode}

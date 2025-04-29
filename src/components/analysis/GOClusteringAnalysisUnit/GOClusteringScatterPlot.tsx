@@ -1,13 +1,14 @@
-// src/components/analysis/GOClusteringScatterPlot.tsx
-import React, { useMemo } from 'react';
+// src/components/analysis/GOClusteringAnalysisUnit/GOClusteringScatterPlot.tsx
+import React, { useMemo, useState, useCallback, useEffect } from 'react'; // <--- CORRECTED IMPORT
 import Plot from 'react-plotly.js';
 import type { Data, Layout } from 'plotly.js';
+import { Alert } from 'antd';
 import {
     DEFAULT_MARKER_COLOR,
     UNCLUSTERED_COLOR,
-} from '../../../utils/legendUtils';
-import { SummaryRow } from '../../../utils/clusteringUtils';
-import type { ClusteringScatterPoint } from './GOClusteringAnalysisUnit'; // Adjust path if needed
+} from '../../../utils/legendUtils'; // Adjusted path
+import { SummaryRow } from '../../../utils/clusteringUtils'; // Adjusted path
+import type { ClusteringScatterPoint } from './GOClusteringAnalysisUnit'; // Adjusted path
 
 // --- Define Styling Constants ---
 const BASE_ALPHA = 0.2;
@@ -15,23 +16,37 @@ const HIGHLIGHT_ALPHA = 1.0;
 const BASE_SIZE = 6;
 const HIGHLIGHT_SIZE = 10;
 const GRID_COLOR = '#cccccc';
-// -----------------------------
 
-// --- UPDATE Props Interface ---
 export interface GOClusteringScatterPlotProps {
     plotData: ClusteringScatterPoint[] | null;
     summaryTableData: SummaryRow[] | null;
-    highlightedRefClusterIds: Set<string>; // <<< Expects Set
+    highlightedRefClusterIds: Set<string>;
 }
-// --------------------------
 
 const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
     plotData,
     summaryTableData,
-    highlightedRefClusterIds, // <<< Use Set prop
+    highlightedRefClusterIds,
 }) => {
-    const logPrefix = '[GOClusteringScatterPlot v9 - Multi-Highlight Top]';
+    const logPrefix = '[GOClusteringScatterPlot v10 - Error Handling]';
 
+    // --- State for internal rendering errors ---
+    const [renderError, setRenderError] = useState<string | null>(null);
+
+    useEffect(() => {
+        // Reset error state if props change
+        setRenderError(null);
+    }, [plotData, summaryTableData, highlightedRefClusterIds]);
+
+    // --- Plotly Error Handler ---
+    const handlePlotError = useCallback((err: any) => {
+        console.error('[GOClusteringScatterPlot] Plotly rendering error:', err);
+        setRenderError(
+            'Failed to render Clustering plot. This might be due to data issues or browser limitations (e.g., too many WebGL contexts).'
+        );
+    }, []);
+
+    // --- Plot Data Calculation (useMemo) ---
     const plotlyData = useMemo((): Data[] => {
         if (!plotData || plotData.length === 0) {
             return [];
@@ -40,7 +55,6 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             `${logPrefix} plotlyData useMemo running. Highlighted IDs count: ${highlightedRefClusterIds.size}`
         );
 
-        // Define hovertemplate once
         const hovertemplate =
             `<b>%{customdata.goTerm}</b><br>` +
             `GO ID: %{customdata.goId}<br>` +
@@ -49,19 +63,16 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             `BMD (X): %{customdata.bmd:.2e}<br>` +
             `Rank (Y): %{customdata.rank}<extra></extra>`;
 
-        // --- Always use two traces for multi-highlight layering ---
-        console.log(`${logPrefix} Creating two traces for base and highlights.`);
-        const basePoints = { x: [], y: [], color: [], customdata: [] };
-        const highlightPoints = { x: [], y: [], color: [], customdata: [] };
+        const basePoints: { x: number[]; y: (number | null)[]; color: string[]; customdata: any[] } = { x: [], y: [], color: [], customdata: [] };
+        const highlightPoints: { x: number[]; y: (number | null)[]; color: string[]; customdata: any[] } = { x: [], y: [], color: [], customdata: [] };
+
 
         plotData.forEach((p) => {
             const refClusterIdStr =
                 p.referenceClusterId != null ? String(p.referenceClusterId) : null;
-            // Check if the ID is in the Set of highlighted IDs
             const isHighlighted =
                 refClusterIdStr !== null && highlightedRefClusterIds.has(refClusterIdStr);
 
-            // Prepare custom data object once
             const customPtData = {
                 goId: p.goId,
                 goTerm: p.goTerm,
@@ -71,20 +82,22 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
                 bmd: p.bmdValue,
             };
 
+            // Ensure jitteredRank is number or null before pushing
+            const yValue = typeof p.jitteredRank === 'number' && isFinite(p.jitteredRank) ? p.jitteredRank : null;
+
             if (isHighlighted) {
                 highlightPoints.x.push(p.bmdValue);
-                highlightPoints.y.push(p.jitteredRank);
+                highlightPoints.y.push(yValue);
                 highlightPoints.color.push(p.color);
                 highlightPoints.customdata.push(customPtData);
             } else {
                 basePoints.x.push(p.bmdValue);
-                basePoints.y.push(p.jitteredRank);
+                basePoints.y.push(yValue);
                 basePoints.color.push(p.color);
                 basePoints.customdata.push(customPtData);
             }
         });
 
-        // Define the base trace (drawn first)
         const baseTrace: Data = {
             x: basePoints.x,
             y: basePoints.y,
@@ -101,7 +114,6 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             name: 'Other Clusters',
         };
 
-        // Define the highlight trace (drawn second, on top)
         const highlightTrace: Data = {
             x: highlightPoints.x,
             y: highlightPoints.y,
@@ -118,17 +130,14 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             name: 'Highlighted Clusters',
         };
 
-        // Return array with base trace first, highlight trace second
-        // Only include traces if they have data
         const traces = [];
         if (basePoints.x.length > 0) traces.push(baseTrace);
         if (highlightPoints.x.length > 0) traces.push(highlightTrace);
 
         return traces;
-        // -------------------------------------------------------
+    }, [plotData, highlightedRefClusterIds]);
 
-    }, [plotData, highlightedRefClusterIds]); // Use Set dependency
-
+    // --- Plot Layout Calculation (useMemo) ---
     const plotlyLayout = useMemo((): Partial<Layout> => {
         let yTickVals: number[] = [];
         let yTickText: string[] = [];
@@ -140,16 +149,6 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
                 .map((item) => item.sort)
                 .filter((rank): rank is number => rank != null && !isNaN(rank));
             yTickText = sortedSummary.map((item) => String(item.cluster));
-            console.log(
-                `${logPrefix} Generated Y Ticks: Vals (Ranks)=`,
-                yTickVals
-            );
-            console.log(
-                `${logPrefix} Generated Y Ticks: Text (Cluster IDs)=`,
-                yTickText
-            );
-        } else {
-            console.log(`${logPrefix} No summary data for Y ticks.`);
         }
 
         return {
@@ -174,12 +173,28 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             height: 500,
             margin: { l: 80, r: 30, t: 50, b: 50 },
             hovermode: 'closest',
-            showlegend: false, // Keep Plotly legend off
+            showlegend: false,
             autosize: true,
         };
     }, [summaryTableData]);
 
     // --- Render Logic ---
+
+    // --- Display Alert if an internal rendering error occurred ---
+    if (renderError) {
+        return (
+            <div style={{ padding: '20px', height: '500px' }}> {/* Ensure container has height */}
+                <Alert
+                    message="Plot Rendering Error"
+                    description={renderError}
+                    type="error"
+                    showIcon
+                />
+            </div>
+        );
+    }
+    // -------------------------------------------------------------
+
     if (!plotData) {
         return <div>Preparing plot data...</div>;
     }
@@ -195,6 +210,9 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             style={{ width: '100%', height: '100%' }}
             useResizeHandler={true}
             config={{ responsive: true, displaylogo: false }}
+            // --- Add the onError handler ---
+            onError={handlePlotError}
+        // -----------------------------
         />
     );
 };

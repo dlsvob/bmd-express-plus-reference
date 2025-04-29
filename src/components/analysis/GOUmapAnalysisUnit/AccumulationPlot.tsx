@@ -1,10 +1,11 @@
-// src/components/analysis/AccumulationPlot.tsx
+// src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx
 import React, { useMemo, useCallback } from 'react';
 import type {
     Data,
     Layout,
     PlotMouseEvent,
     PlotSelectionEvent,
+    Config, // Added Config type
 } from 'plotly.js';
 import { Spin } from 'antd';
 // --- Import the CORRECT data type ---
@@ -21,7 +22,6 @@ export interface AccumulationPlotProps {
     // Expects pre-styled, rank-filtered points for this specific analysis
     styledPointsForPlot: UmapAnalysisDataPoint[] | null; // Use correct type
     bmdResultRef: number; // Identifier for this specific plot
-    // Removed unused props based on previous cleanup
 }
 
 // Constants
@@ -33,7 +33,6 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
         analysisName,
         styledPointsForPlot,
         bmdResultRef,
-        // Removed unused props from destructuring
     }) {
         const dispatch = useAppDispatch();
         const logPrefix = `[AccumulationPlot ${analysisName}]`;
@@ -109,10 +108,11 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
 
             // --- Line Trace ---
             const lineTrace: Data = {
-                // FIX: Ensure x values are number or null, not undefined
                 x: linePlotData.points.map((p) => p.bmdFifthPercentileTotalGenes ?? null),
                 y: linePlotData.cumulativeCounts,
-                type: 'scattergl',
+                // *** CHANGED HERE ***
+                type: 'scatter', // Use SVG-based scatter
+                // ******************
                 mode: 'lines',
                 name: 'Cumulative Count',
                 line: { color: LINE_COLOR, width: 2 },
@@ -151,11 +151,9 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             const markerTrace: Data | null =
                 pointsForMarkers.length > 0
                     ? {
-                        // FIX: Ensure x values are number or null, not undefined
                         x: pointsForMarkers.map(
                             (p) => p.bmdFifthPercentileTotalGenes ?? null
                         ),
-                        // y calculation already handles potential missing rank with ?? null
                         y: pointsForMarkers.map(
                             (p) =>
                                 linePlotData.cumulativeCounts[
@@ -170,7 +168,9 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
                                     2
                                 )}<br>Source: ${p.bmdResultName}`
                         ),
-                        type: 'scattergl',
+                        // *** CHANGED HERE ***
+                        type: 'scatter', // Use SVG-based scatter
+                        // ******************
                         mode: 'markers',
                         name: 'Points',
                         marker: {
@@ -193,7 +193,7 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             return markerTrace ? [lineTrace, markerTrace] : [lineTrace];
         }, [linePlotData, styledPointsForPlot, logPrefix]);
 
-        // --- Layout Calculation (remains the same) ---
+        // --- Layout Calculation ---
         const plotLayout = useMemo((): Partial<Layout> | null => {
             if (!linePlotData) return null;
             const epsilon = 1e-10;
@@ -226,7 +226,7 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             };
         }, [linePlotData]);
 
-        // --- Event Handlers (remain the same) ---
+        // --- Event Handlers ---
         const handleSelection = useCallback(
             (event: Readonly<PlotSelectionEvent> | undefined) => {
                 const selectedGoIds =
@@ -267,7 +267,7 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             dispatch(setAccumulationPlotSelection([]));
         }, [dispatch, logPrefix]);
 
-        // --- Render Logic (remains the same) ---
+        // --- Render Logic ---
         console.log(
             `${logPrefix} FINAL check before Plot. plotData is null?`,
             plotData === null,
@@ -300,31 +300,33 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             );
         }
 
+        // Define Plotly config
+        const plotConfig: Partial<Config> = {
+            responsive: true,
+            displaylogo: false,
+            modeBarButtonsToRemove: [
+                'zoom2d',
+                'pan2d',
+                'select2d',
+                'zoomIn2d',
+                'zoomOut2d',
+                'autoScale2d',
+                'resetScale2d',
+                'hoverClosestCartesian',
+                'hoverCompareCartesian',
+                'toggleSpikelines',
+            ],
+        };
+
         return (
             <div style={{ height: `${PLOT_HEIGHT}px`, width: '100%' }}>
                 <Plot
                     divId={`${analysisName}-accumulation-${bmdResultRef}`}
-                    // No type assertion needed now for data if TS is satisfied
                     data={plotData}
                     layout={plotLayout}
                     style={{ width: '100%', height: '100%' }}
                     useResizeHandler={true}
-                    config={{
-                        responsive: true,
-                        displaylogo: false,
-                        modeBarButtonsToRemove: [
-                            'zoom2d',
-                            'pan2d',
-                            'select2d',
-                            'zoomIn2d',
-                            'zoomOut2d',
-                            'autoScale2d',
-                            'resetScale2d',
-                            'hoverClosestCartesian',
-                            'hoverCompareCartesian',
-                            'toggleSpikelines',
-                        ],
-                    }}
+                    config={plotConfig}
                     onClick={handleClick}
                     onSelected={handleSelection}
                     onDoubleClick={handleDoubleClick}

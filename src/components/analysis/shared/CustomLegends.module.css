@@ -1,39 +1,30 @@
-/* src/components/analysis/CustomLegend.module.css */
+/* src/components/analysis/shared/CustomLegends.module.css */
 
 .legendCard {
-    /* Allow content to scroll if it overflows the fixed height */
     height: 100%;
-    /* Make card try to fill parent height */
     display: flex;
-    /* Enable flexbox for vertical layout */
     flex-direction: column;
     overflow: hidden;
-    /* Hide overflow at the card level initially */
+    border: 1px solid #f0f0f0;
 }
 
 .legendCard :global(.ant-card-head) {
-    /* Style the card header if needed */
-    padding: 8px 12px;
-    /* Adjust padding */
+    padding: 6px 10px;
     min-height: auto;
     font-size: 0.9em;
     font-weight: bold;
+    border-bottom: 1px solid #f0f0f0;
 }
 
 .legendCard :global(.ant-card-body) {
-    padding: 8px 12px;
-    /* Adjust padding */
+    padding: 8px 10px;
     flex-grow: 1;
-    /* Allow body to take remaining space */
     overflow-y: auto;
-    /* Enable vertical scrolling ONLY for the body */
     min-height: 0;
-    /* Important for flexbox scrolling */
 }
 
 .legendSection {
-    margin-bottom: 12px;
-    /* Space between Color/Shape/Size sections */
+    margin-bottom: 10px;
 }
 
 .legendSection:last-child {
@@ -44,30 +35,40 @@
     display: flex;
     align-items: center;
     margin-bottom: 1px;
-    /* Minimal space between items */
-    padding: 2px 0;
-    /* Add slight vertical padding */
-    /* cursor: pointer; */
-    /* Remove cursor if only checkbox is clickable */
-    transition: opacity 0.2s ease-in-out;
+    padding: 2px 4px;
+    transition: opacity 0.2s ease-in-out, background-color 0.1s ease-in-out;
     width: 100%;
-    /* Ensure item takes full width */
+    border-radius: 3px;
+    cursor: pointer;
+    opacity: 1;
+    /* Default state */
 }
 
-/* Style for items marked as hidden */
+/* Apply dimming to the *entire* hidden item */
 .legendItem.hidden {
-    opacity: 0.4;
+    opacity: 0.5 !important;
+    cursor: default;
 }
 
-/* Optional: Add hover effect */
-/* .legendItem:hover {
-  background-color: #f0f0f0;
-} */
-
-.legendCheckbox {
-    margin-right: 6px;
-    flex-shrink: 0;
+/* Hover effect ONLY for non-hidden items */
+.legendItem:not(.hidden):hover {
+    background-color: #f0f2f5;
 }
+
+/* Target the label SPAN *within* the hidden item DIV */
+.legendItem.hidden .label {
+    text-decoration: line-through !important;
+    color: #888 !important;
+    /* Dim text color as well */
+}
+
+/* Ensure visual cue opacity is also affected (though parent opacity should cover it) */
+/* You might not need this rule if parent opacity works */
+/*
+.legendItem.hidden .visualCue {
+  opacity: 0.5 !important;
+}
+*/
 
 .visualCue {
     margin-right: 6px;
@@ -76,26 +77,24 @@
     justify-content: center;
     flex-shrink: 0;
     min-width: 16px;
-    /* Ensure minimum width for cues */
 }
 
 .colorSwatch {
-    width: 14px;
-    height: 14px;
+    width: 12px;
+    height: 12px;
     border: 1px solid #ccc;
     display: inline-block;
     vertical-align: middle;
     flex-shrink: 0;
-    /* Prevent shrinking */
 }
 
 .shapeText {
-    font-size: 0.8em;
+    font-size: 1.1em;
     color: #555;
-    font-style: italic;
-    min-width: 40px;
+    min-width: 20px;
     text-align: center;
     flex-shrink: 0;
+    line-height: 1;
 }
 
 .sizeCircle {
@@ -108,17 +107,19 @@
 }
 
 .label {
-    font-size: 0.9em;
+    font-size: 0.85em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     flex-grow: 1;
     min-width: 0;
-    /* Crucial for ellipsis to work in flex */
     line-height: 1.2;
-    /* Adjust line height for better alignment */
     padding-left: 2px;
-    /* Small space after visual cue */
+    color: inherit;
+    /* Inherit color from parent */
+    text-decoration: none;
+    /* Default */
+    transition: color 0.2s ease-in-out, text-decoration 0.2s ease-in-out;
 }
 
 .noItems {
