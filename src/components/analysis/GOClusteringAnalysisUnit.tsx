@@ -1,8 +1,27 @@
 // src/components/analysis/GOClusteringAnalysisUnit.tsx
-// Handles multiple selected analyses via Tabs.
+// Handles multiple selected analyses via Tabs. Adds Copy/Export controls.
 
-import React, { useMemo, useCallback, useEffect } from 'react';
-import { Card, Spin, Alert, Empty, Row, Col, Tabs } from 'antd'; // Added Tabs
+import React, { useMemo, useCallback, useEffect, useState } from 'react';
+import {
+    Card,
+    Spin,
+    Alert,
+    Empty,
+    Row,
+    Col,
+    Tabs,
+    Button,
+    Input,
+    Select,
+    Space,
+    Typography,
+    message,
+} from 'antd';
+import {
+    CopyOutlined,
+    DownloadOutlined,
+    ExperimentOutlined,
+} from '@ant-design/icons';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
 import { selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice';
@@ -25,15 +44,20 @@ import {
 import { useProcessedClusteringData } from '../../hooks/useProcessedClusteringData';
 import { useClusteringVisualizationData } from '../../hooks/useClusteringVisualizationData';
 import { BMDResult, CategoryAnalysisItem } from '../../models/BMDxExported';
-import GOClusteringScatterPlot from './GOClusteringScatterPlot';
+import GOClusteringScatterPlot, {
+    ClusteringScatterPoint,
+} from './GOClusteringScatterPlot';
 import GOClusteringSummaryTable from './GOClusteringSummaryTable';
 import GOClusteringDetailsTable from './GOClusteringDetailsTable';
 import CustomLegends from './CustomLegends';
-// Removed ExperimentSelectionToggle import
+import AnalysisControls from './AnalysisControls';
 
 const PRIMARY_COLOR = '#1677ff';
+const { Text } = Typography;
+const { Option } = Select;
 
 const getErrorMessage = (error: unknown): string => {
+    // ... (error message helper remains the same) ...
     if (!error) {
         return 'An unknown error occurred.';
     }
@@ -56,8 +80,14 @@ const getErrorMessage = (error: unknown): string => {
 };
 
 const GOClusteringAnalysisUnit: React.FC = () => {
-    const logPrefix = '[GOClusteringAnalysisUnit v14 - Tabs Toggle]'; // Keep version consistent
+    const logPrefix = '[GOClusteringAnalysisUnit v16 - Fixed Ref Error]'; // Version Bump
     const dispatch = useAppDispatch();
+
+    // --- State for controls ---
+    const [textInputValue, setTextInputValue] = useState<string>('');
+    const [dropdownValue, setDropdownValue] = useState<string | undefined>(
+        undefined
+    );
 
     // --- Selectors ---
     const projectName = useAppSelector(selectSelectedProjectName);
@@ -87,6 +117,7 @@ const GOClusteringAnalysisUnit: React.FC = () => {
 
     // --- Generate Name Map ---
     const bmdRefToExperimentNameMap = useMemo(() => {
+        // ... (logic remains the same) ...
         const mapLogPrefix = `${logPrefix} [bmdRefToExperimentNameMap]`;
         console.log(`${mapLogPrefix} Generating map...`);
         const tempMap = new Map<number, string>();
@@ -108,6 +139,7 @@ const GOClusteringAnalysisUnit: React.FC = () => {
 
     // --- Effect to manage activeClusteringRef ---
     useEffect(() => {
+        // ... (logic remains the same) ...
         const effectLogPrefix = `${logPrefix} [useEffect activeRef]`;
         if (
             !isLoadingRaw &&
@@ -147,8 +179,16 @@ const GOClusteringAnalysisUnit: React.FC = () => {
         logPrefix,
     ]);
 
-    // --- Prepare Data for Clustering (Filters based on ACTIVE ref) ---
+    // --- Calculate Active Analysis Name (Moved Up) ---
+    const activeAnalysisName = activeClusteringRef
+        ? bmdRefToExperimentNameMap.get(Number(activeClusteringRef)) ||
+        `Analysis ${activeClusteringRef}`
+        : 'No Analysis Selected';
+    // -------------------------------------------------
+
+    // --- Prepare Data for Clustering ---
     const rowDataForClustering = useMemo(() => {
+        // ... (logic remains the same) ...
         const prepLogPrefix = `${logPrefix} [rowDataForClustering]`;
         if (
             !activeClusteringRef ||
@@ -217,7 +257,7 @@ const GOClusteringAnalysisUnit: React.FC = () => {
         );
 
     // --- Call the Visualization Data Hook ---
-    const { scatterPlotData, legendColorItems, presentClusterIds } = // Get presentClusterIds
+    const { scatterPlotData, legendColorItems, presentClusterIds } =
         useClusteringVisualizationData({
             categoryTableData,
             summaryTableData,
@@ -247,15 +287,108 @@ const GOClusteringAnalysisUnit: React.FC = () => {
         [dispatch]
     );
 
-    // === Render Logic ===
-    const activeAnalysisName = activeClusteringRef
-        ? bmdRefToExperimentNameMap.get(Number(activeClusteringRef)) ||
-        `Analysis ${activeClusteringRef}`
-        : 'No Analysis Selected';
+    // --- Handlers for controls ---
+    const handleTextInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setTextInputValue(e.target.value);
+    };
 
+    const handleDropdownChange = (value: string) => {
+        setDropdownValue(value);
+    };
+
+    const formatDataForExport = (
+        data: ClusteringScatterPoint[] | null
+    ): string => {
+        // ... (logic remains the same) ...
+        if (!data || data.length === 0) {
+            return '';
+        }
+        const header = [
+            'GO_ID',
+            'GO_Term',
+            'Pyodide_Cluster',
+            'Reference_Cluster',
+            'Rank',
+            'BMD_5th_Percentile',
+            'Jittered_Rank',
+        ].join('\t');
+
+        const rows = data.map((p) =>
+            [
+                p.goId ?? 'N/A',
+                `"${p.goTerm?.replace(/"/g, '""') ?? 'N/A'}"`,
+                p.pyodideCluster ?? 'N/A',
+                p.referenceClusterId ?? 'N/A',
+                p.rank ?? 'N/A',
+                p.bmdValue?.toExponential(4) ?? 'N/A',
+                p.jitteredRank?.toFixed(4) ?? 'N/A',
+            ].join('\t')
+        );
+
+        return [header, ...rows].join('\n');
+    };
+
+    const handleCopyToClipboard = useCallback(async () => {
+        // ... (logic remains the same) ...
+        const tsvData = formatDataForExport(scatterPlotData);
+        if (!tsvData) {
+            message.warning('No data available to copy.');
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(tsvData);
+            message.success('Scatter plot data copied to clipboard!');
+        } catch (err) {
+            console.error('Failed to copy data to clipboard:', err);
+            message.error('Failed to copy data. See console for details.');
+        }
+    }, [scatterPlotData]);
+
+    const handleExportToFile = useCallback(() => {
+        // ... (logic uses activeAnalysisName, which is now declared above) ...
+        const tsvData = formatDataForExport(scatterPlotData);
+        if (!tsvData) {
+            message.warning('No data available to export.');
+            return;
+        }
+
+        const blob = new Blob([tsvData], {
+            type: 'text/tab-separated-values;charset=utf-8;',
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        // Use activeAnalysisName which is now guaranteed to be initialized here
+        const safeAnalysisName = activeAnalysisName.replace(/[^a-z0-9]/gi, '_');
+        link.setAttribute(
+            'download',
+            `clustering_scatter_data_${safeAnalysisName}.txt`
+        );
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        message.success('Scatter plot data export initiated.');
+    }, [scatterPlotData, activeAnalysisName]); // Dependency array is correct
+
+    const handleEnrichmentSubmit = useCallback(() => {
+        // ... (logic uses activeAnalysisName, which is now declared above) ...
+        console.log('Enrichment Submitted:', {
+            genes: textInputValue,
+            background: dropdownValue,
+            activeAnalysis: activeClusteringRef,
+        });
+        message.info(
+            `Enrichment analysis submitted for ${activeAnalysisName} (Not Implemented)`
+        );
+    }, [textInputValue, dropdownValue, activeClusteringRef, activeAnalysisName]); // Dependency array is correct
+
+    // ---------------------------------------------
+
+    // === Render Logic ===
     const PLOT_AREA_MIN_HEIGHT = 550;
 
-    // Prepare items for Tabs
     const tabItems = useMemo(() => {
         if (!selectedBmdResultRefs) return [];
         return selectedBmdResultRefs.map((refStr) => {
@@ -269,6 +402,9 @@ const GOClusteringAnalysisUnit: React.FC = () => {
             };
         });
     }, [selectedBmdResultRefs, bmdRefToExperimentNameMap]);
+
+    const isExportDisabled = !scatterPlotData || scatterPlotData.length === 0;
+    const isEnrichmentSubmitDisabled = !textInputValue || !dropdownValue;
 
     // Handle overall loading/error/no selection states first
     if (isLoadingRaw) {
@@ -351,77 +487,93 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                             <Empty description="No categories found after processing clustering results for this analysis." />
                         )}
                         {hasActiveDataToCluster && hasActiveResults && (
-                            <Row gutter={[16, 16]}>
-                                {/* Legend Column */}
-                                <Col xs={24} md={4} lg={3}>
-                                    <CustomLegends
-                                        cardTitle="Ref Clusters"
-                                        colorItems={legendColorItems}
-                                        highlightedLabelsSet={highlightedRefClusterIdsSet}
-                                        presentClusterIds={presentClusterIds} // Pass the set of present IDs
-                                        onToggleColorVisibility={handleToggleHighlightRefCluster}
-                                        onToggleShapeVisibility={() => { }}
-                                        onToggleSizeVisibility={() => { }}
-                                        showColor={true}
-                                        showShape={false}
-                                        showSize={false}
-                                    />
-                                </Col>
+                            <>
+                                {/* Plot/Summary/Legend Row */}
+                                <Row gutter={[16, 16]}>
+                                    {/* Legend Column */}
+                                    <Col xs={24} md={4} lg={3}>
+                                        <CustomLegends
+                                            cardTitle="Ref Clusters"
+                                            colorItems={legendColorItems}
+                                            highlightedLabelsSet={highlightedRefClusterIdsSet}
+                                            presentClusterIds={presentClusterIds}
+                                            onToggleColorVisibility={handleToggleHighlightRefCluster}
+                                            onToggleShapeVisibility={() => { }}
+                                            onToggleSizeVisibility={() => { }}
+                                            showColor={true}
+                                            showShape={false}
+                                            showSize={false}
+                                        />
+                                    </Col>
 
-                                {/* Main Content Area (Plot and Summary Table) */}
-                                <Col xs={24} md={20} lg={21}>
-                                    <Row gutter={[16, 16]}>
-                                        {/* Plot Area */}
-                                        <Col xs={24} lg={14}>
-                                            <Card
-                                                size="small"
-                                                title="5th Percentile BMD vs. Cluster Rank"
-                                                style={{ minHeight: `${PLOT_AREA_MIN_HEIGHT}px` }}
-                                                bodyStyle={{ height: 'calc(100% - 40px)' }}
-                                            >
-                                                {scatterPlotData ? (
-                                                    <GOClusteringScatterPlot
-                                                        plotData={scatterPlotData}
-                                                        summaryTableData={summaryTableData}
-                                                        highlightedRefClusterIds={
-                                                            highlightedRefClusterIdsSet
-                                                        }
-                                                    />
-                                                ) : (
-                                                    <div
-                                                        style={{
-                                                            display: 'flex',
-                                                            justifyContent: 'center',
-                                                            alignItems: 'center',
-                                                            height: '400px',
-                                                        }}
-                                                    >
-                                                        <Empty description="Preparing plot data..." />
-                                                    </div>
-                                                )}
-                                            </Card>
-                                        </Col>
+                                    {/* Main Content Area (Plot and Summary Table) */}
+                                    <Col xs={24} md={20} lg={21}>
+                                        <Row gutter={[16, 16]}>
+                                            {/* Plot Area */}
+                                            <Col xs={24} lg={14}>
+                                                <Card
+                                                    size="small"
+                                                    title="5th Percentile BMD vs. Cluster Rank"
+                                                    style={{ minHeight: `${PLOT_AREA_MIN_HEIGHT}px` }}
+                                                    bodyStyle={{ height: 'calc(100% - 40px)' }}
+                                                >
+                                                    {scatterPlotData ? (
+                                                        <GOClusteringScatterPlot
+                                                            plotData={scatterPlotData}
+                                                            summaryTableData={summaryTableData}
+                                                            highlightedRefClusterIds={
+                                                                highlightedRefClusterIdsSet
+                                                            }
+                                                        />
+                                                    ) : (
+                                                        <div
+                                                            style={{
+                                                                display: 'flex',
+                                                                justifyContent: 'center',
+                                                                alignItems: 'center',
+                                                                height: '400px',
+                                                            }}
+                                                        >
+                                                            <Empty description="Preparing plot data..." />
+                                                        </div>
+                                                    )}
+                                                </Card>
+                                            </Col>
 
-                                        {/* Summary Table Area */}
-                                        <Col xs={24} lg={10}>
-                                            <GOClusteringSummaryTable
-                                                dataSource={summaryTableData}
-                                                loading={isPyodideLoading}
-                                            />
-                                        </Col>
-                                    </Row>
+                                            {/* Summary Table Area */}
+                                            <Col xs={24} lg={10}>
+                                                <GOClusteringSummaryTable
+                                                    dataSource={summaryTableData}
+                                                    loading={isPyodideLoading}
+                                                />
+                                            </Col>
+                                        </Row>
+                                    </Col>
+                                </Row>
 
-                                    {/* Details Table Area */}
-                                    <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
-                                        <Col span={24}>
-                                            <GOClusteringDetailsTable
-                                                dataSource={categoryTableData}
-                                                loading={isPyodideLoading}
-                                            />
-                                        </Col>
-                                    </Row>
-                                </Col>
-                            </Row>
+                                {/* Render AnalysisControls Component */}
+                                <AnalysisControls
+                                    isExportDisabled={isExportDisabled}
+                                    onCopy={handleCopyToClipboard}
+                                    onExport={handleExportToFile}
+                                    enrichmentInputValue={textInputValue}
+                                    onEnrichmentInputChange={handleTextInputChange}
+                                    enrichmentDropdownValue={dropdownValue}
+                                    onEnrichmentDropdownChange={handleDropdownChange}
+                                    onEnrichmentSubmit={handleEnrichmentSubmit}
+                                    isEnrichmentSubmitDisabled={isEnrichmentSubmitDisabled}
+                                />
+
+                                {/* Details Table Area */}
+                                <Row gutter={[16, 16]} style={{ marginTop: '0px' }}>
+                                    <Col span={24}>
+                                        <GOClusteringDetailsTable
+                                            dataSource={categoryTableData}
+                                            loading={isPyodideLoading}
+                                        />
+                                    </Col>
+                                </Row>
+                            </>
                         )}
                     </>
                 )}
