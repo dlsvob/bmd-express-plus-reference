@@ -1,0 +1,25 @@
+/* Common style for analysis unit containers */
+.analysisUnitContainer {
+    border: 2px solid #1677ff;
+    /* Ant Design primary blue */
+    border-radius: 8px;
+    /* Rounded corners */
+    padding: 16px;
+    /* Inner spacing */
+    margin-top: 24px;
+    /* Space above the unit */
+    background-color: #ffffff;
+    /* Ensure white background */
+}
+
+/* Optional: Style for inner cards if needed */
+.innerSectionCard {
+    margin-bottom: 16px;
+    /* Space between inner cards */
+    border-color: #adc6ff;
+    /* Lighter blue for inner borders */
+}
+
+.innerSectionCard:last-child {
+    margin-bottom: 0;
+}
