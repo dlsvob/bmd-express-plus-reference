@@ -26,7 +26,7 @@ import {
 import PyodideErrorNotifier from '../shared/PyodideErrorNotifier';
 import ExperimentListView from '../views/ExperimentListView';
 import GOUmapAnalysisUnit from '../analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit';
-import GOClusteringAnalysisUnit from '../analysis/GOUmapAnalysisUnit/GOClusteringAnalysisUnit';
+import GOClusteringAnalysisUnit from '../analysis/GOClusteringAnalysisUnit/GOClusteringAnalysisUnit';
 import AppHeader from './AppHeader';
 // *** Import usePyodide hook HERE ***
 import { usePyodide } from '../../contexts/PyodideProvider';

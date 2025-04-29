@@ -8,7 +8,7 @@ import type { RadioChangeEvent } from 'antd';
 // Import the components
 import GoIdFilterUI from '../components/GoIdFilterUI'; // New wrapper
 import UmapRankSlider from '../components/UmapRankSlider';
-import StylingSelectors from '../components/StylingSelectors';
+import StylingSelectors from '../components/analysis/controls/StylingSelectors';
 import CustomLegends from '../components/CustomLegends';
 import SharedPlotDisplay from '../components/SharedPlotDisplay';
 import {

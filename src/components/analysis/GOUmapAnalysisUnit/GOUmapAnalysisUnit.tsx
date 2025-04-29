@@ -61,7 +61,7 @@ import type {
 
 // --- Import Child Components ---
 import CustomLegends from '../shared/CustomLegends'; // Adjusted path
-import StylingSelectors from '../../StylingSelectors'; // Adjusted path
+import StylingSelectors from '../controls/StylingSelectors'; // Adjusted path
 import SlidingWindowFilter from '../controls/SlidingWindowFilter'; // Adjusted path
 import AccumulationPlot from './AccumulationPlot'; // Use the functional component
 import GoIdFilterUI from '../controls/GoUIdFilterUI'; // Use the functional component (Adjusted path)
