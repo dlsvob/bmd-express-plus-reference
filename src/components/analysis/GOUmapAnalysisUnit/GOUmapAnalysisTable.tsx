@@ -1,7 +1,8 @@
 // src/components/GOUmapAnalysisTable.tsx
 import React from 'react';
 import { Table } from 'antd';
-import type { TableProps, TableColumnType } from 'antd';
+import type { TableProps } from 'antd';
+import type { ColumnType } from 'antd/es/table';
 import { AnalysisTableRow } from '../../../models/applicationModel'; // Adjust path as needed
 import { HighlightMode } from '../../../store/slices/analysisUISlice'; // Adjust path as needed
 import { HIDDEN_OPACITY } from '../../../utils/styleUtils'; // Import HIDDEN_OPACITY
@@ -40,7 +41,7 @@ const HIDDEN_ROW_STYLE: React.CSSProperties = {
 // --- Component Props Interface ---
 interface GOUmapAnalysisTableProps extends Omit<TableProps<AnalysisTableRow>, 'columns' | 'dataSource' | 'onRow' | 'onChange'> {
     dataSource: AnalysisTableRow[];
-    columns: TableColumnType<AnalysisTableRow>[];
+    columns: ColumnType<AnalysisTableRow>[]; // Use ColumnType
     loading?: boolean;
     highlightMode: HighlightMode;
     highlightGoIdsSet: Set<string>; // GO IDs from the text filter UI
@@ -74,7 +75,9 @@ export const GOUmapAnalysisTable: React.FC<GOUmapAnalysisTableProps> = React.mem
     }) {
 
         // --- Implement onRow to set background color AND attach onClick ---
-        const handleRow = (record: AnalysisTableRow, index?: number) => {
+        // --- FIX: Remove unused 'index' parameter ---
+        const handleRow = (record: AnalysisTableRow /*, index?: number */) => {
+            // ------------------------------------------
             const rowStyle: React.CSSProperties = {};
             const isHiddenOnPlot = record.finalOpacity === HIDDEN_OPACITY;
 
@@ -139,3 +142,7 @@ export const GOUmapAnalysisTable: React.FC<GOUmapAnalysisTableProps> = React.mem
         );
     }
 );
+
+// --- FIX: Add display name ---
+GOUmapAnalysisTable.displayName = 'GOUmapAnalysisTable';
+// -----------------------------

@@ -38,14 +38,16 @@
     ]
   },
   "include": [
-    "src"
-  ], // Only compile src for the app
+    "src", // Include all source files first
+    "src/types/global.d.ts" // <-- FIX: Explicitly include the global types file
+  ],
   "exclude": [
     "node_modules",
     "dist",
     "dist-electron",
     "release",
-    "src/**/*.d.ts",
+    // Keep other exclusions if needed, but the explicit include above handles global.d.ts
+    // "src/**/*.d.ts", // You might be able to remove this line now, or keep it if you have other .d.ts files in src you *do* want excluded
     "src/**/*.js",
     "src/**/*.js.map"
   ],

@@ -1,7 +1,6 @@
-// src/hooks/useAvailableProjectsList.tsx
+// src/hooks/useAvailableProjectsList.ts
 import { useState, useEffect } from 'react';
 import { ProjectInfo } from './useProjectData'; // Keep this type import
-// Import the new utility function
 import { listProjectDatabaseNames } from '../utils/myIDB'; // Adjust path if needed
 
 /**
@@ -24,18 +23,18 @@ export const useAvailableProjectList = (): {
         setError(null);
         setProjects(null);
 
-        // Call the utility function
         listProjectDatabaseNames()
             .then(projectNames => {
                 console.log("[useAvailableProjectList] Received project names:", projectNames);
                 if (isMounted) {
-                    // Map names to ProjectInfo structure
                     const projectList: ProjectInfo[] = projectNames
-                        .map((name: string) => ({ // Add type for name
+                        .map((name: string) => ({
                             name: name,
-                            source: 'indexeddb' as 'indexeddb',
+                            // --- FIX: Use 'as const' ---
+                            source: 'indexeddb' as const,
+                            // --------------------------
                         }))
-                        .sort((a: ProjectInfo, b: ProjectInfo) => a.name.localeCompare(b.name)); // Add types for a, b
+                        .sort((a: ProjectInfo, b: ProjectInfo) => a.name.localeCompare(b.name));
 
                     console.log("[useAvailableProjectList] Mapped project list:", projectList);
                     setProjects(projectList);
@@ -43,7 +42,6 @@ export const useAvailableProjectList = (): {
                 }
             })
             .catch(err => {
-                // Handle errors from listProjectDatabaseNames (e.g., browser not supported)
                 console.error("[useAvailableProjectList] Error getting project names:", err);
                 if (isMounted) {
                     setError(err instanceof Error ? err : new Error('Failed to list available projects'));

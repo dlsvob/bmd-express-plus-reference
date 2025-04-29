@@ -1,6 +1,8 @@
 // src/hooks/useProjectData.ts
 import { ProjectData } from '../models/BMDxExported';
-import { useIndexedDbProjectData } from './useIndexedDbProjectData';
+// --- FIX: Comment out missing import ---
+// import { useIndexedDbProjectData } from './useIndexedDbProjectData'; // Assuming it's in the same directory
+// ------------------------------------
 // import { useRemoteApiProjectData } from './useRemoteApiProjectData'; // For future
 
 export interface ProjectInfo {
@@ -15,14 +17,20 @@ export interface UseProjectDataResult {
 }
 
 export function useProjectData(selectedProject: ProjectInfo | null): UseProjectDataResult {
-    const projectName = selectedProject?.name ?? null;
+    //const projectName = selectedProject?.name ?? null;
     const projectSource = selectedProject?.source ?? null;
 
     // --- Call ALL potential source hooks unconditionally ---
-    // Call the specific hook for IndexedDB data
-    const indexedDbResult = useIndexedDbProjectData(
-        projectSource === 'indexeddb' ? projectName : null // Pass name only if source matches
-    );
+    // --- FIX: Temporarily return placeholder for indexedDbResult ---
+    const indexedDbResult: UseProjectDataResult = {
+        projectData: null,
+        isLoading: false,
+        error: projectSource === 'indexeddb' ? new Error('useIndexedDbProjectData hook not implemented') : null,
+    };
+    // const indexedDbResult = useIndexedDbProjectData(
+    //     projectSource === 'indexeddb' ? projectName : null // Pass name only if source matches
+    // );
+    // ---------------------------------------------------------
 
     // Call the specific hook for Remote API data (when implemented)
     // const remoteApiResult = useRemoteApiProjectData(
@@ -31,7 +39,7 @@ export function useProjectData(selectedProject: ProjectInfo | null): UseProjectD
 
     // --- Select the result based on the source ---
     if (projectSource === 'indexeddb') {
-        return indexedDbResult; // Return the result from the IDB hook
+        return indexedDbResult; // Return the placeholder result
     } else if (projectSource === 'remote') {
         // return remoteApiResult; // Return result from remote hook when implemented
         // Placeholder for now:

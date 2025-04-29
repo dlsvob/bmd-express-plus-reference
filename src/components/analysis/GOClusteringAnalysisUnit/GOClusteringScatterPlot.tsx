@@ -1,14 +1,22 @@
 // src/components/analysis/GOClusteringAnalysisUnit/GOClusteringScatterPlot.tsx
-import React, { useMemo, useState, useCallback, useEffect } from 'react'; // <--- CORRECTED IMPORT
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import Plot from 'react-plotly.js';
-import type { Data, Layout } from 'plotly.js';
+import type { Data, Layout, Datum } from 'plotly.js'; // Import Datum type
 import { Alert } from 'antd';
-import {
-    DEFAULT_MARKER_COLOR,
-    UNCLUSTERED_COLOR,
-} from '../../../utils/legendUtils'; // Adjusted path
+// import { DEFAULT_MARKER_COLOR, UNCLUSTERED_COLOR } from '../../../utils/legendUtils'; // Removed - Unused
 import { SummaryRow } from '../../../utils/clusteringUtils'; // Adjusted path
-import type { ClusteringScatterPoint } from './GOClusteringAnalysisUnit'; // Adjusted path
+// --- Define and Export Interface Here ---
+export interface ClusteringScatterPoint {
+    goId: string;
+    goTerm: string;
+    pyodideCluster: string | number;
+    referenceClusterId: string | number | null;
+    rank: number;
+    bmdValue: number;
+    jitteredRank: number | null;
+    color: string;
+}
+// ------------------------------------------
 
 // --- Define Styling Constants ---
 const BASE_ALPHA = 0.2;
@@ -23,28 +31,38 @@ export interface GOClusteringScatterPlotProps {
     highlightedRefClusterIds: Set<string>;
 }
 
+// --- Define type for the *inner* array of customdata ---
+type ScatterCustomDataItem = [
+    string, // goTerm (index 0)
+    string, // goId (index 1)
+    string | number, // pyodideCluster (index 2)
+    string | number | null, // referenceClusterId (index 3)
+    number, // bmd (index 4)
+    number  // rank (index 5)
+];
+// ------------------------------------------------------
+
 const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
     plotData,
     summaryTableData,
     highlightedRefClusterIds,
 }) => {
-    const logPrefix = '[GOClusteringScatterPlot v10 - Error Handling]';
+    const logPrefix = '[GOClusteringScatterPlot v11 - CustomData Fix]'; // Version Bump
 
     // --- State for internal rendering errors ---
     const [renderError, setRenderError] = useState<string | null>(null);
 
     useEffect(() => {
-        // Reset error state if props change
         setRenderError(null);
     }, [plotData, summaryTableData, highlightedRefClusterIds]);
 
     // --- Plotly Error Handler ---
-    const handlePlotError = useCallback((err: any) => {
-        console.error('[GOClusteringScatterPlot] Plotly rendering error:', err);
+    const handlePlotError = useCallback((err: Error) => { // Use Error type
+        console.error(`${logPrefix} Plotly rendering error:`, err);
         setRenderError(
             'Failed to render Clustering plot. This might be due to data issues or browser limitations (e.g., too many WebGL contexts).'
         );
-    }, []);
+    }, [logPrefix]);
 
     // --- Plot Data Calculation (useMemo) ---
     const plotlyData = useMemo((): Data[] => {
@@ -55,17 +73,20 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             `${logPrefix} plotlyData useMemo running. Highlighted IDs count: ${highlightedRefClusterIds.size}`
         );
 
+        // --- FIX: Update hovertemplate to use array indices ---
         const hovertemplate =
-            `<b>%{customdata.goTerm}</b><br>` +
-            `GO ID: %{customdata.goId}<br>` +
-            `Pyodide Cluster: %{customdata.pyodideCluster}<br>` +
-            `Ref Cluster: %{customdata.referenceClusterId}<br>` +
-            `BMD (X): %{customdata.bmd:.2e}<br>` +
-            `Rank (Y): %{customdata.rank}<extra></extra>`;
+            `<b>%{customdata[0]}</b><br>` + // goTerm
+            `GO ID: %{customdata[1]}<br>` + // goId
+            `Pyodide Cluster: %{customdata[2]}<br>` + // pyodideCluster
+            `Ref Cluster: %{customdata[3]}<br>` + // referenceClusterId
+            `BMD (X): %{customdata[4]:.2e}<br>` + // bmd
+            `Rank (Y): %{customdata[5]}<extra></extra>`; // rank
+        // ------------------------------------------------------
 
-        const basePoints: { x: number[]; y: (number | null)[]; color: string[]; customdata: any[] } = { x: [], y: [], color: [], customdata: [] };
-        const highlightPoints: { x: number[]; y: (number | null)[]; color: string[]; customdata: any[] } = { x: [], y: [], color: [], customdata: [] };
-
+        // --- FIX: Change customdata type to Datum[][] ---
+        const basePoints: { x: number[]; y: (number | null)[]; color: string[]; customdata: Datum[][] } = { x: [], y: [], color: [], customdata: [] };
+        const highlightPoints: { x: number[]; y: (number | null)[]; color: string[]; customdata: Datum[][] } = { x: [], y: [], color: [], customdata: [] };
+        // -------------------------------------------------
 
         plotData.forEach((p) => {
             const refClusterIdStr =
@@ -73,31 +94,33 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             const isHighlighted =
                 refClusterIdStr !== null && highlightedRefClusterIds.has(refClusterIdStr);
 
-            const customPtData = {
-                goId: p.goId,
-                goTerm: p.goTerm,
-                pyodideCluster: p.pyodideCluster,
-                referenceClusterId: p.referenceClusterId,
-                rank: p.rank,
-                bmd: p.bmdValue,
-            };
+            // --- FIX: Create an *array* of primitives for customdata ---
+            const customPtDataArray: ScatterCustomDataItem = [
+                p.goTerm,
+                p.goId,
+                p.pyodideCluster,
+                p.referenceClusterId,
+                p.bmdValue,
+                p.rank,
+            ];
+            // ---------------------------------------------------------
 
-            // Ensure jitteredRank is number or null before pushing
             const yValue = typeof p.jitteredRank === 'number' && isFinite(p.jitteredRank) ? p.jitteredRank : null;
 
             if (isHighlighted) {
                 highlightPoints.x.push(p.bmdValue);
                 highlightPoints.y.push(yValue);
                 highlightPoints.color.push(p.color);
-                highlightPoints.customdata.push(customPtData);
+                highlightPoints.customdata.push(customPtDataArray); // Push the array
             } else {
                 basePoints.x.push(p.bmdValue);
                 basePoints.y.push(yValue);
                 basePoints.color.push(p.color);
-                basePoints.customdata.push(customPtData);
+                basePoints.customdata.push(customPtDataArray); // Push the array
             }
         });
 
+        // --- FIX: Update type annotation for customdata in traces ---
         const baseTrace: Data = {
             x: basePoints.x,
             y: basePoints.y,
@@ -108,7 +131,7 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
                 color: basePoints.color,
                 opacity: BASE_ALPHA,
             },
-            customdata: basePoints.customdata,
+            customdata: basePoints.customdata as Datum[][], // Cast to Datum[][]
             hovertemplate: hovertemplate,
             hoverlabel: { bgcolor: '#FFF' },
             name: 'Other Clusters',
@@ -124,11 +147,12 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
                 color: highlightPoints.color,
                 opacity: HIGHLIGHT_ALPHA,
             },
-            customdata: highlightPoints.customdata,
+            customdata: highlightPoints.customdata as Datum[][], // Cast to Datum[][]
             hovertemplate: hovertemplate,
             hoverlabel: { bgcolor: '#FFF' },
             name: 'Highlighted Clusters',
         };
+        // ---------------------------------------------------------
 
         const traces = [];
         if (basePoints.x.length > 0) traces.push(baseTrace);
@@ -180,10 +204,9 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
 
     // --- Render Logic ---
 
-    // --- Display Alert if an internal rendering error occurred ---
     if (renderError) {
         return (
-            <div style={{ padding: '20px', height: '500px' }}> {/* Ensure container has height */}
+            <div style={{ padding: '20px', height: '500px' }}>
                 <Alert
                     message="Plot Rendering Error"
                     description={renderError}
@@ -193,7 +216,6 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             </div>
         );
     }
-    // -------------------------------------------------------------
 
     if (!plotData) {
         return <div>Preparing plot data...</div>;
@@ -210,9 +232,7 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             style={{ width: '100%', height: '100%' }}
             useResizeHandler={true}
             config={{ responsive: true, displaylogo: false }}
-            // --- Add the onError handler ---
             onError={handlePlotError}
-        // -----------------------------
         />
     );
 };

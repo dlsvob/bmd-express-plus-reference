@@ -13,7 +13,6 @@ import type {
   DoseResponseExperiment,
   BMDResult,
   CategoryAnalysisResult,
-  CategoryAnalysisItem,
   // Import other necessary types from BMDxExported...
 } from './BMDxExported'; // Adjust path if needed
 
@@ -122,6 +121,8 @@ export interface DetailedAnalysisData {
 export interface SelectableAnalysisInfo {
   bmdResultRef: number; // Use number internally, convert to string for UI keys if needed
   bmdResultName: string;
+  doseResponseExperimentRef: string;
+  doseResponseExperimentName: string;
 }
 
 // --- Interfaces for Hook Return Types ---
@@ -129,8 +130,7 @@ export interface SelectableAnalysisInfo {
 /** Return type for a hook that provides access to detailed analysis data. */
 export interface BMDAnalysisHookData {
   selectableAnalyses: SelectableAnalysisInfo[] | null;
-  // Function to get details based on the numeric reference ID
-  getAnalysisDetails: (bmdResultRef: number) => DetailedAnalysisData | null;
+  getAnalysisDetails: (bmdResultRef: number) => DetailedAnalysisData | null; // Keep number param
   isLoading: boolean;
   error: Error | null;
 }

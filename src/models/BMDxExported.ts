@@ -3,10 +3,12 @@
 export interface ProjectData {
     name: string;
     doseResponseExperiments: DoseResponseExperiment[];
-    oneWayANOVAResults: any[]; // Schema: array (contents not further defined)
+    // --- FIX: Replace any[] with unknown[] ---
+    oneWayANOVAResults: unknown[];
     williamsTrendResults: WilliamsTrendResult[];
-    curveFitPrefilterResults: any[]; // Schema: array (contents not further defined)
-    oriogenResults: any[]; // Schema: array (contents not further defined)
+    curveFitPrefilterResults: unknown[];
+    oriogenResults: unknown[];
+    // ---------------------------------------
     bMDResult: BMDResult[];
     categoryAnalysisResults: CategoryAnalysisResult[];
 }
@@ -142,7 +144,9 @@ export interface BestStatResult {
     bmdResponseLowDoseResponseRatio: number;
     bmdResponseHighDoseResponseRatio: number;
     kFlag: number;
-    allParameters: any[];
+    // --- FIX: Replace any[] with unknown[] ---
+    allParameters: unknown[];
+    // ---------------------------------------
     aic: number;
     bmdu: number;
     bmdl: number;
@@ -175,7 +179,9 @@ export interface BestPolyStatResult {
     bmdResponseHighDoseResponseRatio: number;
     degree: number;
     vertext: number | string;
-    allParameters: any[];
+    // --- FIX: Replace any[] with unknown[] ---
+    allParameters: unknown[];
+    // ---------------------------------------
     aic: number;
     bmdu: number | string;
     bmdl: number;
@@ -203,7 +209,9 @@ export interface StatResult {
     bmdHighDoseRatio: number;
     bmdResponseLowDoseResponseRatio: number;
     bmdResponseHighDoseResponseRatio: number;
-    allParameters: any[];
+    // --- FIX: Replace any[] with unknown[] ---
+    allParameters: unknown[];
+    // ---------------------------------------
     aic: number;
     bmdu: number | string;
     bmdl: number | string;

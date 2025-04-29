@@ -1,23 +1,20 @@
 /**
  * src/hooks/usePreparedPlotData.ts
- *
  * Central hook to fetch raw data, process it, calculate ranks,
- * apply styling and filtering (including rank and GO ID highlighting),
- * and derive legend items for the UMAP analysis view.
- * NOW SELECTS UI STATE INTERNALLY.
+ * apply styling and filtering, and derive legend items for the UMAP analysis view.
  */
 import { useMemo } from 'react';
-import { useAppSelector } from '../store/hooks'; // Keep this
+import { useAppSelector } from '../store/hooks';
 import { useGetRawAnalysisDataQuery } from '../store/apis/experimentsApi';
 import {
   UmapAnalysisDataPoint,
-  BaseCategoryAnalysisDataPoint,
+  BaseCategoryAnalysisDataPoint, // Keep this type
   PreparedPlotHookData,
 } from '../models/applicationModel';
-// --- Import selectors needed INTERNALLY ---
+// --- FIX: Remove unused HighlightMode import ---
 import {
-  HighlightMode,
-  selectColorBy, // Selectors for UI state
+  // HighlightMode, // Removed
+  selectColorBy,
   selectShapeBy,
   selectSizeBy,
   selectHiddenColorLabelsSet,
@@ -27,8 +24,8 @@ import {
   selectHighlightMode,
   selectAccumulationPlotSelectedGoIdsSet,
   selectCommittedSlidingWindowValue,
-} from '../store/slices/analysisUISlice'; // Adjust path
-// --- End internal selector imports ---
+} from '../store/slices/analysisUISlice';
+// -------------------------------------------
 import {
   calculateOverlayStyles,
   HIDDEN_OPACITY,
@@ -40,44 +37,41 @@ import {
   SHAPE_PALETTE,
   DEFAULT_PLOT_COLORS,
 } from '../config/analysisConstants';
+// --- FIX: Remove unused legend utils imports ---
 import {
   DEFAULT_SHAPE_LABEL,
   DEFAULT_SIZE_LABEL,
-  SIZE_BIN_LABELS,
-  getDirectionLegendName,
+  // SIZE_BIN_LABELS, // Removed
+  // getDirectionLegendName, // Removed
   DEFAULT_MARKER_COLOR,
   DEFAULT_MARKER_SHAPE,
   DEFAULT_MARKER_SIZE,
-  UNCLUSTERED_COLOR,
+  // UNCLUSTERED_COLOR, // Removed
 } from '../utils/legendUtils';
+// --------------------------------------------
 import { prepareGroupedOverlayData } from '../utils/analysisUtils';
 import { selectSelectedProjectName } from '../store/selectors/projectSelectors';
 
-// --- UPDATE Args Interface: Remove UI state props ---
 export interface UsePreparedPlotDataArgs {
   selectedBmdResultRefs: string[];
   referenceDataMap: Map<string, ReferenceUmapItem> | null;
   referenceData: ReferenceUmapItem[] | null;
-  // REMOVED: colorByOption, shapeByOption, sizeByOption
-  // REMOVED: hiddenColorLabels, hiddenShapeLabels, hiddenSizeLabels
-  // REMOVED: goIdFilterList, highlightMode, selectedGoIdsSet
-  // REMOVED: committedRankSliderValue
 }
-// ----------------------------------------------------
 
-// Legend Derivation Helper (Internal - unchanged)
 interface LegendItems {
   colorItems: [string, string][];
   shapeItems: [string, string][];
   sizeItems: [string, number][];
 }
+
+// --- FIX: Remove unused 'colorBy' parameter ---
 function deriveLegendItemsInternal(
   allStyledPoints: UmapAnalysisDataPoint[] | null | undefined,
-  colorBy: string,
+  // colorBy: string, // Removed
   shapeBy: string,
   sizeBy: string
 ): LegendItems {
-    // ... (implementation remains the same)
+  // -------------------------------------------
   const defaultResult: LegendItems = { colorItems: [], shapeItems: [], sizeItems: [] };
   if (!allStyledPoints || allStyledPoints.length === 0) {
     return defaultResult;
@@ -102,32 +96,28 @@ function deriveLegendItemsInternal(
     }
   });
   const sortedColorItems: [string, string][] = Array.from(uniqueLabelsAndColors.entries())
-    .sort((a, b) => { /* ... sort logic ... */
-        const labelA = a[0]; const labelB = b[0];
-        const isAUnclustered = labelA === 'Unclustered'; const isBUnclustered = labelB === 'Unclustered';
-        if (isAUnclustered && !isBUnclustered) return -1; if (!isAUnclustered && isBUnclustered) return 1; if (isAUnclustered && isBUnclustered) return 0;
-        const numA = parseInt(labelA.replace('Cluster ', ''), 10); const numB = parseInt(labelB.replace('Cluster ', ''), 10);
-        if (!isNaN(numA) && !isNaN(numB)) { return numA - numB; }
-        return labelA.localeCompare(labelB);
-     });
+    .sort((a, b) => {
+      const labelA = a[0]; const labelB = b[0];
+      const isAUnclustered = labelA === 'Unclustered'; const isBUnclustered = labelB === 'Unclustered';
+      if (isAUnclustered && !isBUnclustered) return -1; if (!isAUnclustered && isBUnclustered) return 1; if (isAUnclustered && isBUnclustered) return 0;
+      const numA = parseInt(labelA.replace('Cluster ', ''), 10); const numB = parseInt(labelB.replace('Cluster ', ''), 10);
+      if (!isNaN(numA) && !isNaN(numB)) { return numA - numB; }
+      return labelA.localeCompare(labelB);
+    });
   const sortedShapeItems: [string, string][] = Array.from(uniqueLabelsAndShapes.entries())
     .sort((a, b) => a[0].localeCompare(b[0]));
   const sortedSizeItems: [string, number][] = Array.from(uniqueLabelsAndSizes.entries())
     .sort((a, b) => a[1] - b[1]);
   return { colorItems: sortedColorItems, shapeItems: sortedShapeItems, sizeItems: sortedSizeItems };
 }
-// --- END HELPER FUNCTION ---
 
-
-// --- Main Hook ---
-export const usePreparedPlotData = ({ // Destructure only the necessary props
+export const usePreparedPlotData = ({
   selectedBmdResultRefs,
   referenceDataMap,
   referenceData,
 }: UsePreparedPlotDataArgs): PreparedPlotHookData => {
-  const hookLogPrefix = '[usePreparedPlotData v19.5 - Internal Selectors]'; // Version Bump
+  const hookLogPrefix = '[usePreparedPlotData v20 - Unused Fix]'; // Version Bump
 
-  // --- Select UI state INTERNALLY ---
   const projectName = useAppSelector(selectSelectedProjectName);
   const colorByOption = useAppSelector(selectColorBy);
   const shapeByOption = useAppSelector(selectShapeBy);
@@ -139,9 +129,7 @@ export const usePreparedPlotData = ({ // Destructure only the necessary props
   const highlightMode = useAppSelector(selectHighlightMode);
   const selectedGoIdsSet = useAppSelector(selectAccumulationPlotSelectedGoIdsSet);
   const committedRankSliderValue = useAppSelector(selectCommittedSlidingWindowValue);
-  // ----------------------------------
 
-  // --- Step 1: Fetch Raw Data ---
   const {
     data: rawData,
     isLoading: isLoadingRaw,
@@ -152,14 +140,13 @@ export const usePreparedPlotData = ({ // Destructure only the necessary props
     { skip: !projectName || !selectedBmdResultRefs || selectedBmdResultRefs.length === 0 }
   );
 
-  // --- Step 2: Check if data is ready for processing ---
   const canProcess = useMemo(() => {
     return !isLoadingRaw && !rawError && rawSuccess && !!rawData && !!referenceDataMap && selectedBmdResultRefs && selectedBmdResultRefs.length > 0;
   }, [isLoadingRaw, rawError, rawSuccess, rawData, referenceDataMap, selectedBmdResultRefs]);
 
-  // --- Step 3: Prepare Base Data and Maps ---
-  const { baseGroupedData, bmdResultMap, bmdRefToExperimentNameMap } = useMemo(() => {
-    // ... (implementation remains the same)
+  // --- FIX: Remove unused bmdResultMap ---
+  const { baseGroupedData, /* bmdResultMap, */ bmdRefToExperimentNameMap } = useMemo(() => {
+    // --------------------------------------
     const logPrefix = `${hookLogPrefix} [Memo Base Data]`;
     if (!canProcess || !rawData?.rawBmdResults || !rawData?.rawCategoryAnalysisItems) {
       return { baseGroupedData: new Map(), bmdResultMap: new Map(), bmdRefToExperimentNameMap: new Map() };
@@ -186,16 +173,16 @@ export const usePreparedPlotData = ({ // Destructure only the necessary props
     return { baseGroupedData: groupedData, bmdResultMap: tempBmdResultMap, bmdRefToExperimentNameMap: tempBmdRefToNameMap };
   }, [canProcess, rawData]);
 
-  // --- Step 4: Calculate Ranks ---
   const { rankedData, minRank, maxRank } = useMemo(() => {
-    // ... (implementation remains the same)
     const logPrefix = `${hookLogPrefix} [Memo Ranking]`;
     if (!baseGroupedData || baseGroupedData.size === 0) {
       return { rankedData: new Map<string, BaseCategoryAnalysisDataPoint[]>(), minRank: 0, maxRank: 0 };
     }
     const allPointsWithRankValue: BaseCategoryAnalysisDataPoint[] = [];
     baseGroupedData.forEach(points => {
-      points.forEach(point => {
+      // --- FIX: Add type annotation for point ---
+      points.forEach((point: BaseCategoryAnalysisDataPoint) => {
+        // ----------------------------------------
         if (point.rankValue != null && isFinite(point.rankValue)) {
           allPointsWithRankValue.push(point);
         }
@@ -214,7 +201,9 @@ export const usePreparedPlotData = ({ // Destructure only the necessary props
     console.log(`${logPrefix} Assigned ranks 1 to ${N}.`);
     const newRankedGroupedData = new Map<string, BaseCategoryAnalysisDataPoint[]>();
     baseGroupedData.forEach((originalPoints, refKey) => {
-      const newPoints = originalPoints.map(point => {
+      // --- FIX: Add type annotation for point ---
+      const newPoints = originalPoints.map((point: BaseCategoryAnalysisDataPoint) => {
+        // ----------------------------------------
         const uniqueKey = `${point.bmdResultRef}-${point.go_id}`;
         return { ...point, rank: rankMap.get(uniqueKey) ?? null };
       });
@@ -223,9 +212,7 @@ export const usePreparedPlotData = ({ // Destructure only the necessary props
     return { rankedData: newRankedGroupedData, minRank: N > 0 ? 1 : 0, maxRank: N };
   }, [baseGroupedData]);
 
-  // --- Step 5: Build Color/Shape Maps ---
   const clusterColorMap = useMemo(() => {
-    // ... (implementation remains the same)
     if (!referenceData) return new Map<string | number, string>();
     const uniqueClusterIds = Array.from(new Set(referenceData.map(item => item.cluster_id).filter(id => id != null && id !== -1 && id !== '-1')));
     if (uniqueClusterIds.length === 0) return new Map<string | number, string>();
@@ -235,7 +222,6 @@ export const usePreparedPlotData = ({ // Destructure only the necessary props
     return map;
   }, [referenceData]);
   const bmdRefColorMap = useMemo(() => {
-    // ... (implementation remains the same)
     const map = new Map<number, string>();
     selectedBmdResultRefs.forEach((refStr, index) => {
       const numericRef = parseInt(refStr, 10);
@@ -244,7 +230,6 @@ export const usePreparedPlotData = ({ // Destructure only the necessary props
     return map;
   }, [selectedBmdResultRefs]);
   const bmdRefShapeMap = useMemo(() => {
-    // ... (implementation remains the same)
     const map = new Map<number, string>();
     if (shapeByOption === 'bmdResultName') {
       selectedBmdResultRefs.forEach((refStr, index) => {
@@ -255,29 +240,26 @@ export const usePreparedPlotData = ({ // Destructure only the necessary props
     return map;
   }, [shapeByOption, selectedBmdResultRefs]);
 
-  // --- Step 6: Calculate ALL Styled Points (using internally selected state) ---
   const allStyledGroupedData = useMemo(() => {
     const logPrefix = `${hookLogPrefix} [Memo Styling]`;
     if (!canProcess || rankedData.size === 0 || !referenceDataMap) {
       console.log(`${logPrefix} Skipping styling: Not ready or no ranked data/ref map.`);
       return null;
     }
-    // Log the values selected *inside* the hook, right before use
     console.log(
       `${logPrefix} Calling calculateOverlayStyles with internally selected highlightMode: ${highlightMode}, goIdFilterList size: ${goIdFilterList?.length}`
     );
-    // Call the styling function using the internally selected state
     return calculateOverlayStyles(
       rankedData,
       { colorBy: colorByOption, shapeBy: shapeByOption, sizeBy: sizeByOption },
       hiddenColorLabels, hiddenShapeLabels, hiddenSizeLabels,
-      goIdFilterList, highlightMode, // Use internally selected values
+      goIdFilterList, highlightMode,
       bmdRefToExperimentNameMap,
       selectedGoIdsSet, referenceDataMap, clusterColorMap,
       bmdRefShapeMap, bmdRefColorMap,
-      committedRankSliderValue // Use internally selected value
+      committedRankSliderValue
     );
-  }, [ // --- DEPENDENCY ARRAY for STYLING (Now uses internally selected state) ---
+  }, [
     canProcess,
     rankedData,
     referenceDataMap,
@@ -285,7 +267,6 @@ export const usePreparedPlotData = ({ // Destructure only the necessary props
     bmdRefShapeMap,
     bmdRefColorMap,
     bmdRefToExperimentNameMap,
-    // Include the selected state variables as dependencies
     colorByOption,
     shapeByOption,
     sizeByOption,
@@ -296,11 +277,9 @@ export const usePreparedPlotData = ({ // Destructure only the necessary props
     highlightMode,
     selectedGoIdsSet,
     committedRankSliderValue,
-  ]); // --- END DEPENDENCY ARRAY ---
+  ]);
 
-  // --- Step 7: Derive Legends and Filter Points for Plot ---
   const finalPlotDataAndLegends = useMemo((): PreparedPlotHookData => {
-    // ... (implementation remains the same)
     const logPrefix = `${hookLogPrefix} [Memo Legends & Filtering]`;
     const defaultReturn: PreparedPlotHookData = {
       analysisPoints: null, allStyledPoints: null, styledGroupedData: null,
@@ -313,9 +292,11 @@ export const usePreparedPlotData = ({ // Destructure only the necessary props
     const flattenedStyledPoints: UmapAnalysisDataPoint[] = [];
     allStyledGroupedData.forEach(pointsArray => flattenedStyledPoints.push(...pointsArray));
     console.log(`${logPrefix} Total styled points before final filter: ${flattenedStyledPoints.length}`);
+    // --- FIX: Pass correct parameters to helper ---
     const { colorItems, shapeItems, sizeItems } = deriveLegendItemsInternal(
-      flattenedStyledPoints, colorByOption, shapeByOption, sizeByOption
+      flattenedStyledPoints, /* colorByOption, */ shapeByOption, sizeByOption // Remove colorByOption
     );
+    // --------------------------------------------
     const analysisPointsForPlot = flattenedStyledPoints.filter(
       point => point.finalOpacity !== HIDDEN_OPACITY
     );
@@ -330,8 +311,7 @@ export const usePreparedPlotData = ({ // Destructure only the necessary props
       minRank: minRank,
       maxRank: maxRank,
     };
-  }, [allStyledGroupedData, colorByOption, shapeByOption, sizeByOption, bmdRefToExperimentNameMap, minRank, maxRank]);
+  }, [allStyledGroupedData, /* colorByOption, */ shapeByOption, sizeByOption, minRank, maxRank]); // Remove colorByOption dependency
 
-  // --- Final Return ---
   return finalPlotDataAndLegends;
 };

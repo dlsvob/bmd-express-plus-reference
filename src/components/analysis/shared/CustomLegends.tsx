@@ -20,6 +20,9 @@ interface CustomLegendsProps {
     showShape?: boolean;
     showSize?: boolean;
     cardTitle?: string;
+    // --- FIX: Add missing prop from GOClusteringAnalysisUnit usage ---
+    highlightedLabelsSet?: Set<string>; // Optional, as GOUmap doesn't use it
+    // -------------------------------------------------------------
 }
 
 export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
@@ -38,22 +41,15 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
         showShape = false,
         showSize = false,
         cardTitle = 'Legend',
+        highlightedLabelsSet, // Destructure the new prop
     }) => {
-        const logPrefix = '[CustomLegends v9 - Prop/Handler Check]'; // Version Bump
+        const logPrefix = '[CustomLegends v10 - Remove Helper]'; // Version Bump
 
-        // *** ADD LOG HERE: Check received props on every render ***
         console.log(`${logPrefix} Rendering. Received hiddenColorLabelsSet:`, hiddenColorLabelsSet);
 
-        const getItemClassName = ( /* ... same helper ... */) => {
-            let classes = [styles.legendItem];
-            const isHidden = hiddenSet.has(label);
-            const isPresent = presentSet ? presentSet.has(label) : true;
-            if (isHidden || !isPresent) {
-                classes.push(styles.hidden);
-            }
-            return classes.join(' ');
-        };
-
+        // --- FIX: Remove unused getItemClassName function ---
+        // const getItemClassName = ( /* ... */ ) => { /* ... */ };
+        // --------------------------------------------------
 
         const renderColorItems = () => {
             if (!showColor || colorItems.length === 0) return null;
@@ -61,15 +57,20 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
                 <div className={styles.legendSection}>
                     <Text strong>Color</Text>
                     {colorItems.map(([label, colorValue]) => {
+                        // Determine if item should be visually highlighted (e.g., thicker border, background)
+                        // This uses the new highlightedLabelsSet prop
+                        const isHighlighted = highlightedLabelsSet?.has(label);
+                        // Determine if item is hidden via legend click
                         const isHidden = hiddenColorLabelsSet.has(label);
+                        // Determine if item is present in the current data (e.g., for clustering)
                         const isPresent = presentClusterIds ? presentClusterIds.has(label) : true;
-                        const itemClassName = `${styles.legendItem} ${isHidden || !isPresent ? styles.hidden : ''
-                            }`;
+
+                        // Combine classes based on state
+                        const itemClassName = `${styles.legendItem} ${isHidden || !isPresent ? styles.hidden : ''} ${isHighlighted ? styles.highlighted : ''}`; // Add highlighted class
 
                         const handleToggle = () => {
-                            // *** ADD LOG HERE: Check if handler fires ***
                             console.log(`${logPrefix} handleToggle called for Color: "${label}"`);
-                            if (isPresent) {
+                            if (isPresent) { // Only allow toggling if the item is present in data
                                 onToggleColorVisibility(label);
                             }
                         };
@@ -94,7 +95,6 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
             );
         };
 
-        // ... renderShapeItems and renderSizeItems (add similar logs if needed) ...
         const renderShapeItems = () => {
             if (!showShape || shapeItems.length === 0) return null;
             const shapeSymbolMap: { [key: string]: string } = { /* ... map ... */ };
@@ -106,9 +106,8 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
                     <Text strong>Shape</Text>
                     {shapeItems.map(([label, shapeValue]) => {
                         const isHidden = hiddenShapeLabelsSet.has(label);
-                        const isPresent = true;
-                        const itemClassName = `${styles.legendItem} ${isHidden || !isPresent ? styles.hidden : ''
-                            }`;
+                        const isPresent = true; // Assume shapes are always "present" unless explicitly hidden
+                        const itemClassName = `${styles.legendItem} ${isHidden || !isPresent ? styles.hidden : ''}`;
                         const displaySymbol = shapeSymbolMap[shapeValue] || '?';
 
                         const handleToggle = () => {
@@ -150,9 +149,8 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
                     <Text strong>Size</Text>
                     {sortedSizeItems.map(([label, sizeValue]) => {
                         const isHidden = hiddenSizeLabelsSet.has(label);
-                        const isPresent = true;
-                        const itemClassName = `${styles.legendItem} ${isHidden || !isPresent ? styles.hidden : ''
-                            }`;
+                        const isPresent = true; // Assume sizes are always "present" unless explicitly hidden
+                        const itemClassName = `${styles.legendItem} ${isHidden || !isPresent ? styles.hidden : ''}`;
 
                         let displaySize = minDisplaySize;
                         if (range > 0) {
@@ -226,5 +224,9 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
         );
     }
 );
+
+// --- FIX: Add display name ---
+CustomLegends.displayName = 'CustomLegends';
+// -----------------------------
 
 export default CustomLegends;

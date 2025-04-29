@@ -33,7 +33,7 @@ export function usePyodideClustering(
     const [result, setResult] = useState<PyodideClusteringResult | null>(null);
 
     useEffect(() => {
-        const logPrefix = '[usePyodideClustering Auto (v4 - Memo Return)]';
+        const logPrefix = '[usePyodideClustering Auto (v5 - Catch Fix)]'; // Version Bump
         const pyContextFromWindow = window.pyContext;
         const clusteringFunc = pyContextFromWindow?.hierarchical_clustering_from_rows;
 
@@ -58,6 +58,7 @@ export function usePyodideClustering(
         }
         if (pyodideInitError) {
             console.log(`${logPrefix} Exiting: Pyodide initialization failed.`);
+            setError(`Pyodide initialization failed: ${pyodideInitError.message}`);
             return;
         }
         if (!clusteringFunc) {
@@ -100,10 +101,15 @@ export function usePyodideClustering(
                 setResult(parsedResult as PyodideClusteringResult);
                 setError(null);
 
-            } catch (err: any) {
+            } catch (err: unknown) { // Keep type as unknown
                 console.error(`${logPrefix} !!! EXECUTION FAILED !!!`, err);
                 if (isMounted) {
-                    setError(err.message || 'Clustering execution failed.');
+                    // --- FIX: Check if err is an Error before accessing .message ---
+                    const errorMessage = err instanceof Error
+                        ? err.message
+                        : 'Clustering execution failed.';
+                    setError(errorMessage);
+                    // -------------------------------------------------------------
                     setResult(null);
                 }
             } finally {
@@ -114,7 +120,7 @@ export function usePyodideClustering(
             }
         };
 
-        execute();
+        void execute(); // Use void to handle promise
 
         return () => {
             isMounted = false;

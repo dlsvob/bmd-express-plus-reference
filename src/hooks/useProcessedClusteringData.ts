@@ -213,7 +213,7 @@ export function useProcessedClusteringData(
                 processingError: e instanceof Error ? e : new Error(String(e)),
             };
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        
     }, [clusters, pyodideHookError]); // Dependencies remain the same
 
     return result;

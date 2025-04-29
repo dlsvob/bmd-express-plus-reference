@@ -6,22 +6,26 @@ import {
     BMDResult,
     CategoryAnalysisResult,
 } from '../models/BMDxExported';
+// --- These types expect number for bmdResultRef ---
 import {
     BMDAnalysisHookData,
     SelectableAnalysisInfo,
     DetailedAnalysisData,
 } from '../models/applicationModel';
+// -------------------------------------------------
 import {
     EXP_STORE,
     BMD_RESULT_STORE,
     CAT_ANALYSIS_STORE,
 } from '../utils/myIDB';
 
+// --- FIX: Update return type to use number keys for maps ---
 export interface UseBMDAnalysisDataReturn extends BMDAnalysisHookData {
-    experimentMap: Map<string, DoseResponseExperiment>;
-    bmdResultMap: Map<string, BMDResult>;
-    categoryAnalysisByBmdResultMap: Map<string, CategoryAnalysisResult>;
+    experimentMap: Map<number, DoseResponseExperiment>; // Use number key
+    bmdResultMap: Map<number, BMDResult>; // Use number key
+    categoryAnalysisByBmdResultMap: Map<number, CategoryAnalysisResult>; // Use number key
 }
+// ---------------------------------------------------------
 
 export function useBMDAnalysisData(
     projectName: string | null
@@ -34,7 +38,7 @@ export function useBMDAnalysisData(
     const { db, isLoading: isDbLoading, error: dbError } = useProjectDatabase(projectName);
 
     useEffect(() => {
-        // (Effect logic for fetching data remains the same as your last version)
+        // ... (fetch logic remains the same) ...
         console.log('[useBMDAnalysisData useEffect] Clearing raw data.');
         setRawExperiments(null);
         setRawBmdResults(null);
@@ -83,13 +87,16 @@ export function useBMDAnalysisData(
         }
     }, [projectName, db, isDbLoading]);
 
-    // --- Memoized Maps (Use STRING keys, depend on raw data) ---
+    // --- FIX: Use number keys for maps ---
     const experimentMap = useMemo(() => {
         console.log('[useBMDAnalysisData useMemo] Creating/Updating experimentMap...');
-        const map = new Map<string, DoseResponseExperiment>();
+        const map = new Map<number, DoseResponseExperiment>(); // number key
         if (!rawExperiments) return map;
         rawExperiments.forEach((exp) => {
-            if (exp && exp['@ref'] != null) map.set(String(exp['@ref']), exp);
+            const key = exp?.['@ref'];
+            if (key != null && typeof key === 'number' && !isNaN(key)) { // Check type and NaN
+                map.set(key, exp);
+            }
         });
         console.log(`[useBMDAnalysisData useMemo] Finished experimentMap. Size: ${map.size}`);
         return map;
@@ -97,11 +104,12 @@ export function useBMDAnalysisData(
 
     const bmdResultMap = useMemo(() => {
         console.log('[useBMDAnalysisData useMemo] Creating/Updating bmdResultMap...');
-        const map = new Map<string, BMDResult>();
+        const map = new Map<number, BMDResult>(); // number key
         if (!rawBmdResults) return map;
         rawBmdResults.forEach((res) => {
-            if (res && res['@ref'] != null) {
-                map.set(String(res['@ref']), res);
+            const key = res?.['@ref'];
+            if (key != null && typeof key === 'number' && !isNaN(key)) { // Check type and NaN
+                map.set(key, res);
             }
         });
         console.log(`[useBMDAnalysisData useMemo] Finished bmdResultMap. Size: ${map.size}`);
@@ -110,74 +118,74 @@ export function useBMDAnalysisData(
 
     const categoryAnalysisByBmdResultMap = useMemo(() => {
         console.log('[useBMDAnalysisData useMemo] Creating/Updating categoryAnalysisByBmdResultMap...');
-        const map = new Map<string, CategoryAnalysisResult>();
+        const map = new Map<number, CategoryAnalysisResult>(); // number key
         if (!rawCategoryAnalyses) return map;
         rawCategoryAnalyses.forEach((cat) => {
-            if (cat && cat.bmdResult != null) {
-                map.set(String(cat.bmdResult), cat);
+            const key = cat?.bmdResult;
+            if (key != null && typeof key === 'number' && !isNaN(key)) { // Check type and NaN
+                map.set(key, cat);
             }
         });
         console.log(`[useBMDAnalysisData useMemo] Finished categoryAnalysisByBmdResultMap. Size: ${map.size}`);
         return map;
     }, [rawCategoryAnalyses]);
+    // ------------------------------------
 
-    // --- Selectable Analyses List (Use STRING refs) ---
     const selectableAnalyses = useMemo<SelectableAnalysisInfo[] | null>(() => {
-        // Add check for map readiness here too for safety
         if (!rawBmdResults || !experimentMap || experimentMap.size === 0) {
-            console.log('[useBMDAnalysisData selectableAnalyses] Prerequisites not met (rawBmdResults or experimentMap).');
             return null;
         }
-        console.log('[useBMDAnalysisData] Recalculating selectableAnalyses...');
         const selectable: SelectableAnalysisInfo[] = [];
         rawBmdResults.forEach((bmdRes) => {
-            const bmdKey = String(bmdRes?.['@ref']);
-            const expLinkKey = String(bmdRes?.doseResponseExperiment);
-            if (bmdRes?.['@ref'] == null || bmdRes?.doseResponseExperiment == null) return;
+            // --- FIX: Use number for bmdResultRef ---
+            const bmdRefNum = bmdRes?.['@ref'];
+            const expLinkNum = bmdRes?.doseResponseExperiment; // This should be number
+            if (bmdRefNum == null || typeof bmdRefNum !== 'number' || isNaN(bmdRefNum) ||
+                expLinkNum == null || typeof expLinkNum !== 'number' || isNaN(expLinkNum)) {
+                return;
+            }
+            // ---------------------------------------
 
-            const sourceExperiment = experimentMap.get(expLinkKey);
+            const sourceExperiment = experimentMap.get(expLinkNum); // Use number key
             if (!sourceExperiment) return;
-            const sourceExpKey = String(sourceExperiment['@ref']);
-            if (sourceExperiment['@ref'] == null) return;
+            // const sourceExpKey = sourceExperiment['@ref']; // This is number
+            // if (sourceExpKey == null || typeof sourceExpKey !== 'number' || isNaN(sourceExpKey)) return;
 
             selectable.push({
-                bmdResultRef: bmdKey, // Store as string
+                bmdResultRef: bmdRefNum, // <-- Assign number
                 bmdResultName: bmdRes.name || 'Unnamed BMD Result',
-                doseResponseExperimentRef: sourceExpKey, // Store as string
+                doseResponseExperimentRef: String(expLinkNum), // Keep as string if model needs it
                 doseResponseExperimentName: sourceExperiment.name || 'Unnamed Experiment',
             });
         });
         selectable.sort((a, b) => a.bmdResultName.localeCompare(b.bmdResultName));
-        console.log('[useBMDAnalysisData] Finished calculating selectableAnalyses:', selectable.length);
         return selectable;
     }, [rawBmdResults, experimentMap]);
 
-
-    // --- getAnalysisDetails Function: REMOVE the premature map size check ---
+    // --- FIX: getAnalysisDetails accepts number ---
     const getAnalysisDetails = useCallback(
-        (bmdResultRef: string): DetailedAnalysisData | null => {
+        (bmdResultRef: number): DetailedAnalysisData | null => { // <-- Accepts number
             console.log(`[useBMDAnalysisData useCallback] getAnalysisDetails called with ref: ${bmdResultRef}`);
 
-            // *** REMOVED GUARD CLAUSE CHECKING MAP SIZE ***
-
-            const bmdResult = bmdResultMap.get(bmdResultRef);
+            const bmdResult = bmdResultMap.get(bmdResultRef); // Use number key
             if (!bmdResult) {
-                // This log is fine, indicates data for *this specific ref* wasn't found or maps aren't ready yet
                 console.warn(`[useBMDAnalysisData useCallback] BMD Result not found in map for ref ${bmdResultRef}. Map size: ${bmdResultMap.size}`);
                 return null;
             }
 
-            const categoryAnalysis = categoryAnalysisByBmdResultMap.get(bmdResultRef);
+            const categoryAnalysis = categoryAnalysisByBmdResultMap.get(bmdResultRef); // Use number key
             if (!categoryAnalysis) {
                 console.warn(`[useBMDAnalysisData useCallback] Category Analysis not found for ref ${bmdResultRef}.`);
             }
 
-            const doseResponseExperiment = bmdResult.doseResponseExperiment != null
-                ? experimentMap.get(String(bmdResult.doseResponseExperiment))
+            // bmdResult.doseResponseExperiment should be number
+            const doseExpRef = bmdResult.doseResponseExperiment;
+            const doseResponseExperiment = (doseExpRef != null && typeof doseExpRef === 'number' && !isNaN(doseExpRef))
+                ? experimentMap.get(doseExpRef) // Use number key
                 : null;
 
             if (!doseResponseExperiment) {
-                console.error(`[useBMDAnalysisData useCallback] CRITICAL - Source Experiment (${bmdResult.doseResponseExperiment}) not found for BMD Result ref ${bmdResultRef}.`);
+                console.error(`[useBMDAnalysisData useCallback] CRITICAL - Source Experiment (${doseExpRef}) not found for BMD Result ref ${bmdResultRef}.`);
                 return null;
             }
 
@@ -188,19 +196,18 @@ export function useBMDAnalysisData(
             };
             return details;
         },
-        // Dependencies remain the maps. Callback updates when maps update.
-        [bmdResultMap, categoryAnalysisByBmdResultMap, experimentMap]
+        [bmdResultMap, categoryAnalysisByBmdResultMap, experimentMap] // Dependencies are the maps
     );
+    // ------------------------------------------
 
     const combinedIsLoading = isDbLoading || isLoading;
     const combinedError = dbError || error;
 
     return {
         selectableAnalyses,
-        getAnalysisDetails,
+        getAnalysisDetails, // Function signature now matches model
         isLoading: combinedIsLoading,
         error: combinedError,
-        // --- Export Maps ---
         experimentMap,
         bmdResultMap,
         categoryAnalysisByBmdResultMap,

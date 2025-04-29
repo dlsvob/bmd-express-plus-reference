@@ -1,11 +1,16 @@
 // src/store/apis/idbBaseQuery.ts
 import { BaseQueryFn } from '@reduxjs/toolkit/query/react';
-import { IDBPDatabase } from 'idb';
+import { IDBPDatabase, StoreNames } from 'idb'; // Import StoreNames
 import {
     ProjectDB,
     openProjectDB,
     CAT_ANALYSIS_STORE,
     BMD_RESULT_STORE,
+    EXP_STORE,
+    WILLIAMS_STORE,
+    ANOVA_STORE,
+    CURVE_FIT_STORE,
+    ORIOGEN_STORE
 } from '../../utils/myIDB'; // Adjust path if needed
 import { CategoryAnalysisItem, BMDResult } from '../../models/BMDxExported'; // Adjust path/type names if needed
 
@@ -24,31 +29,38 @@ interface StoredCategoryAnalysisCollection {
 
 export interface IdbRawDataQueryArgs {
     projectName: string;
-    stores: ReadonlyArray<'bMDResult' | 'categoryAnalysisResults'>;
+    stores: ReadonlyArray<'bMDResult' | 'categoryAnalysisResults' | string>;
     selectedBmdResultRefs?: string[];
 }
 
-// --- UPDATE IdbQueryData Interface ---
 export interface IdbQueryData {
     bMDResult?: BMDResult[];
-    // This will now hold the array of { ref, item } objects
     categoryAnalysisResults?: Array<{ bmdResultRef: number | string; item: CategoryAnalysisItem }>;
-    [key: string]: any;
+    [key: string]: unknown;
 }
-// -----------------------------------
 
-interface IdbQueryError {
+export interface IdbQueryError {
     status: 'IDB_ERROR' | 'MISSING_STORES' | 'UNKNOWN_ERROR' | 'NOT_FOUND' | 'INVALID_KEY';
     message: string;
-    details?: any;
+    details?: unknown;
 }
 
-const mapArgStoreToDbStore = (storeName: string): keyof ProjectDB | null => {
+// --- FIX: Remove unused constant and derive type directly ---
+// const VALID_PROJECT_DB_STORES = [ /* ... */ ] as const;
+type ProjectStoreName = StoreNames<ProjectDB>; // Use StoreNames<ProjectDB> for type safety
+// ---------------------------------------------------------
+
+const mapArgStoreToDbStore = (storeName: string): ProjectStoreName | null => {
     switch (storeName) {
         case 'bMDResult': return BMD_RESULT_STORE;
         case 'categoryAnalysisResults': return CAT_ANALYSIS_STORE;
+        case 'doseResponseExperiments': return EXP_STORE;
+        case 'williamsTrendResults': return WILLIAMS_STORE;
+        case 'oneWayANOVAResults': return ANOVA_STORE;
+        case 'curveFitPrefilterResults': return CURVE_FIT_STORE;
+        case 'oriogenResults': return ORIOGEN_STORE;
         default:
-            console.warn(`[idbBaseQuery v23 Multi-Fetch] Unknown store name requested: ${storeName}`); // <<< Version Bump
+            console.warn(`[idbBaseQuery v25 Type Fix] Unknown store name requested: ${storeName}`);
             return null;
     }
 }
@@ -57,16 +69,21 @@ export const idbBaseQuery: BaseQueryFn<
     IdbRawDataQueryArgs,
     IdbQueryData,
     IdbQueryError
-> = async ({ projectName, stores: argStores, selectedBmdResultRefs = [] }, { getState, dispatch }) => {
+> = async ({ projectName, stores: argStores, selectedBmdResultRefs = [] }) => {
 
     if (!projectName) {
         return { error: { status: 'UNKNOWN_ERROR', message: 'Project name is required' } };
     }
 
-    const dbStoresToFetch = argStores.map(mapArgStoreToDbStore).filter(s => s !== null) as (keyof ProjectDB)[];
+    const dbStoresToFetch = argStores.map(mapArgStoreToDbStore).filter((s): s is ProjectStoreName => s !== null);
     const uniqueDbStores = Array.from(new Set(dbStoresToFetch));
 
-    const logPrefix = '[idbBaseQuery v23 Multi-Fetch]'; // <<< Version Bump
+    if (uniqueDbStores.length === 0) {
+        console.warn(`[idbBaseQuery v25 Type Fix] No valid DB stores derived from args: ${argStores.join(', ')}`);
+        return { data: {} };
+    }
+
+    const logPrefix = '[idbBaseQuery v25 Type Fix]';
     console.log(`${logPrefix} Executing for project: ${projectName}`);
     console.log(`${logPrefix} Requested argStores: ${argStores.join(', ')}`);
     console.log(`${logPrefix} Mapped to dbStores: ${uniqueDbStores.join(', ')}`);
@@ -85,22 +102,26 @@ export const idbBaseQuery: BaseQueryFn<
             return { error: { status: 'MISSING_STORES', message: `Missing DB stores: ${missingStores.join(', ')}` } };
         }
 
-        const tx = db.transaction(uniqueDbStores, 'readonly');
+        const tx = db.transaction(uniqueDbStores as StoreNames<ProjectDB>[], 'readonly');
         tx.onabort = (event) => console.error(`${logPrefix} Transaction ABORTED!`, event, tx?.error);
         tx.onerror = (event) => console.error(`${logPrefix} Transaction ERROR!`, event);
 
-        const promisesMap = new Map<keyof ProjectDB, Promise<any>>();
+        // --- FIX: Use unknown for Promise type ---
+        const promisesMap = new Map<ProjectStoreName, Promise<unknown>>();
+        // ---------------------------------------
 
         uniqueDbStores.forEach(dbStoreName => {
-            const store = tx.objectStore(dbStoreName);
-            let promise: Promise<any>;
+            const store = tx.objectStore(dbStoreName as ProjectStoreName);
+            // --- FIX: Use unknown for Promise type ---
+            let promise: Promise<unknown>;
+            // ---------------------------------------
 
             if (dbStoreName === BMD_RESULT_STORE && selectedBmdResultRefs.length > 0) {
                 const getPromises = selectedBmdResultRefs.map(refStr => {
                     const numericKey = parseInt(refStr, 10);
                     if (!isNaN(numericKey)) {
                         console.log(`${logPrefix} Creating promise to GET ${dbStoreName} with numeric key: ${numericKey}`);
-                        return store.get(numericKey);
+                        return tx.objectStore(BMD_RESULT_STORE).get(numericKey);
                     } else {
                         console.warn(`${logPrefix} Invalid numeric key for ${dbStoreName}: ${refStr}. Skipping fetch.`);
                         return Promise.resolve(undefined);
@@ -108,12 +129,8 @@ export const idbBaseQuery: BaseQueryFn<
                 });
                 promise = Promise.all(getPromises).then(results => results.filter(r => r !== undefined));
 
-            } else if (dbStoreName === CAT_ANALYSIS_STORE) {
-                console.log(`${logPrefix} Creating promise to GET ALL ${dbStoreName} (will filter later)`);
-                promise = store.getAll();
-
             } else {
-                console.log(`${logPrefix} Creating promise to GET ALL ${dbStoreName} (default)`);
+                console.log(`${logPrefix} Creating promise to GET ALL ${dbStoreName}`);
                 promise = store.getAll();
             }
             promisesMap.set(dbStoreName, promise);
@@ -122,7 +139,9 @@ export const idbBaseQuery: BaseQueryFn<
         console.log(`${logPrefix} Awaiting all store promises (${promisesMap.size})...`);
         await Promise.all(promisesMap.values());
 
-        const dbResultsMap = new Map<keyof ProjectDB, any>();
+        // --- FIX: Use unknown for Map value type ---
+        const dbResultsMap = new Map<ProjectStoreName, unknown>();
+        // -----------------------------------------
         for (const [dbStoreName, promise] of promisesMap.entries()) {
             try {
                 const resultData = await promise;
@@ -136,12 +155,9 @@ export const idbBaseQuery: BaseQueryFn<
         }
         console.log(`${logPrefix} All store promises resolved.`);
 
-        // --- Filtering Logic for categoryAnalysisResults ---
         const catAnalysisArgName = 'categoryAnalysisResults';
         const catAnalysisDbName = CAT_ANALYSIS_STORE;
-        // --- ENSURE THIS TYPE IS CORRECT ---
-        let finalFilteredNestedItems: Array<{ bmdResultRef: number | string; item: CategoryAnalysisItem }> = [];
-        // -----------------------------------
+        const finalFilteredNestedItems: Array<{ bmdResultRef: number | string; item: CategoryAnalysisItem }> = [];
 
         if (argStores.includes(catAnalysisArgName) && dbResultsMap.has(catAnalysisDbName)) {
             const allStoredCollections = dbResultsMap.get(catAnalysisDbName) as StoredCategoryAnalysisCollection[] | undefined;
@@ -175,14 +191,12 @@ export const idbBaseQuery: BaseQueryFn<
                             return passesFilter;
                         });
 
-                        // --- PUSH OBJECT WITH REF AND ITEM ---
                         filteredForThisRef.forEach(filteredItem => {
                             finalFilteredNestedItems.push({
-                                bmdResultRef: parentRef, // Use the ref from the parent collection
+                                bmdResultRef: parentRef,
                                 item: filteredItem
                             });
                         });
-                        // --------------------------------------
                     }
                 });
                 console.log(`${logPrefix} Filtering complete. Total items before filter: ${totalItemsBeforeFilter}, Total items after filter: ${finalFilteredNestedItems.length}`);
@@ -190,9 +204,7 @@ export const idbBaseQuery: BaseQueryFn<
                 console.warn(`${logPrefix} No category analysis collections fetched or no refs selected for filtering.`);
             }
         }
-        // --- End Filtering Logic ---
 
-        // --- Result Structuring ---
         const dataResult: IdbQueryData = {};
         argStores.forEach(argName => {
             const dbStoreName = mapArgStoreToDbStore(argName);
@@ -202,9 +214,7 @@ export const idbBaseQuery: BaseQueryFn<
             }
 
             if (argName === catAnalysisArgName) {
-                // --- Assign the array of {ref, item} objects ---
                 dataResult[argName] = finalFilteredNestedItems;
-                // ---------------------------------------------
             } else if (argName === 'bMDResult') {
                 const fetchedBmdData = dbResultsMap.get(dbStoreName);
                 dataResult[argName] = Array.isArray(fetchedBmdData) ? fetchedBmdData : (fetchedBmdData ? [fetchedBmdData] : []);
@@ -212,7 +222,6 @@ export const idbBaseQuery: BaseQueryFn<
                 dataResult[argName] = dbResultsMap.get(dbStoreName);
             }
         });
-        // --- End Result Structuring ---
 
         console.log(`${logPrefix} Successfully prepared data for ${projectName}. Returning structured data:`);
         argStores.forEach(argName => {

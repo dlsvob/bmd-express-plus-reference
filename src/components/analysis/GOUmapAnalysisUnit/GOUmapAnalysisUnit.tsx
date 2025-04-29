@@ -8,19 +8,21 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
     Row, Col, Spin, Alert, Space, Switch, Typography, Card, RadioChangeEvent
 } from 'antd';
-import type { TableProps } from 'antd';
+// import type { TableProps } from 'antd'; // Removed (Unused)
 import UmapPlotComponent from './UmapPlotComponent'; // Relative path
 import { useAppSelector, useAppDispatch } from '../../../store/hooks'; // Adjusted path
 import {
     usePreparedPlotData,
-    PreparedPlotHookData,
+    // PreparedPlotHookData, // Use type from applicationModel
 } from '../../../hooks/usePreparedPlotData'; // Adjusted path
-import {
-    UmapAnalysisDataPoint,
+import type {
+    // UmapAnalysisDataPoint, // Removed (Unused in this file)
     AnalysisTableRow,
-    BMDResult,
+    // BMDResult, // Removed (Import from BMDxExported)
+    PreparedPlotHookData, // IMPORTED from applicationModel
 } from '../../../models/applicationModel'; // Adjusted path
-import { ReferenceUmapItem } from '../../../data/referenceUmapData'; // Adjusted path
+import type { BMDResult } from '../../../models/BMDxExported'; // ADDED Import
+// import type { ReferenceUmapItem } from '../../../data/referenceUmapData'; // Removed (Unused in this file)
 import { selectSelectedAnalysisRefs } from '../../../store/slices/selectedAnalysisSlice'; // Adjusted path
 import {
     selectReferenceDataMap,
@@ -60,10 +62,11 @@ import { GOUmapAnalysisTable } from './GOUmapAnalysisTable'; // Relative path
 import { DEFAULT_GOUMAP_TABLE_COLUMNS } from '../../../config/tableColumnDefinitions'; // Adjusted path
 import type {
     TablePaginationConfig,
-    TableColumnType,
+    // TableColumnType, // Removed (Incorrect import/unused)
     SorterResult,
     FilterValue,
 } from 'antd/es/table/interface';
+import type { ColumnType } from 'antd/es/table'; // ADDED Correct import for ColumnType
 
 // --- Import Child Components ---
 import CustomLegends from '../shared/CustomLegends'; // Adjusted path
@@ -86,11 +89,12 @@ const { Text } = Typography;
 // --- Define View Mode Type ---
 type UmapViewMode = 'single' | 'multiple';
 
-// --- Props Interface (if needed) ---
-interface GOUmapAnalysisUnitProps { }
+// --- Props Interface (REMOVED as it was empty) ---
+// interface GOUmapAnalysisUnitProps { } // <-- Ensure this line is removed or commented out
 
 // --- GOUmapAnalysisUnit Component ---
-const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
+// --- REMOVED Props Annotation ---
+const GOUmapAnalysisUnit: React.FC = () => { // <-- Remove : React.FC<GOUmapAnalysisUnitProps>
     const dispatch = useAppDispatch();
 
     // --- State for View Mode ---
@@ -152,10 +156,12 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
     const hasSelection = selectedBmdResultRefs && selectedBmdResultRefs.length > 0;
 
     // === Memoize Maps from Raw Data ===
+    // --- ADDED BMDResult type annotation ---
     const { bmdResultMap, bmdRefToExperimentNameMap } = useMemo<{
         bmdResultMap: Map<number, BMDResult>;
         bmdRefToExperimentNameMap: Map<number, string>;
     }>(() => {
+        // --- ADDED BMDResult type annotation ---
         const tempBmdResultMap = new Map<number, BMDResult>();
         const tempBmdRefToNameMap = new Map<number, string>();
         if (rawSuccess && rawData) {
@@ -179,6 +185,7 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
     }, [rawSuccess, rawData]);
 
     // === Prepare Plot Data (Hook selects UI state internally) ===
+    // --- Use PreparedPlotHookData from applicationModel ---
     const {
         analysisPoints,
         allStyledPoints,
@@ -222,15 +229,18 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
 
     // --- Prepare Columns for Table (Add sortOrder dynamically) ---
     const tableColumns = useMemo(() => {
-        return DEFAULT_GOUMAP_TABLE_COLUMNS.map((col) => {
+        // --- Use ColumnType ---
+        return DEFAULT_GOUMAP_TABLE_COLUMNS.map((col: ColumnType<AnalysisTableRow>) => {
             if (!col.key) return col;
-            let currentSortOrder: SorterResult<AnalysisTableRow>['order'] = false;
+            // --- FIX: Use null instead of false (Line ~217) ---
+            let currentSortOrder: SorterResult<AnalysisTableRow>['order'] = null;
             if (
                 tableSorter &&
                 'field' in tableSorter &&
                 tableSorter.field === col.key
             ) {
-                currentSortOrder = tableSorter.order || false;
+                // --- FIX: Use null instead of false (Line ~223) ---
+                currentSortOrder = tableSorter.order || null;
             }
             return {
                 ...col,
@@ -539,21 +549,3 @@ const GOUmapAnalysisUnit: React.FC<GOUmapAnalysisUnitProps> = () => {
 };
 
 export default GOUmapAnalysisUnit;
-
-// --- GOUmapAnalysisUnit.module.css (Ensure this exists and defines styles) ---
-/* Example content for src/components/analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit.module.css */
-/* .analysisUnitContainer {
-    padding: 16px;
-    background-color: #f9f9f9;
-} */
-
-/* .innerSectionCard { */
-/* Default AntD Card border is usually fine. */
-/* If you specifically wanted NO border previously (from bordered={false}), add: */
-/* border: none !important; */
-
-/* If you want a custom border: */
-/* border: 1px solid #e8e8e8; */
-/* margin-bottom: 16px; Add spacing if needed */
-/* } */
-

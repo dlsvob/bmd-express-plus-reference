@@ -1,13 +1,13 @@
 // src/hooks/useClusteringVisualizationData.ts
 import { useMemo } from 'react';
-import { CategoryRow, SummaryRow } from '../utils/clusteringUtils'; // Adjust path
-import { ReferenceUmapItem } from '../data/referenceUmapData'; // Adjust path
-import { ClusteringScatterPoint } from '../components/analysis/GOUmapAnalysisUnit/GOClusteringScatterPlot'; // Adjust path
-import { generateHaltonColors } from '../utils/colorUtils'; // Adjust path
+import { CategoryRow, SummaryRow } from '../utils/clusteringUtils';
+import { ReferenceUmapItem } from '../data/referenceUmapData';
+import type { ClusteringScatterPoint } from '../components/analysis/GOClusteringAnalysisUnit/GOClusteringScatterPlot';
+import { generateHaltonColors } from '../utils/colorUtils';
 import {
     UNCLUSTERED_COLOR,
     DEFAULT_MARKER_COLOR,
-} from '../utils/legendUtils'; // Adjust path
+} from '../utils/legendUtils';
 
 const JITTER_AMOUNT = 0.3;
 
@@ -18,15 +18,13 @@ interface UseClusteringVisualizationDataProps {
     referenceData: ReferenceUmapItem[] | null;
 }
 
-// --- Update Return Type ---
 export interface ClusteringVisualizationData {
     clusterColorMap: Map<string | number, string> | null;
     jitterMap: Map<string, number>;
     scatterPlotData: ClusteringScatterPoint[] | null;
     legendColorItems: [string, string][];
-    presentClusterIds: Set<string>; // <<< ADDED: Set of cluster IDs present in scatterPlotData
+    presentClusterIds: Set<string>;
 }
-// ------------------------
 
 export function useClusteringVisualizationData({
     categoryTableData,
@@ -34,11 +32,9 @@ export function useClusteringVisualizationData({
     referenceDataMap,
     referenceData,
 }: UseClusteringVisualizationDataProps): ClusteringVisualizationData {
-    const hookLogPrefix = '[useClusteringVisualizationData v2]'; // Version Bump
+    const hookLogPrefix = '[useClusteringVisualizationData v2]';
 
-    // --- Generate Cluster Color Map (Keep as is) ---
     const clusterColorMap = useMemo(() => {
-        // ... (logic remains the same) ...
         const colorMapLogPrefix = `${hookLogPrefix} [clusterColorMap]`;
         console.log(`${colorMapLogPrefix} Generating...`);
         if (!referenceData) {
@@ -78,9 +74,7 @@ export function useClusteringVisualizationData({
         return map;
     }, [referenceData]);
 
-    // --- Generate Stable Jitter Map (Keep as is) ---
     const jitterMap = useMemo((): Map<string, number> => {
-        // ... (logic remains the same) ...
         const mapLogPrefix = `${hookLogPrefix} [JitterMap]`;
         console.log(`${mapLogPrefix} Generating jitter map...`);
         const map = new Map<string, number>();
@@ -100,10 +94,9 @@ export function useClusteringVisualizationData({
         return map;
     }, [categoryTableData]);
 
-    // --- Prepare Data for Scatter Plot AND Collect Present IDs ---
     const { scatterPlotData, presentClusterIds } = useMemo(() => {
         const plotLogPrefix = `${hookLogPrefix} [ScatterData & PresentIDs]`;
-        const presentIds = new Set<string>(); // <<< Initialize Set here
+        const presentIds = new Set<string>();
         if (
             !categoryTableData ||
             categoryTableData.length === 0 ||
@@ -114,7 +107,7 @@ export function useClusteringVisualizationData({
             !jitterMap
         ) {
             console.log(`${plotLogPrefix} Prerequisites not met.`);
-            return { scatterPlotData: null, presentClusterIds: presentIds }; // Return empty set
+            return { scatterPlotData: null, presentClusterIds: presentIds };
         }
 
         console.log(`${plotLogPrefix} Preparing data...`);
@@ -161,18 +154,16 @@ export function useClusteringVisualizationData({
                     jitteredRank: calculatedJitteredRank,
                     color: pointColor,
                 });
-                // --- Add the present cluster ID to the set ---
                 if (referenceClusterId !== null && referenceClusterId !== undefined) {
-                    presentIds.add(String(referenceClusterId)); // Ensure it's a string
+                    presentIds.add(String(referenceClusterId));
                 }
-                // ---------------------------------------------
             }
         });
 
         console.log(
             `${plotLogPrefix} Prepared ${points.length} points. Found ${presentIds.size} present cluster IDs.`
         );
-        return { scatterPlotData: points, presentClusterIds: presentIds }; // Return both
+        return { scatterPlotData: points, presentClusterIds: presentIds };
     }, [
         categoryTableData,
         summaryTableData,
@@ -180,11 +171,8 @@ export function useClusteringVisualizationData({
         clusterColorMap,
         jitterMap,
     ]);
-    // ---------------------------------------------------------
 
-    // --- Generate Legend Items (Keep as is) ---
     const legendColorItems = useMemo((): [string, string][] => {
-        // ... (logic remains the same) ...
         const legendLogPrefix = `${hookLogPrefix} [LegendItems]`;
         if (!clusterColorMap || clusterColorMap.size === 0) {
             console.log(`${legendLogPrefix} No clusterColorMap available.`);
@@ -215,12 +203,11 @@ export function useClusteringVisualizationData({
         return items;
     }, [clusterColorMap]);
 
-    // --- Return all calculated visualization data ---
     return {
         clusterColorMap,
         jitterMap,
         scatterPlotData,
         legendColorItems,
-        presentClusterIds, // <<< Include the set in the return value
+        presentClusterIds,
     };
 }

@@ -1,11 +1,10 @@
-// src/components/analysis/GOUmapAnalysisUnit/UmapPlotComponent.tsx
 /**
  * Renders a Plotly scatter plot showing overlay data points
  * on top of the reference UMAP data. Uses Partial<ScatterData> internally
  * for clarity and casts only when passing data to the Plot component.
  * Includes internal error handling for Plotly rendering issues.
  */
-import React, { useMemo, useEffect, useState, useCallback } from 'react'; // Added useState, useCallback
+import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import Plot from 'react-plotly.js';
 // --- Import Plotly types ---
 import type { Layout, ScatterData } from 'plotly.js';
@@ -40,13 +39,15 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
     }, [data, referenceData]);
 
     // --- Plotly Error Handler ---
-    const handlePlotError = useCallback((err: any) => {
+    // --- FIX: Replace 'any' with 'Error' ---
+    const handlePlotError = useCallback((err: Error) => {
         console.error('[UmapPlotComponent] Plotly rendering error:', err);
         // Set a user-friendly error message
         setRenderError(
             'Failed to render UMAP plot. This might be due to data issues or browser limitations (e.g., too many WebGL contexts).'
         );
     }, []);
+    // --------------------------------------
 
     // --- Transform data for Plotly Traces ---
     const plotData = useMemo((): Partial<ScatterData>[] => {
@@ -71,7 +72,7 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
                     (p) =>
                         `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Cluster: ${p.cluster_id}`
                 ),
-                customdata: referenceData.map((p) => [p.go_id]) as string[][],
+                customdata: referenceData.map((p) => [p.go_id]), // Removed unnecessary assertion
             };
             traces.push(referenceTrace);
         }
@@ -102,7 +103,7 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
                 customdata: data.map((p) => [
                     p.go_id,
                     p.bmdResultRef,
-                ]) as (string | number)[][],
+                ]), // Removed unnecessary assertion
             };
             traces.push(overlayTrace);
         }

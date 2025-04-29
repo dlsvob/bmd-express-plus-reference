@@ -1,7 +1,9 @@
 // src/hooks/useProcessedPlotData.ts
 import { useMemo } from 'react';
 import { CategoryAnalysisItem } from '../models/BMDxExported';
-import { filterPlotItems } from '../utils/plotUtils';
+// --- FIX: Remove unused import ---
+// import { filterPlotItems } from '../utils/plotUtils';
+// ---------------------------------
 import { ReferenceUmapItem } from '../data/referenceUmapData';
 
 // Define the structure for each point returned by the hook
@@ -30,47 +32,53 @@ export function useProcessedPlotData(
 ): ProcessedPlotData | null {
     return useMemo(() => {
         console.log(
-            `[useProcessedPlotData ${analysisName}] Hook executing. Received categoryAnalysisItems type: ${typeof categoryAnalysisItems}, isArray: ${Array.isArray(categoryAnalysisItems)}`, // Log type and array status
+            `[useProcessedPlotData ${analysisName}] Hook executing. Received categoryAnalysisItems type: ${typeof categoryAnalysisItems}, isArray: ${Array.isArray(categoryAnalysisItems)}`,
             categoryAnalysisItems ? (Array.isArray(categoryAnalysisItems) ? `Array(${categoryAnalysisItems.length})` : categoryAnalysisItems) : categoryAnalysisItems
         );
 
-        // --- MORE ROBUST CHECK ---
-        // Check if it's NOT an array OR if it IS an array but empty, OR if referenceMap is missing
         if (!Array.isArray(categoryAnalysisItems) || categoryAnalysisItems.length === 0 || !referenceMap) {
             console.log(`[useProcessedPlotData ${analysisName}] Skipping: categoryAnalysisItems is not a non-empty array or referenceMap is missing.`);
             return null;
         }
-        // -------------------------
 
-        // Now we know categoryAnalysisItems is a non-empty array
         try {
-            // This line should now be safe
-            const filteredItems = categoryAnalysisItems.filter(filterPlotItems);
-            // ... (rest of the try block remains the same) ...
+            // --- FIX: Remove incorrect filter call if it existed ---
+            // const filteredItems = categoryAnalysisItems.filter(filterPlotItems); // Incorrect usage
+            // Process all items initially, filtering happens inside the map/filter below
+            const allItems = categoryAnalysisItems;
+            // ------------------------------------------------------
 
-            if (filteredItems.length === 0) {
-                console.log(`[useProcessedPlotData ${analysisName}] No items passed filter.`);
+            if (allItems.length === 0) { // Check allItems instead of filteredItems
+                console.log(`[useProcessedPlotData ${analysisName}] No items to process.`);
                 return null;
             }
 
-            const detailedPoints = filteredItems
-                .map((item, idx) => {
+            const detailedPoints = allItems
+                // --- FIX: Remove unused 'idx' parameter ---
+                .map((item /*, idx */) => {
+                    // ---------------------------------------
                     const bmd = item.bmdFifthPercentileTotalGenes;
                     const current_go_id = item.categoryIdentifier?.id;
-                    const refPoint = current_go_id ? referenceMap.get(current_go_id) : null;
+                    // --- FIX: Ensure key exists before lookup ---
+                    const refPoint = (current_go_id && typeof current_go_id === 'string')
+                        ? referenceMap.get(current_go_id.toUpperCase()) // Normalize key for lookup
+                        : null;
+                    // ------------------------------------------
 
+                    // --- FIX: Apply filtering criteria here ---
                     if (bmd != null && !isNaN(bmd) && isFinite(bmd) && bmd > 0 &&
                         typeof current_go_id === 'string' && current_go_id.startsWith('GO:') &&
-                        refPoint
+                        refPoint // Ensure refPoint exists
                     ) {
                         return {
                             bmd: bmd,
                             go_id: current_go_id,
                             direction: item.overallDirection,
                             percentage: item.percentage,
-                            cluster_id: refPoint.cluster_id,
+                            cluster_id: refPoint.cluster_id, // Use cluster_id from refPoint
                         };
                     }
+                    // -----------------------------------------
                     if (current_go_id && !refPoint) {
                         console.warn(`[useProcessedPlotData ${analysisName}] No reference data found for GO ID: ${current_go_id}`);
                     }
@@ -80,7 +88,7 @@ export function useProcessedPlotData(
 
             const currentTotalPoints = detailedPoints.length;
             if (currentTotalPoints === 0) {
-                console.log(`[useProcessedPlotData ${analysisName}] No valid points after mapping.`);
+                console.log(`[useProcessedPlotData ${analysisName}] No valid points after mapping and filtering.`);
                 return null;
             }
 

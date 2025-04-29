@@ -1,4 +1,4 @@
-// src/components/analysis/GOClusteringDetailsTable.tsx
+// src/components/analysis/GOClusteringAnalysisUnit/GOClusteringDetailsTable.tsx
 import React, { useMemo } from 'react';
 import { Table, Empty } from 'antd';
 import type { TableColumnType } from 'antd';
@@ -108,5 +108,9 @@ const GOClusteringDetailsTable: React.FC<GOClusteringDetailsTableProps> = React.
         );
     }
 );
+
+// --- FIX: Add display name ---
+GOClusteringDetailsTable.displayName = 'GOClusteringDetailsTable';
+// -----------------------------
 
 export default GOClusteringDetailsTable;

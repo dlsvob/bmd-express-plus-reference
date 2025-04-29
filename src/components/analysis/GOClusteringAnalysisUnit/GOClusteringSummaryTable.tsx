@@ -1,4 +1,4 @@
-// src/components/analysis/GOClusteringSummaryTable.tsx
+// src/components/analysis/GOClusteringAnalysisUnit/GOClusteringSummaryTable.tsx
 import React, { useMemo } from 'react';
 import { Table, Empty } from 'antd';
 import type { TableColumnType } from 'antd';
@@ -66,5 +66,9 @@ const GOClusteringSummaryTable: React.FC<GOClusteringSummaryTableProps> = React.
         );
     }
 );
+
+// --- FIX: Add display name ---
+GOClusteringSummaryTable.displayName = 'GOClusteringSummaryTable';
+// -----------------------------
 
 export default GOClusteringSummaryTable;

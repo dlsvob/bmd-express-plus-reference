@@ -3,19 +3,20 @@ import React, { useState, useCallback } from 'react';
 import {
     Layout,
     Drawer,
-    Button,
     Menu,
     Spin,
     Alert,
     Typography,
 } from 'antd';
 import {
-    MenuOutlined,
     ExperimentOutlined,
     BarChartOutlined,
     SettingOutlined,
 } from '@ant-design/icons';
+// --- FIX: Import MenuInfo from specific path ---
 import type { MenuProps } from 'antd';
+import type { MenuInfo } from 'rc-menu/lib/interface'; // Try this path
+// ---------------------------------------------
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { useGetProjectsQuery } from '../../store/apis/projectsApi';
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
@@ -28,20 +29,10 @@ import ExperimentListView from '../views/ExperimentListView';
 import GOUmapAnalysisUnit from '../analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit';
 import GOClusteringAnalysisUnit from '../analysis/GOClusteringAnalysisUnit/GOClusteringAnalysisUnit';
 import AppHeader from './AppHeader';
-// *** Import usePyodide hook HERE ***
 import { usePyodide } from '../../contexts/PyodideProvider';
 
 const { Content } = Layout;
 
-// Define view keys type
-type AppViewKey =
-    | 'experiments'
-    | 'categoryAnalysis'
-    | 'goClustering'
-    | 'settings'
-    | string;
-
-// Define the menu items
 const menuItems: MenuProps['items'] = [
     { key: 'experiments', icon: <ExperimentOutlined />, label: 'Experiments' },
     {
@@ -56,10 +47,8 @@ const menuItems: MenuProps['items'] = [
     { key: 'settings', icon: <SettingOutlined />, label: 'Project Settings' },
 ];
 
-// --- AppContentInternal Component (Renders the specific view) ---
-// This component assumes Pyodide loading is handled by the parent (AppLayoutController)
-// but it can check for Pyodide errors itself if needed for specific view logic.
 const AppContentInternal: React.FC = () => {
+    // ... (content remains the same) ...
     const { error: pyodideError } = usePyodide(); // Check error state
 
     const selectedProjectName = useAppSelector(selectSelectedProjectName);
@@ -107,12 +96,9 @@ const AppContentInternal: React.FC = () => {
                     <Alert message="Project Settings View (Not Implemented)" type="info" />
                 );
                 break;
-            // Handle potential unknown views explicitly if needed
-            // case 'someOtherView': ...
         }
     } else {
-        // Fallback loading state (e.g., project selected but name missing)
-        // This Spin should ideally not have a tip, as it's just a placeholder
+        // Fallback loading state
         mainContent = (
             <div style={{ textAlign: 'center', marginTop: '50px' }}>
                 <Spin size="large" />
@@ -126,9 +112,9 @@ const AppContentInternal: React.FC = () => {
             style={{
                 padding: '24px',
                 margin: 0,
-                minHeight: 280, // Example min height
-                background: '#fff', // Or use Ant Design token
-                overflow: 'auto', // Ensure content scrolls if needed
+                minHeight: 280,
+                background: '#fff',
+                overflow: 'auto',
             }}
         >
             {mainContent}
@@ -136,14 +122,11 @@ const AppContentInternal: React.FC = () => {
     );
 };
 
-// --- Navigation Menu Component (Extracted for clarity) ---
-// Receives disabled state based on project selection from parent
 const NavigationMenu: React.FC<{
     currentViewKey: string | null;
     onClick: MenuProps['onClick'];
-    disabled: boolean; // Is the menu generally disabled (e.g., no project)?
+    disabled: boolean;
 }> = ({ currentViewKey, onClick, disabled }) => {
-    // Use hook here to get Pyodide error state specifically for this component
     const { error: pyodideError } = usePyodide();
 
     return (
@@ -159,27 +142,22 @@ const NavigationMenu: React.FC<{
             style={{ height: '100%', borderRight: 0 }}
             items={menuItems}
             onClick={onClick}
-            // Final disabled state depends on parent AND Pyodide status
             disabled={disabled || !!pyodideError}
         />
     );
 };
 
-// --- AppLayoutController Component (Manages Layout, Consumes Pyodide Context) ---
 const AppLayoutController: React.FC = () => {
-    console.log('[AppLayoutController] Rendering...'); // Log when this renders
+    console.log('[AppLayoutController] Rendering...');
     const dispatch = useAppDispatch();
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-    // *** Consume Pyodide context HERE ***
     const { isLoading: pyodideLoading, error: pyodideError } = usePyodide();
 
-    // --- Global State Needed for Layout/Header ---
     const selectedProjectName = useAppSelector(selectSelectedProjectName);
     const currentViewKey = useAppSelector(selectCurrentView);
     const isProjectSelected = !!selectedProjectName;
 
-    // --- Fetch Project List ---
     const {
         data: projectsData,
         isLoading: isLoadingProjects,
@@ -194,7 +172,6 @@ const AppLayoutController: React.FC = () => {
             : String(projectsError)
         : null;
 
-    // --- Callbacks ---
     const showDrawer = useCallback(() => {
         setIsDrawerOpen(true);
     }, []);
@@ -203,65 +180,47 @@ const AppLayoutController: React.FC = () => {
         setIsDrawerOpen(false);
     }, []);
 
+    // --- FIX: Add MenuInfo type annotation back ---
     const handleMenuClick: MenuProps['onClick'] = useCallback(
-        (e) => {
+        (e: MenuInfo) => { // <-- Add type annotation
             console.log('Drawer menu clicked:', e.key);
-            dispatch(setActiveView(e.key as AppViewKey));
+            dispatch(setActiveView(e.key));
             closeDrawer();
         },
         [dispatch, closeDrawer]
     );
+    // ---------------------------------------------
 
-    // --- Render Structure ---
-    // This component now renders the main layout structure
     const pyodideSpinTip = pyodideLoading ? <>Initializing Pyodide Environment...</> : undefined;
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            {/* AppHeader receives disabled state based on Pyodide error */}
             <AppHeader
                 projectList={projectsData}
                 isLoading={isLoadingProjects}
                 error={formattedProjectsError}
-                // Pass Pyodide error status down to disable header controls if needed
                 disabled={!!pyodideError}
                 projectSelected={isProjectSelected}
                 onMenuClick={showDrawer}
             />
-            {/* Main Content Area Layout */}
             <Layout>
-                {/* --- Spin Usage Correction --- */}
-                {/* Wrap the Content area with Spin when Pyodide is loading */}
                 <Spin spinning={pyodideLoading} tip={pyodideSpinTip} size="large">
-                    {/* Render the internal content component */}
-                    {/* It will handle its own display logic based on Pyodide error/project selection */}
                     <AppContentInternal />
                 </Spin>
-                {/* --- End Spin Usage Correction --- */}
             </Layout>
-
-            {/* Navigation Drawer */}
             <Drawer
                 title="Navigation"
                 placement="left"
                 onClose={closeDrawer}
                 open={isDrawerOpen}
-                // --- Drawer bodyStyle Correction ---
-                // bodyStyle={{ padding: 0 }} // REMOVED deprecated prop
-                styles={{ body: { padding: 0 } }} // ADDED new prop
-            // ----------------------------------
+                styles={{ body: { padding: 0 } }}
             >
-                {/* Render the extracted NavigationMenu component */}
                 <NavigationMenu
                     currentViewKey={currentViewKey}
                     onClick={handleMenuClick}
-                    // Disable menu if no project is selected
                     disabled={!isProjectSelected}
-                // The menu component itself checks for pyodideError via context
                 />
             </Drawer>
-
-            {/* Pyodide Error Modal (Needs access to context, so rendered here) */}
             <PyodideErrorNotifier />
         </Layout>
     );
