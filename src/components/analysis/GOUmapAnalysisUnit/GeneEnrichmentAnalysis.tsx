@@ -4,8 +4,8 @@ import { Spin, Alert, Row, Col, Card, Typography } from 'antd';
 import Plot from 'react-plotly.js';
 import cytoscape from 'cytoscape';
 import type { Data, Layout } from 'plotly.js';
-import { useEnrichrAnalysis } from '../../hooks/useEnrichrAnalysis'; // Adjust path as needed
-import { EnrichmentTerm } from '../../store/apis/enrichrApi'; // Adjust path as needed
+import { useEnrichrAnalysis } from '../../../hooks/useEnrichrAnalysis'; // Adjust path as needed
+import { EnrichmentTerm } from '../../../store/apis/enrichrApi'; // Adjust path as needed
 
 const { Title, Text } = Typography;
 

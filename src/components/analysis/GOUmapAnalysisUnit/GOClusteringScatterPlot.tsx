@@ -5,8 +5,8 @@ import type { Data, Layout } from 'plotly.js';
 import {
     DEFAULT_MARKER_COLOR,
     UNCLUSTERED_COLOR,
-} from '../../utils/legendUtils';
-import { SummaryRow } from '../../utils/clusteringUtils';
+} from '../../../utils/legendUtils';
+import { SummaryRow } from '../../../utils/clusteringUtils';
 import type { ClusteringScatterPoint } from './GOClusteringAnalysisUnit'; // Adjust path if needed
 
 // --- Define Styling Constants ---

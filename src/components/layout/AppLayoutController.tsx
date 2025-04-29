@@ -16,20 +16,20 @@ import {
     SettingOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
-import { useAppSelector, useAppDispatch } from './store/hooks';
-import { useGetProjectsQuery } from './store/apis/projectsApi';
-import { selectSelectedProjectName } from './store/selectors/projectSelectors';
+import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { useGetProjectsQuery } from '../../store/apis/projectsApi';
+import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
 import {
     selectCurrentView,
     setActiveView,
-} from './store/slices/navigationSlice';
-import PyodideErrorNotifier from './components/PyodideErrorNotifier';
-import ExperimentListView from './components/views/ExperimentListView';
-import GOUmapAnalysisUnit from './components/analysis/GOUmapAnalysisUnit';
-import GOClusteringAnalysisUnit from './components/analysis/GOClusteringAnalysisUnit';
-import AppHeader from './components/layout/AppHeader';
+} from '../../store/slices/navigationSlice';
+import PyodideErrorNotifier from '../shared/PyodideErrorNotifier';
+import ExperimentListView from '../views/ExperimentListView';
+import GOUmapAnalysisUnit from '../analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit';
+import GOClusteringAnalysisUnit from '../analysis/GOUmapAnalysisUnit/GOClusteringAnalysisUnit';
+import AppHeader from './AppHeader';
 // *** Import usePyodide hook HERE ***
-import { usePyodide } from './contexts/PyodideProvider';
+import { usePyodide } from '../../contexts/PyodideProvider';
 
 const { Content } = Layout;
 

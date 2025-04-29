@@ -2,7 +2,7 @@
 import { useMemo } from 'react';
 import { CategoryRow, SummaryRow } from '../utils/clusteringUtils'; // Adjust path
 import { ReferenceUmapItem } from '../data/referenceUmapData'; // Adjust path
-import { ClusteringScatterPoint } from '../components/analysis/GOClusteringScatterPlot'; // Adjust path
+import { ClusteringScatterPoint } from '../components/analysis/GOUmapAnalysisUnit/GOClusteringScatterPlot'; // Adjust path
 import { generateHaltonColors } from '../utils/colorUtils'; // Adjust path
 import {
     UNCLUSTERED_COLOR,

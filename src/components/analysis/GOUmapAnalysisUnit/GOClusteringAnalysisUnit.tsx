@@ -10,10 +10,7 @@ import {
     Row,
     Col,
     Tabs,
-    Button,
-    InputNumber, // Use InputNumber for the node count
     Select,
-    Space,
     Typography,
     message,
 } from 'antd';
@@ -23,39 +20,39 @@ import {
     ExperimentOutlined,
 } from '@ant-design/icons';
 import debounce from 'lodash.debounce'; // <-- Import debounce
-import { useAppSelector, useAppDispatch } from '../../store/hooks'; // Adjust path
-import { selectSelectedProjectName } from '../../store/selectors/projectSelectors'; // Adjust path
-import { selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice'; // Adjust path
+import { useAppSelector, useAppDispatch } from '../../../store/hooks'; // Adjust path
+import { selectSelectedProjectName } from '../../../store/selectors/projectSelectors'; // Adjust path
+import { selectSelectedAnalysisRefs } from '../../../store/slices/selectedAnalysisSlice'; // Adjust path
 import {
     selectActiveClusteringRef,
     setActiveClusteringRef,
     selectHighlightedClusteringRefClusterIdsSet,
     toggleClusteringRefClusterHighlight,
-} from '../../store/slices/analysisUISlice'; // Adjust path
+} from '../../../store/slices/analysisUISlice'; // Adjust path
 import {
     selectReferenceDataMap,
     selectReferenceData,
-} from '../../store/selectors/referenceDataSelector'; // Adjust path
-import { useGetRawAnalysisDataQuery } from '../../store/apis/experimentsApi'; // Adjust path
+} from '../../../store/selectors/referenceDataSelector'; // Adjust path
+import { useGetRawAnalysisDataQuery } from '../../../store/apis/experimentsApi'; // Adjust path
 import {
     ApiClusteringInputItem,
     CategoryRow,
     SummaryRow,
-} from '../../utils/clusteringUtils'; // Adjust path
+} from '../../../utils/clusteringUtils'; // Adjust path
 import {
     usePyodideClustering,
     PyodideClusteringResult,
-} from '../../hooks/usePyodideClustering'; // Adjust path
-import { useProcessedClusteringData } from '../../hooks/useProcessedClusteringData'; // Adjust path
-import { useClusteringVisualizationData } from '../../hooks/useClusteringVisualizationData'; // Adjust path
-import { BMDResult, CategoryAnalysisItem } from '../../models/BMDxExported'; // Adjust path
+} from '../../../hooks/usePyodideClustering'; // Adjust path
+import { useProcessedClusteringData } from '../../../hooks/useProcessedClusteringData'; // Adjust path
+import { useClusteringVisualizationData } from '../../../hooks/useClusteringVisualizationData'; // Adjust path
+import { BMDResult, CategoryAnalysisItem } from '../../../models/BMDxExported'; // Adjust path
 import GOClusteringScatterPlot, {
     ClusteringScatterPoint,
 } from './GOClusteringScatterPlot'; // Adjust path
 import GOClusteringSummaryTable from './GOClusteringSummaryTable'; // Adjust path
 import GOClusteringDetailsTable from './GOClusteringDetailsTable'; // Adjust path
-import CustomLegends from './CustomLegends'; // Adjust path
-import AnalysisControls from './AnalysisControls'; // Adjust path
+import CustomLegends from '../shared/CustomLegends'; // Adjust path
+import AnalysisControls from '../controls/AnalysisControls'; // Adjust path
 import GeneEnrichmentAnalysis from './GeneEnrichmentAnalysis'; // Adjust path
 
 const PRIMARY_COLOR = '#1677ff'; // Example color

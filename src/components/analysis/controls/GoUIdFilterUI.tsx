@@ -3,7 +3,7 @@
 import React from 'react';
 import { Typography, Input, Radio } from 'antd';
 import type { RadioChangeEvent } from 'antd';
-import { HighlightMode } from '../store/slices/analysisUISlice'; // Adjust path
+import { HighlightMode } from '../../../store/slices/analysisUISlice'; // Adjust path
 
 const { Paragraph } = Typography;
 const { TextArea } = Input;

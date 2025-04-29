@@ -13,8 +13,8 @@ import type { Layout, ScatterData } from 'plotly.js';
 import type * as Plotly from 'plotly.js';
 
 // --- Import application model types ---
-import type { UmapAnalysisDataPoint } from '../../models/applicationModel';
-import type { ReferenceUmapItem } from '../../data/referenceUmapData';
+import type { UmapAnalysisDataPoint } from '../../../models/applicationModel';
+import type { ReferenceUmapItem } from '../../../data/referenceUmapData';
 
 // --- Import CSS Module ---
 import styles from './UmapPlotComponent.module.css';

@@ -8,12 +8,12 @@ import type {
 } from 'plotly.js';
 import { Spin } from 'antd';
 // --- Import the CORRECT data type ---
-import { UmapAnalysisDataPoint } from '../../models/applicationModel'; // Adjusted path & type name
+import { UmapAnalysisDataPoint } from '../../../models/applicationModel'; // Adjusted path & type name
 // --- Component for Plotly ---
 import Plot from 'react-plotly.js'; // Assuming direct use or a thin wrapper
 // --- Redux imports ---
-import { useAppDispatch } from '../../store/hooks'; // Adjust path
-import { setAccumulationPlotSelection } from '../../store/slices/analysisUISlice'; // Adjust path
+import { useAppDispatch } from '../../../store/hooks'; // Adjust path
+import { setAccumulationPlotSelection } from '../../../store/slices/analysisUISlice'; // Adjust path
 
 // Props interface - Cleaned up
 export interface AccumulationPlotProps {

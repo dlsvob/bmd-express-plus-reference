@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { Table, Empty } from 'antd';
 import type { TableColumnType } from 'antd';
-import { CategoryRow } from '../../utils/clusteringUtils'; // Adjust path if needed
+import { CategoryRow } from '../../../utils/clusteringUtils'; // Adjust path if needed
 
 // Define Props interface
 interface GOClusteringDetailsTableProps {

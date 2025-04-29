@@ -4,24 +4,21 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { Row, Col, Spin, Alert, Space, RadioChangeEvent } from 'antd';
-import type { TableProps } from 'antd';
 import UmapPlotComponent from './UmapPlotComponent';
-import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { useAppSelector, useAppDispatch } from '../../../store/hooks';
 import {
-    usePreparedPlotData,
-    PreparedPlotHookData,
-} from '../../hooks/usePreparedPlotData'; // Adjust path if needed
+    usePreparedPlotData
+} from '../../../hooks/usePreparedPlotData'; // Adjust path if needed
 import {
-    UmapAnalysisDataPoint,
     AnalysisTableRow,
     BMDResult,
-} from '../../models/applicationModel'; // Adjust path
-import { ReferenceUmapItem } from '../../data/referenceUmapData'; // Adjust path
-import { selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice';
+} from '../../../models/applicationModel'; // Adjust path
+
+import { selectSelectedAnalysisRefs } from '../../../store/slices/selectedAnalysisSlice';
 import {
     selectReferenceDataMap,
     selectReferenceData,
-} from '../../store/selectors/referenceDataSelector';
+} from '../../../store/selectors/referenceDataSelector';
 import {
     HighlightMode,
     selectColorBy,
@@ -47,13 +44,13 @@ import {
     setGoIdInputString,
     setHighlightMode as setHighlightModeAction,
     setTableSelectedGoId, // Import action for table selection
-} from '../../store/slices/analysisUISlice'; // Adjust path if needed
-import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
-import { useGetRawAnalysisDataQuery } from '../../store/apis/experimentsApi';
+} from '../../../store/slices/analysisUISlice'; // Adjust path if needed
+import { selectSelectedProjectName } from '../../../store/selectors/projectSelectors';
+import { useGetRawAnalysisDataQuery } from '../../../store/apis/experimentsApi';
 
 // --- Import Table Component and Column Definitions ---
-import { GOUmapAnalysisTable } from '../GOUmapAnalysisTable'; // Adjust path if needed
-import { DEFAULT_GOUMAP_TABLE_COLUMNS } from '../../config/tableColumnDefinitions'; // Adjust path
+import { GOUmapAnalysisTable } from './GOUmapAnalysisTable'; // Adjust path if needed
+import { DEFAULT_GOUMAP_TABLE_COLUMNS } from '../../../config/tableColumnDefinitions'; // Adjust path
 import type {
     TablePaginationConfig,
     TableColumnType,
@@ -63,17 +60,17 @@ import type {
 // ----------------------------------------------------
 
 // --- Import Child Components ---
-import CustomLegends from './CustomLegends'; // Adjusted path
-import StylingSelectors from '../StylingSelectors'; // Adjusted path
-import SlidingWindowFilter from '../SlidingWindowFilter'; // Adjusted path
+import CustomLegends from '../shared/CustomLegends'; // Adjusted path
+import StylingSelectors from '../../StylingSelectors'; // Adjusted path
+import SlidingWindowFilter from '../controls/SlidingWindowFilter'; // Adjusted path
 import AccumulationPlot from './AccumulationPlot'; // Use the functional component
-import GoIdFilterUI from '../GOUIdFilterUI'; // Use the functional component (Adjusted path)
+import GoIdFilterUI from '../controls/GoUIdFilterUI'; // Use the functional component (Adjusted path)
 // -----------------------------
 import {
     COLOR_BY_OPTIONS,
     SHAPE_BY_OPTIONS,
     SIZE_BY_OPTIONS,
-} from '../../config/analysisConstants'; // Adjust path if needed
+} from '../../../config/analysisConstants'; // Adjust path if needed
 
 // --- Props Interface (if needed) ---
 interface GOUmapAnalysisUnitProps { }

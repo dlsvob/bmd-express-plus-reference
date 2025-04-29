@@ -2,9 +2,9 @@
 import React from 'react';
 import { Table } from 'antd';
 import type { TableProps, TableColumnType } from 'antd';
-import { AnalysisTableRow } from '../models/applicationModel'; // Adjust path as needed
-import { HighlightMode } from '../store/slices/analysisUISlice'; // Adjust path as needed
-import { HIDDEN_OPACITY } from '../utils/styleUtils'; // Import HIDDEN_OPACITY
+import { AnalysisTableRow } from '../../../models/applicationModel'; // Adjust path as needed
+import { HighlightMode } from '../../../store/slices/analysisUISlice'; // Adjust path as needed
+import { HIDDEN_OPACITY } from '../../../utils/styleUtils'; // Import HIDDEN_OPACITY
 
 // --- Helper function to convert HEX to RGBA ---
 function hexToRgba(hex: string, alpha: number): string {

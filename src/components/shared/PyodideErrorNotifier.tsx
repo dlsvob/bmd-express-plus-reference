@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Modal, Button, Alert } from 'antd';
 import { ExclamationCircleFilled } from '@ant-design/icons';
-import { PyodideContext } from '../contexts/PyodideProvider'; // Keep import for useContext
+import { PyodideContext } from '../../contexts/PyodideProvider'; // Keep import for useContext
 
 const PyodideErrorNotifier: React.FC = () => {
     // --- Safely access context ---
