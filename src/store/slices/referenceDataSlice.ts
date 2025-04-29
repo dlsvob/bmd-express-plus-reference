@@ -1,21 +1,19 @@
 // src/store/slices/referenceDataSlice.ts
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-// --- Use the CORRECT named import ---
-import { hardcodedReferenceData } from '../../data/referenceUmapData'; // Adjust path if needed
-// -----------------------------------
-import { ReferenceUmapItem } from '../../data/referenceUmapData'; // Adjust path if needed
-import { RootState } from '../store'; // Adjust path if needed for RootState type
+import { hardcodedReferenceData } from '../../data/referenceUmapData';
+import { ReferenceUmapItem } from '../../data/referenceUmapData';
+// import { RootState } from '../store'; // Keep commented if RootState isn't used directly here
 
-interface ReferenceDataState {
+// --- FIX: Export the interface ---
+export interface ReferenceDataState { // Add export
+    // ---------------------------------
     referenceUmapData: ReferenceUmapItem[] | null;
     isLoading: boolean;
     error: string | null;
 }
 
 const initialState: ReferenceDataState = {
-    // --- Use the correctly imported variable name ---
     referenceUmapData: hardcodedReferenceData,
-    // ---------------------------------------------
     isLoading: false,
     error: null,
 };
@@ -47,9 +45,6 @@ export const {
 
 export default referenceDataSlice.reducer;
 
-/**
- * Selects the entire state object for the referenceData slice.
- * @param state - The root state of the Redux store.
- * @returns The ReferenceDataState object.
- */
-export const selectReferenceDataState = (state: RootState): ReferenceDataState => state.referenceData;
+// --- REMOVE Selector from here, keep it in referenceDataSelector.ts ---
+// export const selectReferenceDataState = (state: RootState): ReferenceDataState => state.referenceData;
+// ---------------------------------------------------------------------

@@ -1,8 +1,8 @@
 // src/store/slices/uiSlice.ts
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import type { UIState } from '../../models/reduxTypes'; // Adjust path
-import { RootState } from '../store'; // Adjust path
+import type { UIState } from '../models/reduxTypes';
+import { RootState } from '../store';
 
 const initialState: UIState = {
     isAddProjectModalOpen: false,

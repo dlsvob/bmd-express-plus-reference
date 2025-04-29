@@ -1,25 +1,30 @@
 // src/store/selectors/referenceDataSelector.ts
 import { createSelector } from '@reduxjs/toolkit';
-import { RootState } from '../store'; // Adjust path as needed
-// --- Correct the import path for createReferenceDataMap ---
-import { createReferenceDataMap } from '../../utils/referenceDataUtils'; // Adjust path as needed
-// ------------------------------------------------------
-import { selectReferenceDataState } from '../slices/referenceDataSlice'; // Adjust path as needed
 
+import { RootState } from '../store';
+import { createReferenceDataMap } from '../../utils/referenceDataUtils';
+
+import type { ReferenceDataState } from '../slices/referenceDataSlice';
+
+
+const selectReferenceDataState = (state: RootState): ReferenceDataState => state.referenceData;
 
 // Selector for the raw reference data array
+// Now uses the locally defined base selector
 export const selectReferenceData = createSelector(
     [selectReferenceDataState],
     (referenceDataState) => referenceDataState.referenceUmapData
 );
 
 // Selector for the loading state
+// Now uses the locally defined base selector
 export const selectIsReferenceDataLoading = createSelector(
     [selectReferenceDataState],
     (referenceDataState) => referenceDataState.isLoading
 );
 
 // Selector for any loading error
+// Now uses the locally defined base selector
 export const selectReferenceDataError = createSelector(
     [selectReferenceDataState],
     (referenceDataState) => referenceDataState.error
@@ -27,16 +32,13 @@ export const selectReferenceDataError = createSelector(
 
 
 // Memoized selector to create the reference data Map (GO_ID -> Item)
+// Depends on selectReferenceData, which depends on the local base selector
 export const selectReferenceDataMap = createSelector(
-    [selectReferenceData], // Input selector: the raw data array
+    [selectReferenceData],
     (referenceData) => {
-        // Only create the map if the data is available
         if (!referenceData || referenceData.length === 0) {
-            // console.log("[selectReferenceDataMap] No reference data array, returning null map.");
-            return null; // Or return new Map() if preferred for consistency
+            return null;
         }
-        // console.log(`[selectReferenceDataMap] Creating map from ${referenceData.length} reference items.`);
-        // Use the imported utility function
         return createReferenceDataMap(referenceData);
     }
 );

@@ -2,16 +2,15 @@
 
 // Import types used within the state definitions
 import { HighlightMode } from './analysisUISlice'; // Or define HighlightMode here
-import { SelectedAnalysisDetailItem } from '../models/reduxTypes';
+import { SelectedAnalysisDetailItem } from '../models/reduxTypes'; // Correct path
+
 import { ReferenceUmapItem, hardcodedReferenceData } from '../../data/referenceUmapData';
-// --- Import models needed for ProjectData ---
 import {
   DoseResponseExperiment,
   CategoryAnalysisResult,
   BMDResult,
   WilliamsTrendResult
-  // Import other result types if needed (ANOVA, CurveFit, Oriogen) - using 'any' for now
-} from '../../models/BMDxExported'; // Adjust path as needed
+} from '../../models/BMDxExported';
 
 
 // --- Base Type Definitions ---
@@ -30,18 +29,25 @@ export interface AnalysisUIState {
   hiddenSizeLabels: string[];
   goIdInputString: string;
   goIdFilterList: string[];
-  highlightMode: HighlightMode;
+  highlightMode: HighlightMode; // Keep using the Enum type
+  committedRankSliderValue: [number, number];
+  highlightedClusteringRefClusterIds: string[];
+  activeClusteringRef: string | null;
   accumulationPlotSelectedGoIds: string[];
+  tableSelectedGoId: string | null;
 }
 
 // Matches state managed by selectedAnalysisSlice.ts
 export interface SelectedAnalysisState {
+  selectedRefs: string[];
   selectedDetails: SelectedAnalysisDetailItem[] | null;
 }
 
 // Matches state managed by referenceDataSlice.ts
 export interface ReferenceDataState {
-  referenceData: ReferenceUmapItem[] | null;
+  referenceUmapData: ReferenceUmapItem[] | null;
+  isLoading: boolean;
+  error: string | null;
 }
 
 // --- Keep Other Potential State Definitions (for future slices) ---
@@ -50,15 +56,16 @@ export interface ProjectsState { status: Status; error: string | null; available
 
 // --- Define ProjectData based on BMDxExported structure ---
 export interface ProjectData {
-  name: string; // Project name from the loaded file/DB
+  name: string;
   doseResponseExperiments: DoseResponseExperiment[];
-  oneWayANOVAResults: any[]; // Replace 'any' with specific type if defined
+  // --- FIX: Replace any[] with unknown[] ---
+  oneWayANOVAResults: unknown[];
   williamsTrendResults: WilliamsTrendResult[];
-  curveFitPrefilterResults: any[]; // Replace 'any' with specific type if defined
-  oriogenResults: any[]; // Replace 'any' with specific type if defined
-  bMDResult: BMDResult[]; // Note: Case matches original model
+  curveFitPrefilterResults: unknown[];
+  oriogenResults: unknown[];
+  // ---------------------------------------
+  bMDResult: BMDResult[];
   categoryAnalysisResults: CategoryAnalysisResult[];
-  // Add other top-level properties from the JSON if necessary
 }
 // --- End ProjectData definition ---
 
@@ -77,17 +84,25 @@ export const initialAnalysisUIState: AnalysisUIState = {
   hiddenSizeLabels: [],
   goIdInputString: '',
   goIdFilterList: [],
-  highlightMode: 'none',
+  // --- FIX: Use Enum member ---
+  highlightMode: HighlightMode.NONE,
+  // --------------------------
+  committedRankSliderValue: [1, 5000],
+  highlightedClusteringRefClusterIds: [],
+  activeClusteringRef: null,
   accumulationPlotSelectedGoIds: [],
+  tableSelectedGoId: null,
 };
 
 export const initialSelectedAnalysisState: SelectedAnalysisState = {
+  selectedRefs: [], // Initialize as empty array
   selectedDetails: null,
 };
 
 export const initialReferenceDataState: ReferenceDataState = {
-  // Use the imported hardcoded data directly
-  referenceData: hardcodedReferenceData || [],
+  referenceUmapData: hardcodedReferenceData || [],
+  isLoading: false,
+  error: null,
 };
 
 // --- Keep Other Initial States (for future slices) ---
@@ -96,14 +111,12 @@ export const initialCurrentProjectState: CurrentProjectState = { status: 'idle',
 export const initialPyodideState: PyodideState = { status: 'idle', error: null, };
 
 // --- Optional: Define Root State Shape ---
-// This helps type the entire store state if needed elsewhere
-// Note: Add RTK Query paths if you want AppState to be exhaustive
 export interface AppState {
-  // Use keys matching the reducer keys in store.ts
   analysisUI: AnalysisUIState;
   selectedAnalysis: SelectedAnalysisState;
   referenceData: ReferenceDataState;
   // Add other state slices here if/when created
-  // currentProject?: CurrentProjectState; // Example if a slice is added
+  // project?: ProjectState; // Example if project slice uses this name
+  // navigation?: NavigationState; // Example
+  // ui?: UIState; // Example
 }
-

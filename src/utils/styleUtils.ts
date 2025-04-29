@@ -2,7 +2,7 @@
  * src/utils/styleUtils.ts
  *
  * Utilities for applying dynamic styling (color, shape, size, opacity)
- * to prepared analysis data points based on UI settings and interactions.
+ * to prepared analysis data points based on UI state and interactions.
  */
 
 import { HighlightMode } from '../store/slices/analysisUISlice'; // Adjust path if needed
@@ -27,7 +27,9 @@ import {
 import type { ReferenceUmapItem } from '../data/referenceUmapData'; // Adjust path if needed
 
 // Define input/output Map types
-type BaseGroupedData = Map<string, BaseCategoryAnalysisDataPoint[]>;
+// --- FIX: Remove unused type ---
+// type BaseGroupedData = Map<string, BaseCategoryAnalysisDataPoint[]>;
+// -----------------------------
 type StyledUmapGroupedData = Map<string, UmapAnalysisDataPoint[]>;
 
 // --- Constants for Opacity and Highlighting ---
@@ -65,7 +67,7 @@ export function calculateOverlayStyles(
   hiddenColorLabels: Set<string>,
   hiddenShapeLabels: Set<string>,
   hiddenSizeLabels: Set<string>,
-  goIdFilterList: string[], // This is the raw list from state
+  goIdFilterList: string[],
   highlightMode: HighlightMode,
   bmdRefToExperimentNameMap: Map<number, string> | null,
   selectedGoIdsFromAccumulation: Set<string>,
@@ -75,12 +77,10 @@ export function calculateOverlayStyles(
   bmdRefColorMap: Map<number, string>,
   committedRankWindow: [number, number]
 ): StyledUmapGroupedData | null {
-  // --- DEBUG LOG v18 ---
-  const styleLogPrefix = '[StyleUtils v18 - Debug Exact Highlight]';
+  const styleLogPrefix = '[StyleUtils v19 - Final Fixes]'; // Version Bump
   console.log(
     `${styleLogPrefix} Function called. highlightMode: "${highlightMode}", goIdFilterList size: ${goIdFilterList?.length}`
   );
-  // ---------------------
 
   if (
     !rankedBaseGroupedData ||
@@ -102,25 +102,23 @@ export function calculateOverlayStyles(
     startRank >= 1;
 
   const styledGroupedData = new Map<string, UmapAnalysisDataPoint[]>();
-  let pointsProcessed = 0;
+  // --- FIX: Remove unused counters ---
+  // let pointsProcessed = 0;
   let pointsSkippedMissingRef = 0;
-  let pointsSkippedByRank = 0;
-  let pointsOutput = 0;
+  // let pointsSkippedByRank = 0;
+  // let pointsOutput = 0;
+  // ---------------------------------
   const failedKeysSample = new Set<string>();
 
-  // --- Create the Set for matching INSIDE the function ---
-  // This ensures we use the goIdFilterList passed in for this specific calculation run
   const exactMatchGoIds = new Set(
-    (goIdFilterList || []).map((id) => (id ?? '').toUpperCase()) // Ensure filter list is an array
+    (goIdFilterList || []).map((id) => (id ?? '').toUpperCase())
   );
-  // --- DEBUG LOG v18 ---
   if (exactMatchGoIds.size > 0) {
     console.log(
       `${styleLogPrefix} exactMatchGoIds Set created with size: ${exactMatchGoIds.size
       }. Sample: ${Array.from(exactMatchGoIds).slice(0, 5).join(', ')}`
     );
   }
-  // ---------------------
 
   const clusterMatchClusterIds = new Set<string | number>();
   if (highlightMode === HighlightMode.CLUSTER && exactMatchGoIds.size > 0) {
@@ -134,8 +132,8 @@ export function calculateOverlayStyles(
 
   rankedBaseGroupedData.forEach((basePoints, refStringKey) => {
     const styledPoints = basePoints
-      .map((basePoint, index) => { // Added index for logging
-        pointsProcessed++;
+      .map((basePoint, index) => {
+        // pointsProcessed++; // Removed
         const goIdSource = basePoint.go_id;
         const lookupKey =
           typeof goIdSource === 'string'
@@ -157,9 +155,9 @@ export function calculateOverlayStyles(
             currentRank < startRank ||
             currentRank > endRank);
 
-        if (isOutsideRankRange) {
-          pointsSkippedByRank++;
-        }
+        // if (isOutsideRankRange) { // Removed assignment
+        //   pointsSkippedByRank++;
+        // }
 
         const { colorBy, shapeBy, sizeBy } = stylingOptions;
         const experimentNameForLabel =
@@ -167,12 +165,12 @@ export function calculateOverlayStyles(
           basePoint.bmdResultName;
         const numericBmdRef = basePoint.bmdResultRef;
 
-        // --- Color, Shape, Size Calculations (remain the same) ---
         let baseFinalColor = DEFAULT_MARKER_COLOR;
         let colorLabel = experimentNameForLabel;
-        // ... (switch statement for colorBy) ...
         switch (colorBy) {
-          case 'cluster_id':
+          // --- FIX: Add curly braces to case block ---
+          case 'cluster_id': {
+            // -----------------------------------------
             const clusterId = refDataItem.cluster_id;
             if (clusterId === -1 || clusterId === '-1') {
               baseFinalColor = UNCLUSTERED_COLOR;
@@ -187,6 +185,7 @@ export function calculateOverlayStyles(
               colorLabel = `Unknown Cluster`;
             }
             break;
+          } // --- FIX: Closing brace for case block ---
           case 'direction':
             baseFinalColor = getDirectionColor(basePoint.direction);
             colorLabel = getDirectionLegendName(
@@ -206,7 +205,6 @@ export function calculateOverlayStyles(
 
         let baseFinalShape = DEFAULT_MARKER_SHAPE;
         let shapeLabel = DEFAULT_SHAPE_LABEL;
-        // ... (switch statement for shapeBy) ...
         switch (shapeBy) {
           case 'bmdResultName':
             baseFinalShape =
@@ -226,7 +224,6 @@ export function calculateOverlayStyles(
 
         let baseFinalSize = DEFAULT_MARKER_SIZE;
         let sizeLabel = DEFAULT_SIZE_LABEL;
-        // ... (switch statement for sizeBy) ...
         switch (sizeBy) {
           case 'percentage':
             baseFinalSize = getBinnedSize(basePoint.percentage);
@@ -239,27 +236,25 @@ export function calculateOverlayStyles(
             sizeLabel = DEFAULT_SIZE_LABEL;
             break;
         }
-        // ---------------------------------------------------------
 
-        // --- Opacity/Highlighting (with DEBUG LOGS) ---
         const isHiddenByLegend =
           hiddenColorSet.has(colorLabel) ||
           hiddenShapeSet.has(shapeLabel) ||
           hiddenSizeSet.has(sizeLabel);
 
         let finalSize = baseFinalSize;
-        let finalOpacity = VISIBLE_OPACITY; // Start assuming visible
-        let highlightReason = 'None'; // For logging
+        let finalOpacity = VISIBLE_OPACITY;
+        // --- FIX: Remove unused variable ---
+        // let highlightReason = 'None';
+        // ---------------------------------
 
-        // Apply filters sequentially: Rank -> Legend -> Highlighting
         if (isOutsideRankRange) {
           finalOpacity = HIDDEN_OPACITY;
-          highlightReason = 'Rank Filter';
+          // highlightReason = 'Rank Filter'; // Removed
         } else if (isHiddenByLegend) {
           finalOpacity = HIDDEN_OPACITY;
-          highlightReason = 'Legend Hide';
+          // highlightReason = 'Legend Hide'; // Removed
         } else {
-          // Only apply highlighting logic if the point is potentially visible
           const currentGoIdUpper = lookupKey;
           const isExactMatch =
             currentGoIdUpper && exactMatchGoIds.has(currentGoIdUpper);
@@ -272,67 +267,52 @@ export function calculateOverlayStyles(
             currentGoIdUpper &&
             selectedGoIdsFromAccumulation.has(currentGoIdUpper);
 
-          // --- DEBUG LOG v18 ---
-          // Log only for the first few points or points that *should* match
           const shouldLogPoint = index < 5 || isExactMatch;
           if (shouldLogPoint) {
             console.log(
               `${styleLogPrefix} Point ${index} (${goIdSource}): isExactMatch=${isExactMatch}, isInHighlightCluster=${isInHighlightCluster}, isSelectedFromAccumulation=${isSelectedFromAccumulation}, highlightMode=${highlightMode}`
             );
           }
-          // ---------------------
 
           if (isSelectedFromAccumulation) {
             finalSize = baseFinalSize * HIGHLIGHT_SIZE_MULTIPLIER;
             finalOpacity = HIGHLIGHT_OPACITY;
-            highlightReason = 'Accumulation Select';
+            // highlightReason = 'Accumulation Select'; // Removed
           } else if (
             highlightMode !== HighlightMode.NONE &&
             exactMatchGoIds.size > 0
           ) {
-            // --- Logic for HighlightMode.SELECTED (Exact Match) ---
             if (highlightMode === HighlightMode.SELECTED) {
-              // --- DEBUG LOG v18 ---
               if (shouldLogPoint) console.log(`${styleLogPrefix} Point ${index}: Entering SELECTED mode logic.`);
-              // ---------------------
               if (isExactMatch) {
                 finalSize = baseFinalSize * HIGHLIGHT_SIZE_MULTIPLIER;
                 finalOpacity = HIGHLIGHT_OPACITY;
-                highlightReason = 'Exact Match';
-                // --- DEBUG LOG v18 ---
+                // highlightReason = 'Exact Match'; // Removed
                 if (shouldLogPoint) console.log(`${styleLogPrefix} Point ${index}: EXACT MATCH found! Setting size=${finalSize}, opacity=${finalOpacity}`);
-                // ---------------------
               } else {
                 finalOpacity = HIDDEN_OPACITY;
-                highlightReason = 'Exact Hide';
-                // --- DEBUG LOG v18 ---
+                // highlightReason = 'Exact Hide'; // Removed
                 if (shouldLogPoint) console.log(`${styleLogPrefix} Point ${index}: No exact match. Hiding.`);
-                // ---------------------
               }
-              // --- Logic for HighlightMode.CLUSTER ---
             } else if (highlightMode === HighlightMode.CLUSTER) {
-              // --- DEBUG LOG v18 ---
               if (shouldLogPoint) console.log(`${styleLogPrefix} Point ${index}: Entering CLUSTER mode logic.`);
-              // ---------------------
               if (isExactMatch) {
                 finalSize = baseFinalSize * 1.2;
                 finalOpacity = VISIBLE_OPACITY;
-                highlightReason = 'Cluster Exact';
+                // highlightReason = 'Cluster Exact'; // Removed
               } else if (isInHighlightCluster) {
                 finalSize = Math.max(1, baseFinalSize * 0.8);
                 finalOpacity = DIM_OPACITY;
-                highlightReason = 'Cluster Neighbor';
+                // highlightReason = 'Cluster Neighbor'; // Removed
               } else {
                 finalOpacity = HIDDEN_OPACITY;
-                highlightReason = 'Cluster Hide';
+                // highlightReason = 'Cluster Hide'; // Removed
               }
             }
           }
-          // If no highlighting applies, finalOpacity remains VISIBLE_OPACITY
         }
-        // --- End Opacity Logic ---
 
-        pointsOutput++;
+        // pointsOutput++; // Removed
         const styledPoint: UmapAnalysisDataPoint = {
           ...basePoint,
           UMAP_1: refDataItem.UMAP_1,
@@ -345,7 +325,6 @@ export function calculateOverlayStyles(
           colorLabel,
           shapeLabel,
           sizeLabel,
-          // rank property is already on basePoint
         };
         return styledPoint;
       })

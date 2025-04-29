@@ -1,8 +1,7 @@
 // src/store/slices/navigationSlice.ts
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-// Assuming NavigationState is defined correctly now
-import type { NavigationState } from '../../models/types.ts'; // Adjust path
-import type { RootState } from '../store.ts'; // Adjust path
+import type { NavigationState } from '../models/reduxTypes'; // Correct path
+import type { RootState } from '../store'; // Adjust path if needed
 
 // Extend the state interface
 export interface AppNavigationState extends NavigationState {

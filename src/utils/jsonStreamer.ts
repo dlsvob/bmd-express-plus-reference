@@ -2,8 +2,7 @@
 import oboe from 'oboe';
 import { IDBPDatabase, IDBPTransaction } from 'idb';
 import {
-    ProjectDB, // Import the schema type from myIDB.ts
-    // NO MAPPED_KEY_PATH needed for out-of-line keys
+    ProjectDB,
     EXP_STORE,
     CAT_ANALYSIS_STORE,
     BMD_RESULT_STORE,
@@ -11,7 +10,7 @@ import {
     ANOVA_STORE,
     CURVE_FIT_STORE,
     ORIOGEN_STORE
-} from './myIDB'; // Adjust path
+} from './myIDB';
 
 // Define the stores we'll be writing to
 const ALL_PROJECT_STORE_NAMES_TUPLE = [
@@ -20,21 +19,19 @@ const ALL_PROJECT_STORE_NAMES_TUPLE = [
 ] as const;
 type ProjectStoreTuple = typeof ALL_PROJECT_STORE_NAMES_TUPLE;
 
-// --- Batching Logic ---
-const BATCH_SIZE = 100; // How many items per store before flushing?
+// Batching Logic
+const BATCH_SIZE = 100;
 
-// Interface for batch storage using out-of-line keys
 interface StoreBatches {
-    [EXP_STORE]: { key: number; value: any }[];
-    [CAT_ANALYSIS_STORE]: { key: number; value: any }[];
-    [BMD_RESULT_STORE]: { key: number; value: any }[];
-    [WILLIAMS_STORE]: { key: number; value: any }[];
-    [ANOVA_STORE]: any[]; // Only values for autoIncrement stores
-    [CURVE_FIT_STORE]: any[];
-    [ORIOGEN_STORE]: any[];
+    [EXP_STORE]: { key: number; value: unknown }[];
+    [CAT_ANALYSIS_STORE]: { key: number; value: unknown }[];
+    [BMD_RESULT_STORE]: { key: number; value: unknown }[];
+    [WILLIAMS_STORE]: { key: number; value: unknown }[];
+    [ANOVA_STORE]: unknown[];
+    [CURVE_FIT_STORE]: unknown[];
+    [ORIOGEN_STORE]: unknown[];
 }
 
-// Function to write batches to DB in a new transaction using 'idb'
 async function flushBatches(db: IDBPDatabase<ProjectDB>, batches: StoreBatches): Promise<number> {
     let itemsFlushed = 0;
     const storesWithData = Object.keys(batches).filter(key => batches[key as keyof StoreBatches].length > 0) as (keyof StoreBatches)[];
@@ -45,47 +42,51 @@ async function flushBatches(db: IDBPDatabase<ProjectDB>, batches: StoreBatches):
     let tx: IDBPTransaction<ProjectDB, ProjectStoreTuple, "readwrite"> | undefined;
     try {
         tx = db.transaction(ALL_PROJECT_STORE_NAMES_TUPLE, 'readwrite');
-        const putPromises: Promise<any>[] = [];
+        const putPromises: Promise<unknown>[] = [];
 
         storesWithData.forEach(storeName => {
+            // --- FIX: Add null check for tx ---
+            if (!tx) {
+                console.error("[JsonStreamer-idb] Transaction became undefined unexpectedly inside loop.");
+                return; // Skip this store if tx is somehow undefined
+            }
+            // ---------------------------------
             const batch = batches[storeName];
             itemsFlushed += batch.length;
-            const store = tx.objectStore(storeName);
+            const store = tx.objectStore(storeName); // Now tx is guaranteed to be defined here
 
-            // Use put(value, key) for stores needing out-of-line keys
             if (storeName === ANOVA_STORE || storeName === CURVE_FIT_STORE || storeName === ORIOGEN_STORE) {
                 batch.forEach(itemValue => {
-                    putPromises.push(store.put(itemValue)); // Key is auto-generated
+                    putPromises.push(store.put(itemValue));
                 });
             } else {
-                (batch as { key: number; value: any }[]).forEach(itemPair => {
-                    putPromises.push(store.put(itemPair.value, itemPair.key)); // Provide key explicitly
+                (batch as { key: number; value: unknown }[]).forEach(itemPair => {
+                    putPromises.push(store.put(itemPair.value, itemPair.key));
                 });
             }
-            batches[storeName] = []; // Clear the batch
+            (batches[storeName] as unknown[]) = [];
         });
 
         await Promise.all(putPromises);
-        await tx.done;
+        // --- FIX: Add null check for tx before accessing done ---
+        if (tx) {
+            await tx.done;
+        }
+        // ------------------------------------------------------
         console.log(`[JsonStreamer-idb] Flushed ${itemsFlushed} items successfully.`);
         return itemsFlushed;
     } catch (err) {
         console.error("[JsonStreamer-idb] Error during batch flush:", err);
         if (tx && !tx.done) {
-            try { await tx.abort(); } catch (abortErr) { /* ignore */ }
+            try { await tx.abort(); } catch { /* ignore */ }
         }
         throw new Error(`Batch flush failed: ${err instanceof Error ? err.message : String(err)}`);
     }
 }
 
-/**
- * Streams a large JSON file and inserts data into corresponding IndexedDB object stores
- * using Oboe.js and the 'idb' library with batching and out-of-line keys.
- * Assumes the database and stores have already been created/prepared via openAndPrepareProjectDB.
- */
 export async function streamJsonToStores(
     file: File,
-    db: IDBPDatabase<ProjectDB>, // Expects 'idb' database instance
+    db: IDBPDatabase<ProjectDB>,
     onProgress?: (tableName: string, totalCount: number) => void
 ): Promise<void> {
     console.log('[JsonStreamer-idb] Starting stream processing with batching...');
@@ -102,18 +103,14 @@ export async function streamJsonToStores(
     return new Promise((resolve, reject) => {
         const parser = oboe();
 
-        // Generic node handler function
-        const handleNode = (storeName: keyof StoreBatches, node: any) => {
-            // Handle out-of-line key stores
+        const handleNode = (storeName: keyof StoreBatches, node: unknown) => {
             if (storeName !== ANOVA_STORE && storeName !== CURVE_FIT_STORE && storeName !== ORIOGEN_STORE) {
-                if (!node || typeof node !== 'object' || node['@ref'] == null) {
+                if (!node || typeof node !== 'object' || !('@ref' in node) || node['@ref'] == null) {
                     console.warn(`[JsonStreamer-idb] Skipping node for store ${storeName} due to missing or invalid @ref:`, node);
                     return oboe.drop;
                 }
-                // Store {key, value} pair in batch
-                (batches[storeName] as { key: number; value: any }[]).push({ key: node['@ref'], value: node });
+                (batches[storeName] as { key: number; value: unknown }[]).push({ key: node['@ref'] as number, value: node });
             } else {
-                // Store only value for autoIncrement stores
                 batches[storeName].push(node);
             }
 
@@ -133,7 +130,6 @@ export async function streamJsonToStores(
             return oboe.drop;
         };
 
-        // Define listeners using the generic handler
         parser.node(EXP_STORE + '[*]', (node) => handleNode(EXP_STORE, node));
         parser.node(CAT_ANALYSIS_STORE + '[*]', (node) => handleNode(CAT_ANALYSIS_STORE, node));
         parser.node(BMD_RESULT_STORE + '[*]', (node) => handleNode(BMD_RESULT_STORE, node));
@@ -142,7 +138,6 @@ export async function streamJsonToStores(
         parser.node(CURVE_FIT_STORE + '[*]', (node) => handleNode(CURVE_FIT_STORE, node));
         parser.node(ORIOGEN_STORE + '[*]', (node) => handleNode(ORIOGEN_STORE, node));
 
-        // --- Oboe Stream Handling ---
         parser.done(async () => {
             console.log('[JsonStreamer-idb] Parsing completed.');
             console.log('[JsonStreamer-idb] Final Total Counts:', totalCounts);
@@ -161,25 +156,33 @@ export async function streamJsonToStores(
 
         parser.fail(({ thrown }) => {
             console.error('[JsonStreamer-idb] Parsing failed:', thrown);
-            reject(new Error(`JSON parsing failed: ${thrown?.message || String(thrown)}`));
+            reject(new Error(`JSON parsing failed: ${thrown instanceof Error ? thrown.message : String(thrown)}`));
         });
 
-        // --- File Reading Logic ---
         const reader = file.stream().getReader();
         const decoder = new TextDecoder('utf-8');
         function pump(): void {
             reader.read().then(({ done, value }) => {
                 if (done) {
                     console.log('[JsonStreamer-idb] File reading finished. Signaling done to Oboe.');
+                    // --- FIX: Disable eslint rule for this line ---
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     (parser as any).emit('done');
+                    // ---------------------------------------------
                     return;
                 }
                 const chunkText = decoder.decode(value, { stream: true });
+                // --- FIX: Disable eslint rule for this line ---
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (parser as any).emit('data', chunkText);
+                // ---------------------------------------------
                 pump();
             }).catch((error) => {
                 console.error('[JsonStreamer-idb] File reading error:', error);
+                // --- FIX: Disable eslint rule for this line ---
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (parser as any).emit('fail', error);
+                // ---------------------------------------------
             });
         }
         console.log('[JsonStreamer-idb] Starting file reading pump...');

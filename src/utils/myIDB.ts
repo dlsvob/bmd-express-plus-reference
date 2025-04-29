@@ -1,5 +1,7 @@
 // src/utils/myIDB.ts
-import { openDB, IDBPDatabase, DBSchema, IDBPTransaction } from 'idb';
+// --- FIX: Remove unused IDBPTransaction ---
+import { openDB, IDBPDatabase, DBSchema /*, IDBPTransaction */ } from 'idb';
+// -----------------------------------------
 import {
     DoseResponseExperiment,
     CategoryAnalysisResult,
@@ -19,14 +21,16 @@ export const ORIOGEN_STORE = 'oriogenResults' as const;
 // --- Schema for Individual Project DBs (using idb) ---
 // Stores using @ref value as an out-of-line key. NO INDEXES DEFINED.
 export interface ProjectDB extends DBSchema {
-    [EXP_STORE]: { key: number; value: DoseResponseExperiment; }; // Removed indexes
-    [CAT_ANALYSIS_STORE]: { key: number; value: CategoryAnalysisResult; }; // Removed indexes
-    [BMD_RESULT_STORE]: { key: number; value: BMDResult; }; // Removed indexes
-    [WILLIAMS_STORE]: { key: number; value: WilliamsTrendResult; }; // Removed indexes
+    [EXP_STORE]: { key: number; value: DoseResponseExperiment; };
+    [CAT_ANALYSIS_STORE]: { key: number; value: CategoryAnalysisResult; };
+    [BMD_RESULT_STORE]: { key: number; value: BMDResult; };
+    [WILLIAMS_STORE]: { key: number; value: WilliamsTrendResult; };
     // Stores using autoIncrement key.
-    [ANOVA_STORE]: { key: number; value: any; };
-    [CURVE_FIT_STORE]: { key: number; value: any; };
-    [ORIOGEN_STORE]: { key: number; value: any; };
+    // --- FIX: Replace any with unknown ---
+    [ANOVA_STORE]: { key: number; value: unknown; };
+    [CURVE_FIT_STORE]: { key: number; value: unknown; };
+    [ORIOGEN_STORE]: { key: number; value: unknown; };
+    // -----------------------------------
 }
 
 // --- Project DB Open Function (For Reading - No Version) ---
@@ -60,12 +64,13 @@ export async function openAndPrepareProjectDB(projectName: string): Promise<IDBP
     console.log(`[myIDB] Opening/Preparing Project DB ${projectName} at version ${latestVersion} for initial setup (NO INDEXES).`);
 
     return openDB<ProjectDB>(projectName, latestVersion, {
-        upgrade(dbInstance, oldVersion, newVersion, tx) {
+        // --- FIX: Remove unused 'tx' parameter ---
+        upgrade(dbInstance, oldVersion, newVersion /*, tx */) {
+            // ---------------------------------------
             console.log(`[myIDB] Running upgrade for ${projectName} from ${oldVersion} to ${newVersion ?? latestVersion}`);
             if (oldVersion < 1) {
                 // Stores using @ref value as the key (out-of-line) - NO keyPath specified
                 if (!dbInstance.objectStoreNames.contains(EXP_STORE)) {
-                    // Just create the store, NO createIndex calls
                     dbInstance.createObjectStore(EXP_STORE);
                 }
                 if (!dbInstance.objectStoreNames.contains(CAT_ANALYSIS_STORE)) {
@@ -115,10 +120,7 @@ export async function listProjectDatabaseNames(): Promise<string[]> {
         const projectNames = dbList
             .map(db => db.name)
             .filter((name): name is string => !!name)
-            // ***** SIMPLIFIED FILTER *****
-            // Only filter out names starting with underscore (common for internal DBs)
             .filter(name => !name.startsWith('_'));
-        // ***************************
         console.log('[myIDB] Filtered project DB names:', projectNames);
         return projectNames;
     } catch (error) {

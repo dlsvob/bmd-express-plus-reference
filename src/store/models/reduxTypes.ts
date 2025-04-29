@@ -1,4 +1,4 @@
-// src/models/reduxTypes.ts (Add/Ensure these types exist)
+// src/store/models/reduxTypes.ts (Add/Ensure these types exist)
 
 // Basic info for project selector
 export interface ProjectInfo {
@@ -13,9 +13,9 @@ export interface SelectedAnalysisDetailItem {
     experimentName: string; // Name of the experiment
     analysisName: string; // Name of the category analysis
     // ... other fields from the original type ...
-    categoryAnalysis?: { // Assuming nested structure based on original code
-        // ... fields like pValue, oddsRatio, genes, etc.
-    }
+    // --- FIX: Replace {} with a more specific type ---
+    categoryAnalysis?: Record<string, unknown> | null; // Allows an object with any string keys or null
+    // -------------------------------------------------
 }
 
 // Modified state for selectedAnalysisSlice
@@ -30,6 +30,9 @@ export interface ProjectState {
     isLoadingAvailable: boolean;
     errorAvailable: string | null;
     selectedProjectName: string | null;
+    // --- Add missing activeProjectId based on projectSlice.ts usage ---
+    activeProjectId?: string | null; // Add this if it's part of the state
+    // -------------------------------------------------------------
 }
 
 export interface NavigationState {

@@ -1,73 +1,54 @@
 // src/store/selectors/projectSelectors.ts
 import { createSelector } from '@reduxjs/toolkit';
 import type { RootState } from '../store';
-import { projectsApi } from '../apis/projectsApi'; // *** Import the projectsApi ***
+// --- FIX: Import Project type from API ---
+import { projectsApi, Project } from '../apis/projectsApi'; // Import Project type
+// ---------------------------------------
 
-// Interface for project data returned by the API
-interface ProjectListItem {
-  name: string;
-  experiments?: any[];
-  // Add other potential fields returned by projectsApi base query if needed
-}
+// --- REMOVE local ProjectListItem interface ---
+// interface ProjectListItem {
+//   name: string;
+//   experiments?: any[]; // <-- Source of no-explicit-any
+// }
+// ------------------------------------------
 
-// Selector for the base project slice state (if needed for other things)
+// Selector for the base project slice state
 const selectProjectSlice = (state: RootState) => state.project;
 
-// --- Selector for the Active Project ID/Name (Reads from projectSlice - KEEP AS IS) ---
-// This assumes setActiveProject reducer correctly updates state.project.activeProjectId
+// Selector for the Active Project ID/Name (Reads from projectSlice)
 export const selectActiveProjectId = createSelector(
   [selectProjectSlice],
   (projectState): string | null => projectState.activeProjectId ?? null
 );
 
-// --- ** NEW ** Selector for Available Projects Data (Reads from projectsApi cache) ---
-// Get the result object from the 'getProjects' endpoint query
+// Selector for Available Projects Data (Reads from projectsApi cache)
 const selectGetProjectsResult = projectsApi.endpoints.getProjects.select();
 
-// Create a selector that extracts just the 'data' from the query result
-// Defaults to an empty array if data is not yet available
-// *REPLACE* your old selectAvailableProjects with this logic (or use this new name)
+// --- FIX: Update return type annotation to use imported Project ---
 export const selectAvailableProjectsData = createSelector(
   selectGetProjectsResult,
-  (getProjectsResult): ProjectListItem[] => getProjectsResult?.data ?? []
+  (getProjectsResult): Project[] => getProjectsResult?.data ?? [] // Use imported Project type
 );
-// --- End New Selector ---
+// ----------------------------------------------------------------
 
-
-// --- Update selectActiveProject to use the *NEW* data selector ---
+// --- FIX: Update type annotation to use imported Project ---
 export const selectActiveProject = createSelector(
-  // *** Use selectAvailableProjectsData (from API cache) as input ***
   [selectAvailableProjectsData, selectActiveProjectId],
-  (projects, activeId) => { // activeId is the NAME
+  (projects: Project[], activeId: string | null): Project | null => { // Use imported Project type
     if (!activeId) {
       return null;
     }
-    if (!Array.isArray(projects)) {
-      console.warn('selectActiveProject: Input project list is not an array', projects);
-      return null;
-    }
-    // Find project by name (logic is already correct)
+    // projects is already guaranteed to be an array by selectAvailableProjectsData
     const foundProject = projects.find(p => p.name === activeId);
     return foundProject || null;
   }
 );
-// --- End Update ---
+// ---------------------------------------------------------
 
-
-// --- selectSelectedProjectName depends on the above, no changes needed here ---
+// This selector should now work correctly as it depends on selectActiveProject
 export const selectSelectedProjectName = createSelector(
   [selectActiveProject],
   (activeProject): string | null => {
     return activeProject ? activeProject.name : null;
   }
 );
-
-
-// --- REMOVE OR UPDATE Old Selectors (Optional Cleanup) ---
-// These probably read from projectSlice state related to the old thunk
-// You might want to remove them or update them to read from selectGetProjectsResult statuses
-/*
-export const selectAvailableProjects = createSelector( ... ); // REMOVE or rename if replaced by selectAvailableProjectsData
-export const selectIsLoadingAvailableProjects = createSelector( ... ); // UPDATE to use selectGetProjectsResult.isLoading
-export const selectAvailableProjectsError = createSelector( ... ); // UPDATE to use selectGetProjectsResult.error
-*/

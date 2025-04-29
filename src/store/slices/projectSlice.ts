@@ -1,9 +1,12 @@
 // src/store/slices/projectSlice.ts
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import type { ProjectState, ProjectInfo } from '../../models/reduxTypes'; // Adjust path
-import { getValidProjectNames } from '../../utils/projectDBUtils'; // Adjust path - IMPORTANT: Assumes this function exists and returns string[]
-import { RootState } from '../store'; // Adjust path
+import type { ProjectState, ProjectInfo } from '../models/reduxTypes'; // Correct path
+// --- FIX: Import listProjectDatabaseNames ---
+import { listProjectDatabaseNames } from '../../utils/myIDB'; // Import the function to get names
+// -----------------------------------------
+import { getValidProjectNames } from '../../utils/projectDBUtils'; // Keep this import
+import { RootState } from '../store';
 
 // --- Initial State ---
 const initialState: ProjectState = {
@@ -11,6 +14,7 @@ const initialState: ProjectState = {
     isLoadingAvailable: false,
     errorAvailable: null,
     selectedProjectName: null,
+    // activeProjectId: null, // Ensure this is included if used
 };
 
 // --- Async Thunk for Fetching Projects ---
@@ -18,14 +22,17 @@ export const fetchAvailableProjects = createAsyncThunk<ProjectInfo[], void, { re
     'project/fetchAvailableProjects',
     async (_, { rejectWithValue }) => {
         try {
-            // IMPORTANT: Replace with your actual IndexedDB utility function call
-            // Assuming getValidProjectNames returns an array of strings (project names)
-            const projectNames: string[] = await getValidProjectNames();
-            // Map names to ProjectInfo objects
-            const projects: ProjectInfo[] = projectNames.map(name => ({ name }));
+            // --- FIX: Fetch names first, then validate ---
+            console.log('[projectSlice] Thunk: Fetching raw DB names...');
+            const rawProjectNames: string[] = await listProjectDatabaseNames(); // Fetch names
+            console.log('[projectSlice] Thunk: Validating fetched names...');
+            // Pass the fetched names to the validator
+            const validProjectNames: string[] = getValidProjectNames(rawProjectNames);
+            // ---------------------------------------------
+            const projects: ProjectInfo[] = validProjectNames.map(name => ({ name }));
             console.log('[projectSlice] Thunk fetchAvailableProjects: Success');
             return projects;
-        } catch (error: any) {
+        } catch (error: unknown) { // Keep unknown type
             console.error('[projectSlice] Thunk fetchAvailableProjects: Error', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to fetch projects from IndexedDB';
             return rejectWithValue(errorMessage);
@@ -42,18 +49,14 @@ const projectSlice = createSlice({
             console.log(`[projectSlice] Reducer: setSelectedProjectName - Payload: ${action.payload}`);
             if (state.selectedProjectName !== action.payload) {
                 state.selectedProjectName = action.payload;
-                // NOTE: Clearing dependent state (like selected analyses) when project changes
-                // should ideally be handled either via extraReducers here listening to this action,
-                // or dispatched manually from the component triggering project selection.
-                // Keeping it simple for now.
             }
         },
         setActiveProject(state, action: PayloadAction<string | null>) {
             console.log('[projectSlice] Setting active project:', action.payload);
+            // Directly assign to the optional property defined in ProjectState
             state.activeProjectId = action.payload;
-            // Potentially reset other state related to the previous project here
-        },
-        // Add other reducers if needed, e.g., for manually adding/removing projects from the list
+            }
+        
     },
     extraReducers: (builder) => {
         builder
@@ -82,9 +85,9 @@ export const { setSelectedProjectName, setActiveProject } = projectSlice.actions
 export default projectSlice.reducer;
 
 // --- Export Selectors ---
-// It's often good practice to put selectors in their own file, e.g., projectSelectors.ts
 export const selectProjectState = (state: RootState) => state.project;
 export const selectAvailableProjects = (state: RootState) => state.project.availableProjects;
 export const selectIsLoadingAvailableProjects = (state: RootState) => state.project.isLoadingAvailable;
 export const selectAvailableProjectsError = (state: RootState) => state.project.errorAvailable;
 export const selectSelectedProjectName = (state: RootState) => state.project.selectedProjectName;
+// export const selectActiveProjectId = (state: RootState) => state.project.activeProjectId;

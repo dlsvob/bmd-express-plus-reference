@@ -42,18 +42,15 @@ export const processFileThunk = createAsyncThunk<
         try {
             console.log(`[ThunkStream] Processing file: ${file.name}`);
 
-            // 1. Generate unique name
             const baseName = getBaseProjectName(file);
             const timestamp = createTimestamp();
             uniqueProjectName = `${baseName}_${timestamp}`;
             console.log(`[ThunkStream] Generated unique project name: ${uniqueProjectName}`);
 
-            // 2. Open/Prepare the Database
             console.log(`[ThunkStream] Opening/Preparing project DB: ${uniqueProjectName}`);
             db = await openAndPrepareProjectDB(uniqueProjectName);
             console.log(`[ThunkStream] Project DB opened/prepared successfully.`);
 
-            // 3. Stream JSON into the DB
             console.log(`[ThunkStream] Starting stream via jsonStreamer utility...`);
             const handleProgress = (storeName: string, count: number) => {
                 if (count % 100 === 0) {
@@ -63,33 +60,28 @@ export const processFileThunk = createAsyncThunk<
             await streamJsonToStores(file, db, handleProgress);
             console.log(`[ThunkStream] Stream finished successfully.`);
 
-            // 4. Close DB connection (only if successfully opened)
             console.log(`[ThunkStream] Closing DB connection for ${uniqueProjectName}`);
-            db.close(); // Close the connection after successful streaming
+            db.close();
 
-            // 5. Return the unique name on success
             if (!uniqueProjectName) {
-                // This should ideally never happen if we reached here
                 throw new Error("uniqueProjectName was unexpectedly null after successful processing.");
             }
-            return uniqueProjectName; // SUCCESS PATH
+            return uniqueProjectName;
 
-        } catch (err: any) {
+            // --- FIX: Change 'any' to 'unknown' ---
+        } catch (err: unknown) {
+            // ------------------------------------
             console.error('[ThunkStream] Error during file processing and streaming:', err);
 
-            // Attempt to close DB if it was successfully opened
-            if (db) { // Check if db instance exists
+            if (db) {
                 try {
                     console.log('[ThunkStream] Attempting to close DB connection after error...');
-                    // *** REMOVE .closed check, just try to close ***
                     db.close();
-                    // ***********************************************
                 } catch (closeErr) {
                     console.error('[ThunkStream] Error closing DB after main error (ignoring):', closeErr);
                 }
             }
 
-            // Attempt to delete the partially created/populated DB on failure
             if (uniqueProjectName) {
                 try {
                     console.warn(`[ThunkStream] Attempting to delete failed DB: ${uniqueProjectName}`);
@@ -100,18 +92,10 @@ export const processFileThunk = createAsyncThunk<
                 }
             }
 
+            // --- FIX: Use instanceof Error ---
             const errorMessage = err instanceof Error ? err.message : String(err);
-            // Explicitly reject here
-            return rejectWithValue(errorMessage || 'File processing and streaming failed'); // FAILURE PATH (catch block)
+            return rejectWithValue(errorMessage || 'File processing and streaming failed');
+            // ---------------------------------
         }
-
-        // *** ADD A FINAL REJECTION AS A FALLBACK (SHOULD BE UNREACHABLE) ***
-        // This satisfies TypeScript's need for an explicit return/reject on all paths.
-        // console.error("[ThunkStream] Reached unexpected end of thunk function.");
-        // return rejectWithValue("An unexpected error occurred in the file processing thunk.");
-        // *********************************************************************
-        // EDIT: Let's remove the fallback reject. The try/catch structure *should*
-        // guarantee either the try returns or the catch rejects. Adding the fallback
-        // might mask other logic errors. Let's rely on the try/catch.
     }
 );
