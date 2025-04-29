@@ -15,6 +15,7 @@ import referenceDataReducer from './slices/referenceDataSlice';
 import { projectsApi } from './apis/projectsApi';
 import { experimentsApi } from './apis/experimentsApi';
 import { pyodideClusteringApi } from './apis/pyodideClusteringApi';
+import { enrichrApi } from './apis/enrichrApi';
 
 // --- Helper function to sanitize large arrays in payloads ---
 // This checks if a value looks like one of our large raw data arrays
@@ -106,6 +107,7 @@ export const store = configureStore({
     [projectsApi.reducerPath]: projectsApi.reducer,
     [experimentsApi.reducerPath]: experimentsApi.reducer,
     [pyodideClusteringApi.reducerPath]: pyodideClusteringApi.reducer,
+    [enrichrApi.reducerPath]: enrichrApi.reducer,
   },
 
   middleware: (getDefaultMiddleware) =>
@@ -128,7 +130,8 @@ export const store = configureStore({
     }).concat(
       projectsApi.middleware,
       experimentsApi.middleware,
-      pyodideClusteringApi.middleware
+      pyodideClusteringApi.middleware,
+      enrichrApi.middleware,
     ),
 
   // --- UPDATED: Configure Redux DevTools Extension ---

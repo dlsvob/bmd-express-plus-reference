@@ -4765,6 +4765,76 @@ export interface PreparedPlotHookData {
 // export type AnalysisResult =
 //   | { type: 'CategoryMapAnalysis'; mapKind: 'UMAP'; points: UmapAnalysisDataPoint[]; }
 //   | ... other types ...
+// src/components/analysis/GOClusteringSummaryTable.tsx
+import React, { useMemo } from 'react';
+import { Table, Empty } from 'antd';
+import type { TableColumnType } from 'antd';
+import { SummaryRow } from '../../utils/clusteringUtils'; // Adjust path if needed
+
+// Define Props interface
+interface GOClusteringSummaryTableProps {
+    dataSource: SummaryRow[] | null;
+    loading?: boolean;
+}
+
+const GOClusteringSummaryTable: React.FC<GOClusteringSummaryTableProps> = React.memo(
+    ({ dataSource, loading }) => {
+        // Define columns inside the component (or useMemo if preferred)
+        const summaryColumns: TableColumnType<SummaryRow>[] = useMemo(
+            () => [
+                { title: 'Cluster', dataIndex: 'cluster', key: 'cluster', width: 80 },
+                {
+                    title: 'Min Cluster BMD',
+                    dataIndex: 'minClusterBMD',
+                    key: 'minClusterBMD',
+                    render: (value: number) =>
+                        isNaN(value) ? 'N/A' : value.toExponential(4),
+                    sorter: (a, b) =>
+                        (isNaN(a.minClusterBMD) ? Infinity : a.minClusterBMD) -
+                        (isNaN(b.minClusterBMD) ? Infinity : b.minClusterBMD),
+                    width: 130,
+                },
+                {
+                    title: '# Categories',
+                    dataIndex: 'numCategoryIDs',
+                    key: 'numCategoryIDs',
+                    sorter: (a, b) => a.numCategoryIDs - b.numCategoryIDs,
+                    width: 110,
+                },
+                {
+                    title: 'Rank',
+                    dataIndex: 'sort',
+                    key: 'sort',
+                    sorter: (a, b) => (a.sort ?? Infinity) - (b.sort ?? Infinity),
+                    defaultSortOrder: 'ascend', // Sort by rank ascending by default
+                    width: 70,
+                },
+            ],
+            []
+        );
+
+        const hasData = dataSource && dataSource.length > 0;
+
+        return (
+            <Table<SummaryRow>
+                title={() => 'Cluster Summary'}
+                dataSource={hasData ? dataSource : []}
+                columns={summaryColumns}
+                rowKey="key"
+                loading={loading}
+                pagination={false} // Summary table usually doesn't need pagination
+                size="small"
+                bordered
+                scroll={{ y: 300 }} // Allow vertical scroll if needed
+                locale={{
+                    emptyText: loading ? ' ' : <Empty description="No summary data" />,
+                }} // Show Empty state when not loading and no data
+            />
+        );
+    }
+);
+
+export default GOClusteringSummaryTable;
 // src/components/analysis/DataTableFilterControl.tsx
 import React from 'react';
 import { Card } from 'antd';
@@ -4799,47 +4869,39 @@ const DataTableFilterControl: React.FC<DataTableFilterControlProps> = ({
     );
 };
 
-export default DataTableFilterControl;// src/components/CustomLegends.tsx
+export default DataTableFilterControl;// src/components/analysis/CustomLegends.tsx
 import React from 'react';
 import { Card, Typography, Tooltip } from 'antd';
 
 const { Text } = Typography;
 
-// --- Component Props Interface ---
+// --- Update Props Interface ---
 interface CustomLegendsProps {
-    // Legend items (arrays of [label, value])
     colorItems?: [string, string][];
-    shapeItems?: [string, string][]; // Assuming value is string symbol like 'circle'
-    sizeItems?: [string, number][]; // Assuming value is number for size
-
-    // --- Use Set for multiple highlights ---
-    highlightedLabelsSet?: Set<string>; // <<< Set of highlighted labels
-
-    // Toggle visibility/highlight functions (still expect label)
+    shapeItems?: [string, string][];
+    sizeItems?: [string, number][];
+    highlightedLabelsSet?: Set<string>;
+    presentClusterIds?: Set<string>; // <<< ADDED: Set of IDs present in current data
     onToggleColorVisibility: (label: string) => void;
     onToggleShapeVisibility: (label: string) => void;
     onToggleSizeVisibility: (label: string) => void;
-
-    // Flags to control which legends to show
     showColor?: boolean;
     showShape?: boolean;
     showSize?: boolean;
-
-    // Title for the legend card
     cardTitle?: string;
-
-    // Optional: Pass colorBy, shapeBy, sizeBy if needed for context/styling
     colorBy?: string;
     shapeBy?: string;
     sizeBy?: string;
 }
+// --------------------------
 
 export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
     ({
         colorItems = [],
         shapeItems = [],
         sizeItems = [],
-        highlightedLabelsSet = new Set<string>(), // <<< Use Set prop
+        highlightedLabelsSet = new Set<string>(),
+        presentClusterIds = new Set<string>(), // <<< Default to empty set if not provided
         onToggleColorVisibility,
         onToggleShapeVisibility,
         onToggleSizeVisibility,
@@ -4848,8 +4910,10 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
         showSize = false,
         cardTitle = 'Legend',
     }) => {
-        const logPrefix = '[CustomLegends v3 - Multi-Highlight]';
-        console.log(`${logPrefix} Rendering. Highlighted count: ${highlightedLabelsSet.size}`);
+        const logPrefix = '[CustomLegends v4 - Dimming]'; // Version Bump
+        console.log(
+            `${logPrefix} Rendering. Highlighted: ${highlightedLabelsSet.size}, Present: ${presentClusterIds.size}`
+        );
 
         // --- Render Color Legend Items ---
         const renderColorItems = () => {
@@ -4858,25 +4922,46 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
                 <div style={{ marginBottom: '10px' }}>
                     <Text strong>Color</Text>
                     {colorItems.map(([label, colorValue]) => {
-                        // Check if this item is highlighted using the Set
+                        // Determine states
                         const isHighlighted = highlightedLabelsSet.has(label);
+                        const isPresent = presentClusterIds.has(label); // <<< Check if present
+
+                        // Define base style
                         const itemStyle: React.CSSProperties = {
                             display: 'flex',
                             alignItems: 'center',
-                            cursor: 'pointer',
                             marginBottom: '4px',
                             padding: '2px 4px',
                             borderRadius: '3px',
-                            fontWeight: isHighlighted ? 'bold' : 'normal',
-                            backgroundColor: isHighlighted ? '#e6f7ff' : 'transparent',
+                            transition: 'opacity 0.2s ease-in-out, background-color 0.2s ease-in-out', // Added transition
+                        };
+
+                        // Apply styles based on state
+                        if (!isPresent) {
+                            itemStyle.opacity = 0.4; // Dim inactive items
+                            itemStyle.cursor = 'default'; // Indicate non-clickable
+                            itemStyle.color = '#888'; // Dim text color
+                        } else {
+                            itemStyle.cursor = 'pointer'; // Active items are clickable
+                            if (isHighlighted) {
+                                itemStyle.fontWeight = 'bold';
+                                itemStyle.backgroundColor = '#e6f7ff'; // Highlight background
+                            } else {
+                                itemStyle.fontWeight = 'normal';
+                                itemStyle.backgroundColor = 'transparent';
+                            }
+                        }
+
+                        // Define click handler
+                        const handleClick = () => {
+                            if (isPresent) { // <<< Only toggle if present
+                                onToggleColorVisibility(label);
+                            }
                         };
 
                         return (
                             <Tooltip title={label} key={`color-${label}`}>
-                                <div
-                                    onClick={() => onToggleColorVisibility(label)}
-                                    style={itemStyle}
-                                >
+                                <div onClick={handleClick} style={itemStyle}>
                                     <span
                                         style={{
                                             display: 'inline-block',
@@ -4885,9 +4970,15 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
                                             backgroundColor: colorValue,
                                             marginRight: '8px',
                                             border: '1px solid #ccc',
+                                            opacity: isPresent ? 1 : 0.6, // Slightly dim swatch too if inactive
                                         }}
                                     ></span>
-                                    <Text style={{ fontSize: '12px' }} ellipsis={{ tooltip: label }}>
+                                    <Text
+                                        style={{ fontSize: '12px' }}
+                                        ellipsis={{ tooltip: label }}
+                                    // Apply dimmed style directly to Text if needed, though parent opacity might suffice
+                                    // type={!isPresent ? 'secondary' : undefined}
+                                    >
                                         {label}
                                     </Text>
                                 </div>
@@ -4898,9 +4989,10 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
             );
         };
 
-        // --- Render Shape Legend Items ---
+        // --- Render Shape Legend Items (Apply similar logic if needed) ---
         const renderShapeItems = () => {
             if (!showShape || shapeItems.length === 0) return null;
+            // ... (similar logic as renderColorItems: check isPresent, adjust style/onClick) ...
             const shapeSymbolMap: { [key: string]: string } = {
                 circle: '●', square: '■', diamond: '♦', cross: '+', x: '✕',
                 triangle_up: '▲', triangle_down: '▼',
@@ -4910,17 +5002,32 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
                     <Text strong>Shape</Text>
                     {shapeItems.map(([label, shapeValue]) => {
                         const isHighlighted = highlightedLabelsSet.has(label);
+                        const isPresent = presentClusterIds.has(label); // Check presence
                         const itemStyle: React.CSSProperties = {
-                            display: 'flex', alignItems: 'center', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center',
                             marginBottom: '4px', padding: '2px 4px', borderRadius: '3px',
-                            fontWeight: isHighlighted ? 'bold' : 'normal',
-                            backgroundColor: isHighlighted ? '#e6f7ff' : 'transparent',
+                            transition: 'opacity 0.2s ease-in-out, background-color 0.2s ease-in-out',
                         };
+                        if (!isPresent) {
+                            itemStyle.opacity = 0.4;
+                            itemStyle.cursor = 'default';
+                            itemStyle.color = '#888';
+                        } else {
+                            itemStyle.cursor = 'pointer';
+                            if (isHighlighted) {
+                                itemStyle.fontWeight = 'bold';
+                                itemStyle.backgroundColor = '#e6f7ff';
+                            } else {
+                                itemStyle.fontWeight = 'normal';
+                                itemStyle.backgroundColor = 'transparent';
+                            }
+                        }
                         const displaySymbol = shapeSymbolMap[shapeValue] || '?';
+                        const handleClick = () => { if (isPresent) onToggleShapeVisibility(label); };
                         return (
                             <Tooltip title={label} key={`shape-${label}`}>
-                                <div onClick={() => onToggleShapeVisibility(label)} style={itemStyle}>
-                                    <span style={{ marginRight: '8px', width: '14px', textAlign: 'center', fontSize: '14px' }}>
+                                <div onClick={handleClick} style={itemStyle}>
+                                    <span style={{ marginRight: '8px', width: '14px', textAlign: 'center', fontSize: '14px', opacity: isPresent ? 1 : 0.6 }}>
                                         {displaySymbol}
                                     </span>
                                     <Text style={{ fontSize: '12px' }} ellipsis={{ tooltip: label }}>
@@ -4934,9 +5041,10 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
             );
         };
 
-        // --- Render Size Legend Items ---
+        // --- Render Size Legend Items (Apply similar logic if needed) ---
         const renderSizeItems = () => {
             if (!showSize || sizeItems.length === 0) return null;
+            // ... (similar logic as renderColorItems: check isPresent, adjust style/onClick) ...
             const sortedSizeItems = [...sizeItems].sort((a, b) => a[1] - b[1]);
             const sizeValues = sortedSizeItems.map(item => item[1]);
             const minSizeVal = Math.min(...sizeValues);
@@ -4950,12 +5058,26 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
                     <Text strong>Size</Text>
                     {sortedSizeItems.map(([label, sizeValue]) => {
                         const isHighlighted = highlightedLabelsSet.has(label);
+                        const isPresent = presentClusterIds.has(label); // Check presence
                         const itemStyle: React.CSSProperties = {
-                            display: 'flex', alignItems: 'center', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center',
                             marginBottom: '4px', padding: '2px 4px', borderRadius: '3px',
-                            fontWeight: isHighlighted ? 'bold' : 'normal',
-                            backgroundColor: isHighlighted ? '#e6f7ff' : 'transparent',
+                            transition: 'opacity 0.2s ease-in-out, background-color 0.2s ease-in-out',
                         };
+                        if (!isPresent) {
+                            itemStyle.opacity = 0.4;
+                            itemStyle.cursor = 'default';
+                            itemStyle.color = '#888';
+                        } else {
+                            itemStyle.cursor = 'pointer';
+                            if (isHighlighted) {
+                                itemStyle.fontWeight = 'bold';
+                                itemStyle.backgroundColor = '#e6f7ff';
+                            } else {
+                                itemStyle.fontWeight = 'normal';
+                                itemStyle.backgroundColor = 'transparent';
+                            }
+                        }
                         let displaySize = minDisplaySize;
                         if (range > 0) {
                             displaySize = minDisplaySize + ((sizeValue - minSizeVal) / range) * (maxDisplaySize - minDisplaySize);
@@ -4963,10 +5085,11 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
                             displaySize = (minDisplaySize + maxDisplaySize) / 2;
                         }
                         displaySize = Math.max(minDisplaySize, Math.min(maxDisplaySize, Math.round(displaySize)));
+                        const handleClick = () => { if (isPresent) onToggleSizeVisibility(label); };
 
                         return (
                             <Tooltip title={`${label} (${sizeValue.toFixed(2)})`} key={`size-${label}`}>
-                                <div onClick={() => onToggleSizeVisibility(label)} style={itemStyle}>
+                                <div onClick={handleClick} style={itemStyle}>
                                     <span style={{
                                         marginRight: '8px', width: '14px', height: '14px',
                                         display: 'inline-flex', justifyContent: 'center', alignItems: 'center'
@@ -4974,6 +5097,7 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
                                         <span style={{
                                             display: 'inline-block', width: `${displaySize}px`, height: `${displaySize}px`,
                                             backgroundColor: '#888', borderRadius: '50%',
+                                            opacity: isPresent ? 1 : 0.6,
                                         }}></span>
                                     </span>
                                     <Text style={{ fontSize: '12px' }} ellipsis={{ tooltip: label }}>
@@ -4987,22 +5111,40 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
             );
         };
 
-        // --- Conditional Rendering & Card Wrapper ---
+        // --- Conditional Rendering & Card Wrapper (Keep as is) ---
         if (!showColor && !showShape && !showSize) {
             return null;
         }
-        if ((showColor && colorItems.length === 0) &&
+        if (
+            (showColor && colorItems.length === 0) &&
             (showShape && shapeItems.length === 0) &&
-            (showSize && sizeItems.length === 0)) {
+            (showSize && sizeItems.length === 0)
+        ) {
             return (
-                <Card size="small" title={cardTitle} styles={{ body: { padding: '10px', maxHeight: '500px', overflowY: 'auto' } }}>
+                <Card
+                    size="small"
+                    title={cardTitle}
+                    styles={{
+                        body: {
+                            padding: '10px',
+                            maxHeight: '500px',
+                            overflowY: 'auto',
+                        },
+                    }}
+                >
                     <Text type="secondary">No legend items to display.</Text>
                 </Card>
             );
         }
 
         return (
-            <Card size="small" title={cardTitle} styles={{ body: { padding: '10px', maxHeight: '500px', overflowY: 'auto' } }}>
+            <Card
+                size="small"
+                title={cardTitle}
+                styles={{
+                    body: { padding: '10px', maxHeight: '500px', overflowY: 'auto' },
+                }}
+            >
                 {renderColorItems()}
                 {renderShapeItems()}
                 {renderSizeItems()}
@@ -5012,6 +5154,118 @@ export const CustomLegends: React.FC<CustomLegendsProps> = React.memo(
 );
 
 export default CustomLegends;
+// src/components/analysis/GOClusteringDetailsTable.tsx
+import React, { useMemo } from 'react';
+import { Table, Empty } from 'antd';
+import type { TableColumnType } from 'antd';
+import { CategoryRow } from '../../utils/clusteringUtils'; // Adjust path if needed
+
+// Define Props interface
+interface GOClusteringDetailsTableProps {
+    dataSource: CategoryRow[] | null;
+    loading?: boolean;
+}
+
+const GOClusteringDetailsTable: React.FC<GOClusteringDetailsTableProps> = React.memo(
+    ({ dataSource, loading }) => {
+        // Define columns inside the component
+        const categoryColumns: TableColumnType<CategoryRow>[] = useMemo(
+            () => [
+                {
+                    title: 'Group Size',
+                    dataIndex: 'groupSize',
+                    key: 'groupSize',
+                    width: 100,
+                    sorter: (a: CategoryRow, b: CategoryRow) => {
+                        const groupDiff = (a.groupSize ?? 0) - (b.groupSize ?? 0);
+                        if (groupDiff !== 0) return groupDiff;
+                        const aBMD = parseFloat(a.clusterBMD);
+                        const bBMD = parseFloat(b.clusterBMD);
+                        return (isNaN(aBMD) ? Infinity : aBMD) - (isNaN(bBMD) ? Infinity : bBMD);
+                    },
+                    defaultSortOrder: 'descend' as const,
+                },
+                {
+                    title: 'Category ID',
+                    dataIndex: 'categoryId',
+                    key: 'categoryId',
+                    width: 150,
+                    sorter: (a: CategoryRow, b: CategoryRow) =>
+                        a.categoryId.localeCompare(b.categoryId),
+                },
+                {
+                    title: 'Category Title',
+                    dataIndex: 'categoryTitle',
+                    key: 'categoryTitle',
+                    sorter: (a: CategoryRow, b: CategoryRow) =>
+                        a.categoryTitle.localeCompare(b.categoryTitle),
+                    ellipsis: true,
+                },
+                {
+                    title: 'Cluster BMD',
+                    dataIndex: 'clusterBMD',
+                    key: 'clusterBMD',
+                    width: 120,
+                    sorter: (a: CategoryRow, b: CategoryRow) =>
+                        (parseFloat(a.clusterBMD) || Infinity) -
+                        (parseFloat(b.clusterBMD) || Infinity),
+                    render: (text: string) => parseFloat(text)?.toFixed(4) ?? text,
+                },
+                {
+                    title: 'Up Genes (Count)',
+                    dataIndex: 'upGenesSize',
+                    key: 'upGenesSize',
+                    width: 100,
+                    sorter: (a: CategoryRow, b: CategoryRow) =>
+                        a.upGenesSize - b.upGenesSize,
+                },
+                {
+                    title: 'Down Genes (Count)',
+                    dataIndex: 'downGenesSize',
+                    key: 'downGenesSize',
+                    width: 100,
+                    sorter: (a: CategoryRow, b: CategoryRow) =>
+                        a.downGenesSize - b.downGenesSize,
+                },
+                {
+                    title: 'Cluster',
+                    dataIndex: 'cluster',
+                    key: 'cluster',
+                    width: 80,
+                    sorter: (a: CategoryRow, b: CategoryRow) =>
+                        a.clusterValue - b.clusterValue,
+                },
+            ],
+            []
+        );
+
+        const hasData = dataSource && dataSource.length > 0;
+
+        return (
+            <Table<CategoryRow>
+                title={() => `Category Details (${dataSource?.length ?? 0} items)`}
+                dataSource={hasData ? dataSource : []}
+                columns={categoryColumns}
+                rowKey="key"
+                loading={loading}
+                pagination={{
+                    pageSize: 15,
+                    showSizeChanger: true,
+                    size: 'small',
+                    pageSizeOptions: ['10', '15', '25', '50', '100'],
+                }}
+                size="small"
+                bordered
+                scroll={{ x: 800, y: 400 }} // Adjust scroll as needed
+                locale={{
+                    emptyText: loading ? ' ' : <Empty description="No category data" />,
+                }} // Show Empty state when not loading and no data
+            />
+        );
+    }
+);
+
+export default GOClusteringDetailsTable;
 // src/components/analysis/placeholders/AnalysisDataTable.tsx
 import React from 'react';
 import { Card } from 'antd';
@@ -6238,7 +6492,139 @@ export default AccumulationPlot;
     font-size: 0.9em;
     padding: 10px;
     text-align: center;
-}/* src/components/analysis/UmapPlotComponent.module.css */
+}// src/components/analysis/AnalysisControls.tsx
+import React from 'react';
+import {
+    Button,
+    Input,
+    Select,
+    Space,
+    Typography,
+    Row,
+    Col,
+    Divider,
+    Card
+} from 'antd';
+import {
+    CopyOutlined,
+    DownloadOutlined,
+    ExperimentOutlined, // Example icon for enrichment
+} from '@ant-design/icons';
+
+const { Text } = Typography;
+const { Option } = Select;
+
+interface AnalysisControlsProps {
+    // Export related props
+    isExportDisabled: boolean;
+    onCopy: () => void;
+    onExport: () => void;
+
+    // Enrichment related props
+    enrichmentInputValue: string;
+    onEnrichmentInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    enrichmentDropdownValue: string | undefined;
+    onEnrichmentDropdownChange: (value: string) => void;
+    onEnrichmentSubmit: () => void; // Callback for the submit button
+    isEnrichmentSubmitDisabled?: boolean; // Optional: disable state for submit
+}
+
+const AnalysisControls: React.FC<AnalysisControlsProps> = React.memo(
+    ({
+        isExportDisabled,
+        onCopy,
+        onExport,
+        enrichmentInputValue,
+        onEnrichmentInputChange,
+        enrichmentDropdownValue,
+        onEnrichmentDropdownChange,
+        onEnrichmentSubmit,
+        isEnrichmentSubmitDisabled = false, // Default to enabled
+    }) => {
+        return (
+            <Card size="small" style={{ marginBottom: '16px' }}>
+                <Row gutter={[16, 8]} align="bottom">
+                    {/* Section 1: Export Controls */}
+                    <Col xs={24} md={10} lg={8}>
+                        <Space direction="vertical" size="small">
+                            <Text strong>Export Scatter Plot Data</Text>
+                            <Space>
+                                <Button
+                                    icon={<CopyOutlined />}
+                                    onClick={onCopy}
+                                    disabled={isExportDisabled}
+                                    size="small"
+                                >
+                                    Copy TSV
+                                </Button>
+                                <Button
+                                    icon={<DownloadOutlined />}
+                                    onClick={onExport}
+                                    disabled={isExportDisabled}
+                                    size="small"
+                                >
+                                    Export TSV
+                                </Button>
+                            </Space>
+                        </Space>
+                    </Col>
+
+                    {/* Optional Divider */}
+                    {/* <Col xs={0} md={1} style={{ textAlign: 'center' }}>
+            <Divider type="vertical" style={{ height: '100%' }} />
+          </Col> */}
+
+                    {/* Section 2: Enrichment Analysis Config */}
+                    <Col xs={24} md={14} lg={16}>
+                        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                            <Text strong>Gene Enrichment Analysis</Text>
+                            <Space wrap>
+                                <Space>
+                                    <Text>Genes:</Text>
+                                    <Input
+                                        placeholder="Enter gene list..."
+                                        value={enrichmentInputValue}
+                                        onChange={onEnrichmentInputChange}
+                                        style={{ width: 200 }}
+                                        size="small"
+                                    />
+                                </Space>
+                                <Space>
+                                    <Text>Background:</Text>
+                                    <Select
+                                        placeholder="Select background..."
+                                        value={enrichmentDropdownValue}
+                                        onChange={onEnrichmentDropdownChange}
+                                        style={{ width: 200 }}
+                                        size="small"
+                                        allowClear
+                                    >
+                                        {/* Replace with actual background options */}
+                                        <Option value="genome">Whole Genome</Option>
+                                        <Option value="platform">Array Platform</Option>
+                                        <Option value="custom">Custom List</Option>
+                                    </Select>
+                                </Space>
+                                <Button
+                                    type="primary"
+                                    icon={<ExperimentOutlined />}
+                                    onClick={onEnrichmentSubmit}
+                                    disabled={isEnrichmentSubmitDisabled}
+                                    size="small"
+                                >
+                                    Run Enrichment
+                                </Button>
+                            </Space>
+                        </Space>
+                    </Col>
+                </Row>
+            </Card>
+        );
+    }
+);
+
+export default AnalysisControls;
+/* src/components/analysis/UmapPlotComponent.module.css */
 
 .plotContainer {
     position: relative;
@@ -6505,51 +6891,65 @@ const FilterableTable: React.FC<FilterableTableProps> = ({
 };
 
 export default FilterableTable;// src/components/analysis/GOClusteringAnalysisUnit.tsx
+// Handles multiple selected analyses via Tabs. Adds Copy/Export controls.
 
-import React, { useMemo, useCallback } from 'react';
-import { Card, Spin, Alert, Collapse, Table, Empty, Row, Col } from 'antd';
-import type { TableColumnType } from 'antd';
+import React, { useMemo, useCallback, useEffect, useState } from 'react';
+import {
+    Card,
+    Spin,
+    Alert,
+    Empty,
+    Row,
+    Col,
+    Tabs,
+    Button,
+    Input,
+    Select,
+    Space,
+    Typography,
+    message,
+} from 'antd';
+import {
+    CopyOutlined,
+    DownloadOutlined,
+    ExperimentOutlined,
+} from '@ant-design/icons';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
 import { selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice';
 import {
-    selectReferenceDataMap,
-    selectReferenceData,
-} from '../../store/selectors/referenceDataSelector';
-// --- Import correct action and selector ---
-import {
+    selectActiveClusteringRef,
+    setActiveClusteringRef,
     selectHighlightedClusteringRefClusterIdsSet,
     toggleClusteringRefClusterHighlight,
 } from '../../store/slices/analysisUISlice';
-// -----------------------------------------
-import { useGetRawAnalysisDataQuery } from '../../store/apis/experimentsApi';
 import {
-    CategoryRow,
-    SummaryRow,
-    ApiClusteringInputItem,
-} from '../../utils/clusteringUtils';
+    selectReferenceDataMap,
+    selectReferenceData,
+} from '../../store/selectors/referenceDataSelector';
+import { useGetRawAnalysisDataQuery } from '../../store/apis/experimentsApi';
+import { ApiClusteringInputItem } from '../../utils/clusteringUtils';
 import {
     usePyodideClustering,
     PyodideClusteringResult,
-} from '../../hooks/usePyodideClustering'; // Assumes v4 with memoized return
+} from '../../hooks/usePyodideClustering';
 import { useProcessedClusteringData } from '../../hooks/useProcessedClusteringData';
+import { useClusteringVisualizationData } from '../../hooks/useClusteringVisualizationData';
 import { BMDResult, CategoryAnalysisItem } from '../../models/BMDxExported';
 import GOClusteringScatterPlot, {
     ClusteringScatterPoint,
 } from './GOClusteringScatterPlot';
-import { ReferenceUmapItem } from '../../data/referenceUmapData';
-import { generateHaltonColors } from '../../utils/colorUtils';
-import {
-    UNCLUSTERED_COLOR,
-    DEFAULT_MARKER_COLOR,
-} from '../../utils/legendUtils';
+import GOClusteringSummaryTable from './GOClusteringSummaryTable';
+import GOClusteringDetailsTable from './GOClusteringDetailsTable';
 import CustomLegends from './CustomLegends';
+import AnalysisControls from './AnalysisControls';
 
-const { Panel } = Collapse;
 const PRIMARY_COLOR = '#1677ff';
-const JITTER_AMOUNT = 0.3;
+const { Text } = Typography;
+const { Option } = Select;
 
 const getErrorMessage = (error: unknown): string => {
+    // ... (error message helper remains the same) ...
     if (!error) {
         return 'An unknown error occurred.';
     }
@@ -6571,27 +6971,20 @@ const getErrorMessage = (error: unknown): string => {
     }
 };
 
-// Define the point structure expected by the scatter plot
-export interface ClusteringScatterPoint {
-    goId: string;
-    goTerm: string;
-    pyodideCluster: string;
-    referenceClusterId: number | string | null;
-    rank: number | null;
-    bmdValue: number | null;
-    jitteredRank: number | null;
-    color: string;
-}
-
-interface GOClusteringAnalysisUnitProps { }
-
-const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => {
-    const logPrefix = '[GOClusteringAnalysisUnit v9 - Multi-Highlight]';
+const GOClusteringAnalysisUnit: React.FC = () => {
+    const logPrefix = '[GOClusteringAnalysisUnit v16 - Fixed Ref Error]'; // Version Bump
     const dispatch = useAppDispatch();
+
+    // --- State for controls ---
+    const [textInputValue, setTextInputValue] = useState<string>('');
+    const [dropdownValue, setDropdownValue] = useState<string | undefined>(
+        undefined
+    );
 
     // --- Selectors ---
     const projectName = useAppSelector(selectSelectedProjectName);
     const selectedBmdResultRefs = useAppSelector(selectSelectedAnalysisRefs);
+    const activeClusteringRef = useAppSelector(selectActiveClusteringRef);
     const referenceDataMap = useAppSelector(selectReferenceDataMap);
     const referenceData = useAppSelector(selectReferenceData);
     const highlightedRefClusterIdsSet = useAppSelector(
@@ -6614,61 +7007,117 @@ const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => 
         }
     );
 
-    // --- Prepare Data for Clustering ---
-    const { rowDataForClustering, bmdRefToExperimentNameMap } = useMemo(() => {
-        const logPrefix = '[GOClusteringAnalysisUnit useMemo v2]';
-        console.log(`${logPrefix} Preparing rowDataForClustering...`);
-        const tempBmdRefToNameMap = new Map<number, string>();
-        const finalInputItems: ApiClusteringInputItem[] = [];
-
-        if (
-            rawSuccess &&
-            rawData?.rawCategoryAnalysisItems &&
-            rawData?.rawBmdResults
-        ) {
+    // --- Generate Name Map ---
+    const bmdRefToExperimentNameMap = useMemo(() => {
+        // ... (logic remains the same) ...
+        const mapLogPrefix = `${logPrefix} [bmdRefToExperimentNameMap]`;
+        console.log(`${mapLogPrefix} Generating map...`);
+        const tempMap = new Map<number, string>();
+        if (rawSuccess && rawData?.rawBmdResults) {
             rawData.rawBmdResults.forEach((r) => {
                 if (r && r['@ref'] != null) {
                     const numericRef = Number(r['@ref']);
                     if (!isNaN(numericRef)) {
-                        tempBmdRefToNameMap.set(
-                            numericRef,
-                            r.name || `BMD Result ${numericRef}`
-                        );
+                        tempMap.set(numericRef, r.name || `BMD Result ${numericRef}`);
                     }
                 }
             });
-
-            rawData.rawCategoryAnalysisItems.forEach((entry) => {
-                const item = entry.item;
-                if (!item || !item.categoryIdentifier?.id) {
-                    console.warn(
-                        `${logPrefix} Skipping item due to missing category ID:`,
-                        item
-                    );
-                    return;
-                }
-                finalInputItems.push({
-                    'Category ID': item.categoryIdentifier.id,
-                    'Category Title': item.categoryIdentifier.title ?? '',
-                    'Cluster BMD': String(item.bmdFifthPercentileTotalGenes ?? ''),
-                    'Genes Up': item.genesUp ?? '',
-                    'Genes Down': item.genesDown ?? '',
-                    'All Genes': item.geneSymbolsPrivate ?? '',
-                });
-            });
-            console.log(
-                `${logPrefix} Prepared ${finalInputItems.length} items directly for clustering.`
-            );
+            console.log(`${mapLogPrefix} Map generated with ${tempMap.size} entries.`);
         } else {
-            console.log(
-                `${logPrefix} Raw data not ready for clustering preparation.`
-            );
+            console.log(`${mapLogPrefix} Raw data not ready for map generation.`);
         }
-        return {
-            rowDataForClustering: finalInputItems,
-            bmdRefToExperimentNameMap: tempBmdRefToNameMap,
-        };
+        return tempMap;
     }, [rawSuccess, rawData]);
+
+    // --- Effect to manage activeClusteringRef ---
+    useEffect(() => {
+        // ... (logic remains the same) ...
+        const effectLogPrefix = `${logPrefix} [useEffect activeRef]`;
+        if (
+            !isLoadingRaw &&
+            selectedBmdResultRefs &&
+            selectedBmdResultRefs.length > 0
+        ) {
+            const firstRef = selectedBmdResultRefs[0];
+            if (
+                activeClusteringRef === null ||
+                !selectedBmdResultRefs.includes(activeClusteringRef)
+            ) {
+                console.log(
+                    `${effectLogPrefix} Initializing or resetting activeClusteringRef to first selected: ${firstRef}`
+                );
+                dispatch(setActiveClusteringRef(firstRef));
+            } else {
+                console.log(
+                    `${effectLogPrefix} Active ref ${activeClusteringRef} is valid.`
+                );
+            }
+        } else if (
+            !isLoadingRaw &&
+            (!selectedBmdResultRefs || selectedBmdResultRefs.length === 0)
+        ) {
+            if (activeClusteringRef !== null) {
+                console.log(
+                    `${effectLogPrefix} No refs selected, clearing activeClusteringRef.`
+                );
+                dispatch(setActiveClusteringRef(null));
+            }
+        }
+    }, [
+        selectedBmdResultRefs,
+        activeClusteringRef,
+        isLoadingRaw,
+        dispatch,
+        logPrefix,
+    ]);
+
+    // --- Calculate Active Analysis Name (Moved Up) ---
+    const activeAnalysisName = activeClusteringRef
+        ? bmdRefToExperimentNameMap.get(Number(activeClusteringRef)) ||
+        `Analysis ${activeClusteringRef}`
+        : 'No Analysis Selected';
+    // -------------------------------------------------
+
+    // --- Prepare Data for Clustering ---
+    const rowDataForClustering = useMemo(() => {
+        // ... (logic remains the same) ...
+        const prepLogPrefix = `${logPrefix} [rowDataForClustering]`;
+        if (
+            !activeClusteringRef ||
+            !rawData?.rawCategoryAnalysisItems ||
+            rawData.rawCategoryAnalysisItems.length === 0
+        ) {
+            console.log(
+                `${prepLogPrefix} Skipping: No active ref (${activeClusteringRef}) or no raw category items.`
+            );
+            return null;
+        }
+        console.log(
+            `${prepLogPrefix} Preparing input data for active ref: ${activeClusteringRef}`
+        );
+
+        const finalInputItems: ApiClusteringInputItem[] = [];
+        rawData.rawCategoryAnalysisItems.forEach((entry) => {
+            if (String(entry.bmdResultRef) !== String(activeClusteringRef)) {
+                return;
+            }
+            const item = entry.item;
+            if (!item || !item.categoryIdentifier?.id) return;
+            finalInputItems.push({
+                'Category ID': item.categoryIdentifier.id,
+                'Category Title': item.categoryIdentifier.title ?? '',
+                'Cluster BMD': String(item.bmdFifthPercentileTotalGenes ?? ''),
+                'Genes Up': item.genesUp ?? '',
+                'Genes Down': item.genesDown ?? '',
+                'All Genes': item.geneSymbolsPrivate ?? '',
+            });
+        });
+
+        console.log(
+            `${prepLogPrefix} Prepared ${finalInputItems.length} items for clustering (ref: ${activeClusteringRef}).`
+        );
+        return finalInputItems.length > 0 ? finalInputItems : null;
+    }, [rawData?.rawCategoryAnalysisItems, activeClusteringRef, logPrefix]);
 
     // --- Compute Cluster Count ---
     const dataLength = rowDataForClustering?.length ?? 0;
@@ -6690,13 +7139,7 @@ const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => 
 
     // --- Process Clustering Results ---
     const clustersForProcessingHook = useMemo(() => {
-        const logPrefix = '[GOClusteringAnalysisUnit clustersForProcessingHook]';
-        if (pyodideResult) {
-            console.log(`${logPrefix} Creating array with pyodideResult.`);
-            return [pyodideResult];
-        }
-        console.log(`${logPrefix} pyodideResult is null, returning null.`);
-        return null;
+        return pyodideResult ? [pyodideResult] : null;
     }, [pyodideResult]);
 
     const { categoryTableData, summaryTableData, processingError } =
@@ -6705,303 +7148,191 @@ const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => 
             pyodideError ? getErrorMessage(pyodideError) : null
         );
 
-    // --- Define Table Columns ---
-    const categoryColumns = useMemo((): TableColumnType<CategoryRow>[] => {
-        return [
-            {
-                title: 'Group Size',
-                dataIndex: 'groupSize',
-                key: 'groupSize',
-                width: 100,
-                sorter: (a: CategoryRow, b: CategoryRow) => {
-                    const groupDiff = (a.groupSize ?? 0) - (b.groupSize ?? 0);
-                    if (groupDiff !== 0) return groupDiff;
-                    const aBMD = parseFloat(a.clusterBMD);
-                    const bBMD = parseFloat(b.clusterBMD);
-                    return (isNaN(aBMD) ? Infinity : aBMD) - (isNaN(bBMD) ? Infinity : bBMD);
-                },
-                defaultSortOrder: 'descend' as const,
-            },
-            {
-                title: 'Category ID',
-                dataIndex: 'categoryId',
-                key: 'categoryId',
-                width: 150,
-                sorter: (a: CategoryRow, b: CategoryRow) =>
-                    a.categoryId.localeCompare(b.categoryId),
-            },
-            {
-                title: 'Category Title',
-                dataIndex: 'categoryTitle',
-                key: 'categoryTitle',
-                sorter: (a: CategoryRow, b: CategoryRow) =>
-                    a.categoryTitle.localeCompare(b.categoryTitle),
-                ellipsis: true,
-            },
-            {
-                title: 'Cluster BMD',
-                dataIndex: 'clusterBMD',
-                key: 'clusterBMD',
-                width: 120,
-                sorter: (a: CategoryRow, b: CategoryRow) =>
-                    (parseFloat(a.clusterBMD) || Infinity) -
-                    (parseFloat(b.clusterBMD) || Infinity),
-                render: (text: string) => parseFloat(text)?.toFixed(4) ?? text,
-            },
-            {
-                title: 'Up Genes (Count)',
-                dataIndex: 'upGenesSize',
-                key: 'upGenesSize',
-                width: 100,
-                sorter: (a: CategoryRow, b: CategoryRow) => a.upGenesSize - b.upGenesSize,
-            },
-            {
-                title: 'Down Genes (Count)',
-                dataIndex: 'downGenesSize',
-                key: 'downGenesSize',
-                width: 100,
-                sorter: (a: CategoryRow, b: CategoryRow) =>
-                    a.downGenesSize - b.downGenesSize,
-            },
-            {
-                title: 'Cluster',
-                dataIndex: 'cluster',
-                key: 'cluster',
-                width: 80,
-                sorter: (a: CategoryRow, b: CategoryRow) =>
-                    a.clusterValue - b.clusterValue,
-            },
-        ];
-    }, []);
-    const summaryColumns = useMemo((): TableColumnType<SummaryRow>[] => {
-        return [
-            { title: 'Cluster', dataIndex: 'cluster', key: 'cluster' },
-            {
-                title: 'Min Cluster BMD',
-                dataIndex: 'minClusterBMD',
-                key: 'minClusterBMD',
-                render: (value: number) => (isNaN(value) ? 'N/A' : value.toExponential(4)),
-            },
-            { title: 'Num Categories', dataIndex: 'numCategoryIDs', key: 'numCategoryIDs' },
-            { title: 'Rank', dataIndex: 'sort', key: 'sort' },
-        ];
-    }, []);
-    // --- End Table Columns ---
-
-    // --- Calculate Dynamic Card Title ---
-    const cardTitle = useMemo(() => {
-        const baseTitle = 'GO Clustering Analysis';
-        if (
-            !selectedBmdResultRefs ||
-            selectedBmdResultRefs.length === 0 ||
-            bmdRefToExperimentNameMap.size === 0
-        ) {
-            return baseTitle;
-        }
-        const names = selectedBmdResultRefs
-            .map((refStr) => {
-                const numericRef = Number(refStr);
-                if (isNaN(numericRef)) return null;
-                return bmdRefToExperimentNameMap.get(numericRef) || `Ref ${numericRef}`;
-            })
-            .filter((name) => name !== null);
-
-        if (names.length === 0) return baseTitle;
-
-        const maxNamesToShow = 2;
-        let nameString = names.slice(0, maxNamesToShow).join(' || ');
-        if (names.length > maxNamesToShow) {
-            nameString += ` || ${names.length - maxNamesToShow} more`;
-        }
-        return `${baseTitle} - ${nameString}`;
-    }, [selectedBmdResultRefs, bmdRefToExperimentNameMap]);
-    // --- End Card Title ---
-
-    // --- Generate Cluster Color Map ---
-    const clusterColorMap = useMemo(() => {
-        const colorMapLogPrefix = '[GOClusteringAnalysisUnit clusterColorMap]';
-        console.log(`${colorMapLogPrefix} Generating...`);
-        if (!referenceData) {
-            console.log(`${colorMapLogPrefix} No reference data available.`);
-            return null;
-        }
-        const uniqueClusterIds = Array.from(
-            new Set(
-                referenceData
-                    .map((item) => item.cluster_id)
-                    .filter((id) => id != null && id !== -1 && id !== '-1')
-            )
-        );
-        uniqueClusterIds.sort((a, b) => {
-            const numA = Number(a);
-            const numB = Number(b);
-            if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-            return String(a).localeCompare(String(b));
+    // --- Call the Visualization Data Hook ---
+    const { scatterPlotData, legendColorItems, presentClusterIds } =
+        useClusteringVisualizationData({
+            categoryTableData,
+            summaryTableData,
+            referenceDataMap,
+            referenceData,
         });
-
-        if (uniqueClusterIds.length === 0) {
-            console.log(
-                `${colorMapLogPrefix} No valid cluster IDs found in reference data.`
-            );
-            return new Map<string | number, string>();
-        }
-
-        const colors = generateHaltonColors(uniqueClusterIds.length);
-        const map = new Map<string | number, string>();
-        uniqueClusterIds.forEach((id, index) => {
-            map.set(String(id), colors[index % colors.length]);
-        });
-        map.set('-1', UNCLUSTERED_COLOR);
-        console.log(`${colorMapLogPrefix} Generated map for ${map.size} clusters (incl. -1).`);
-        return map;
-    }, [referenceData]);
 
     // --- Combined Loading/Error State ---
     const isLoading = isLoadingRaw || isPyodideLoading;
     const error = rawError || pyodideError || processingError;
-    const hasDataToCluster = rowDataForClustering && rowDataForClustering.length > 0;
-    const hasResults = categoryTableData && categoryTableData.length > 0;
+    const hasActiveDataToCluster =
+        rowDataForClustering && rowDataForClustering.length > 0;
+    const hasActiveResults = categoryTableData && categoryTableData.length > 0;
 
-    // --- Generate Stable Jitter Map ---
-    const jitterMap = useMemo((): Map<string, number> => {
-        const mapLogPrefix = '[GOClusteringAnalysisUnit JitterMap]';
-        console.log(`${mapLogPrefix} Generating jitter map...`);
-        const map = new Map<string, number>();
-        if (!categoryTableData || categoryTableData.length === 0) {
-            console.log(`${mapLogPrefix} No category data available.`);
-            return map;
-        }
-        categoryTableData.forEach((row) => {
-            if (row.categoryId && !map.has(row.categoryId)) {
-                const jitterOffset = (Math.random() - 0.5) * 2 * JITTER_AMOUNT;
-                map.set(row.categoryId, jitterOffset);
-            }
-        });
-        console.log(`${mapLogPrefix} Generated jitter map for ${map.size} unique GO IDs.`);
-        return map;
-    }, [categoryTableData]);
-
-    // --- Prepare Data for Scatter Plot ---
-    const scatterPlotData = useMemo((): ClusteringScatterPoint[] | null => {
-        const plotLogPrefix = '[GOClusteringAnalysisUnit ScatterData v4 - Stable Jitter Fix]';
-        if (!hasResults || !summaryTableData || summaryTableData.length === 0 || !referenceDataMap || !clusterColorMap || !jitterMap) {
-            console.log(
-                `${plotLogPrefix} Prerequisites not met. HasResults: ${hasResults}, Summary Count: ${summaryTableData?.length}, Has RefMap: ${!!referenceDataMap}, Has ColorMap: ${!!clusterColorMap}, Has JitterMap: ${!!jitterMap}`
-            );
-            return null;
-        }
-
-        console.log(`${plotLogPrefix} Preparing data using stable jitter map...`);
-        const clusterRankMap = new Map<string, number>();
-        summaryTableData.forEach((summary) => {
-            if (summary.cluster && summary.sort != null && !isNaN(summary.sort)) {
-                clusterRankMap.set(String(summary.cluster), summary.sort);
-            } else {
-                console.warn(`${plotLogPrefix} Invalid rank for cluster ${summary.cluster}:`, summary.sort);
-            }
-        });
-
-        const points: ClusteringScatterPoint[] = [];
-        categoryTableData.forEach((catRow) => {
-            const rank = clusterRankMap.get(String(catRow.cluster));
-            const bmdValue = parseFloat(catRow.clusterBMD);
-            const goId = catRow.categoryId;
-            const goIdUpper = goId?.toUpperCase();
-
-            const refItem = goIdUpper ? referenceDataMap.get(goIdUpper) : null;
-            const referenceClusterId = refItem?.cluster_id ?? null;
-
-            // Apply Jitter from Map
-            let calculatedJitteredRank: number | null = null;
-            if (rank != null) {
-                const jitterOffset = jitterMap.get(goId) ?? 0;
-                calculatedJitteredRank = rank + jitterOffset;
-            }
-
-            // Calculate Color
-            let pointColor = DEFAULT_MARKER_COLOR;
-            if (referenceClusterId === -1 || referenceClusterId === '-1') {
-                pointColor = UNCLUSTERED_COLOR;
-            } else if (referenceClusterId != null) {
-                pointColor =
-                    clusterColorMap.get(String(referenceClusterId)) ||
-                    DEFAULT_MARKER_COLOR;
-            }
-
-            if (rank != null && !isNaN(bmdValue) && isFinite(bmdValue)) {
-                points.push({
-                    goId: goId,
-                    goTerm: catRow.categoryTitle,
-                    pyodideCluster: String(catRow.cluster),
-                    referenceClusterId: referenceClusterId,
-                    rank: rank,
-                    bmdValue: bmdValue,
-                    jitteredRank: calculatedJitteredRank,
-                    color: pointColor,
-                });
-            } else {
-                console.warn(`${plotLogPrefix} Skipping point due to invalid rank or BMD:`, { goId, rank, bmdValue });
-            }
-        });
-
-        console.log(
-            `${plotLogPrefix} Prepared ${points.length} valid points for scatter plot.`
-        );
-        return points;
-    }, [
-        hasResults,
-        categoryTableData,
-        summaryTableData,
-        referenceDataMap,
-        clusterColorMap,
-        jitterMap,
-    ]);
-
-    // --- Generate Legend Items ---
-    const legendColorItems = useMemo((): [string, string][] => {
-        const legendLogPrefix = '[GOClusteringAnalysisUnit LegendItems v4 - String Label]';
-        if (!clusterColorMap || clusterColorMap.size === 0) {
-            console.log(`${legendLogPrefix} No clusterColorMap available.`);
-            return [];
-        }
-        console.log(`${legendLogPrefix} Generating legend items from color map...`);
-        const items: [string, string][] = [];
-
-        const sortedClusterIds = Array.from(clusterColorMap.keys())
-            .filter(id => String(id) !== '-1')
-            .sort((a, b) => {
-                const numA = Number(a);
-                const numB = Number(b);
-                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-                return String(a).localeCompare(String(b));
-            });
-
-        sortedClusterIds.forEach(clusterId => {
-            const color = clusterColorMap.get(clusterId);
-            if (color) {
-                items.push([String(clusterId), color]);
-            }
-        });
-
-        if (clusterColorMap.has('-1')) {
-            items.push(['-1', UNCLUSTERED_COLOR]);
-        }
-
-        console.log(`${legendLogPrefix} Generated ${items.length} legend items.`);
-        return items;
-    }, [clusterColorMap]);
-
-    // --- Callback for Legend Highlight Toggle ---
+    // --- Callbacks ---
     const handleToggleHighlightRefCluster = useCallback(
         (clusterIdLabel: string) => {
-            console.log(`${logPrefix} Toggling highlight for Ref Cluster ID Label: ${clusterIdLabel}`);
             dispatch(toggleClusteringRefClusterHighlight(clusterIdLabel));
         },
         [dispatch]
     );
-    // --- End Callback ---
+
+    const handleActiveRefChange = useCallback(
+        (activeKey: string) => {
+            dispatch(setActiveClusteringRef(activeKey));
+        },
+        [dispatch]
+    );
+
+    // --- Handlers for controls ---
+    const handleTextInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setTextInputValue(e.target.value);
+    };
+
+    const handleDropdownChange = (value: string) => {
+        setDropdownValue(value);
+    };
+
+    const formatDataForExport = (
+        data: ClusteringScatterPoint[] | null
+    ): string => {
+        // ... (logic remains the same) ...
+        if (!data || data.length === 0) {
+            return '';
+        }
+        const header = [
+            'GO_ID',
+            'GO_Term',
+            'Pyodide_Cluster',
+            'Reference_Cluster',
+            'Rank',
+            'BMD_5th_Percentile',
+            'Jittered_Rank',
+        ].join('\t');
+
+        const rows = data.map((p) =>
+            [
+                p.goId ?? 'N/A',
+                `"${p.goTerm?.replace(/"/g, '""') ?? 'N/A'}"`,
+                p.pyodideCluster ?? 'N/A',
+                p.referenceClusterId ?? 'N/A',
+                p.rank ?? 'N/A',
+                p.bmdValue?.toExponential(4) ?? 'N/A',
+                p.jitteredRank?.toFixed(4) ?? 'N/A',
+            ].join('\t')
+        );
+
+        return [header, ...rows].join('\n');
+    };
+
+    const handleCopyToClipboard = useCallback(async () => {
+        // ... (logic remains the same) ...
+        const tsvData = formatDataForExport(scatterPlotData);
+        if (!tsvData) {
+            message.warning('No data available to copy.');
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(tsvData);
+            message.success('Scatter plot data copied to clipboard!');
+        } catch (err) {
+            console.error('Failed to copy data to clipboard:', err);
+            message.error('Failed to copy data. See console for details.');
+        }
+    }, [scatterPlotData]);
+
+    const handleExportToFile = useCallback(() => {
+        // ... (logic uses activeAnalysisName, which is now declared above) ...
+        const tsvData = formatDataForExport(scatterPlotData);
+        if (!tsvData) {
+            message.warning('No data available to export.');
+            return;
+        }
+
+        const blob = new Blob([tsvData], {
+            type: 'text/tab-separated-values;charset=utf-8;',
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        // Use activeAnalysisName which is now guaranteed to be initialized here
+        const safeAnalysisName = activeAnalysisName.replace(/[^a-z0-9]/gi, '_');
+        link.setAttribute(
+            'download',
+            `clustering_scatter_data_${safeAnalysisName}.txt`
+        );
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        message.success('Scatter plot data export initiated.');
+    }, [scatterPlotData, activeAnalysisName]); // Dependency array is correct
+
+    const handleEnrichmentSubmit = useCallback(() => {
+        // ... (logic uses activeAnalysisName, which is now declared above) ...
+        console.log('Enrichment Submitted:', {
+            genes: textInputValue,
+            background: dropdownValue,
+            activeAnalysis: activeClusteringRef,
+        });
+        message.info(
+            `Enrichment analysis submitted for ${activeAnalysisName} (Not Implemented)`
+        );
+    }, [textInputValue, dropdownValue, activeClusteringRef, activeAnalysisName]); // Dependency array is correct
+
+    // ---------------------------------------------
 
     // === Render Logic ===
+    const PLOT_AREA_MIN_HEIGHT = 550;
+
+    const tabItems = useMemo(() => {
+        if (!selectedBmdResultRefs) return [];
+        return selectedBmdResultRefs.map((refStr) => {
+            const numericRef = Number(refStr);
+            const name = !isNaN(numericRef)
+                ? bmdRefToExperimentNameMap.get(numericRef) || `Analysis ${refStr}`
+                : `Analysis ${refStr}`;
+            return {
+                key: refStr,
+                label: name,
+            };
+        });
+    }, [selectedBmdResultRefs, bmdRefToExperimentNameMap]);
+
+    const isExportDisabled = !scatterPlotData || scatterPlotData.length === 0;
+    const isEnrichmentSubmitDisabled = !textInputValue || !dropdownValue;
+
+    // Handle overall loading/error/no selection states first
+    if (isLoadingRaw) {
+        return (
+            <div style={{ textAlign: 'center', padding: '50px' }}>
+                <Spin tip="Loading analysis data..." size="large" />
+            </div>
+        );
+    }
+
+    if (rawError) {
+        const errorMessage = getErrorMessage(rawError);
+        return (
+            <Alert
+                message="Error Loading Data for Clustering"
+                description={errorMessage}
+                type="error"
+                showIcon
+                style={{ margin: '24px' }}
+            />
+        );
+    }
+
+    if (
+        !projectName ||
+        !selectedBmdResultRefs ||
+        selectedBmdResultRefs.length === 0
+    ) {
+        return (
+            <div style={{ padding: '24px' }}>
+                <Empty description="Please select one or more analyses from the 'Experiments' view to run GO Clustering." />
+            </div>
+        );
+    }
+
+    // Main render structure with Tabs and active analysis display
     return (
         <div
             style={{
@@ -7011,121 +7342,136 @@ const GOClusteringAnalysisUnit: React.FC<GOClusteringAnalysisUnitProps> = () => 
                 marginTop: '24px',
             }}
         >
-            <Card title={cardTitle} bordered={false}>
-                {/* Loading Indicator */}
-                {isLoading && (
+            {/* Render Tabs for Selection */}
+            <Tabs
+                type="card"
+                activeKey={activeClusteringRef ?? undefined}
+                onChange={handleActiveRefChange}
+                items={tabItems}
+                style={{ padding: '0 16px' }}
+            />
+
+            {/* Render the Active Analysis Unit Content */}
+            <Card title={`Clustering Results: ${activeAnalysisName}`} bordered={false}>
+                {/* Loading/Error specific to the *active* analysis clustering */}
+                {isPyodideLoading && activeClusteringRef && (
                     <div style={{ padding: '1rem', textAlign: 'center' }}>
-                        <Spin
-                            tip={isLoadingRaw ? 'Loading data...' : 'Running clustering...'}
-                        />
+                        <Spin tip={`Running clustering for ${activeAnalysisName}...`} />
                     </div>
                 )}
-
-                {/* Error Display */}
-                {!isLoading && error && (
+                {!isPyodideLoading && (pyodideError || processingError) && activeClusteringRef && (
                     <Alert
-                        message="Clustering Analysis Error"
-                        description={getErrorMessage(error)}
+                        message={`Clustering Error for ${activeAnalysisName}`}
+                        description={getErrorMessage(pyodideError || processingError)}
                         type="error"
                         showIcon
                         style={{ marginBottom: '1rem' }}
                     />
                 )}
 
-                {/* Render Plot and Tables */}
-                {!isLoading && !error && hasDataToCluster && (
-                    <Row gutter={[16, 16]}>
-                        {/* Legend Column */}
-                        <Col xs={24} md={4} lg={3}>
-                            <CustomLegends
-                                cardTitle="Ref Clusters"
-                                colorItems={legendColorItems}
-                                // Pass highlighted Set for visual feedback
-                                highlightedLabelsSet={highlightedRefClusterIdsSet}
-                                // Pass the toggle handler
-                                onToggleColorVisibility={handleToggleHighlightRefCluster}
-                                // Disable others
-                                onToggleShapeVisibility={() => { }}
-                                onToggleSizeVisibility={() => { }}
-                                showColor={true}
-                                showShape={false}
-                                showSize={false}
-                            />
-                        </Col>
+                {/* Render Plot and Tables if clustering ran and produced results for the active ref */}
+                {!isPyodideLoading && !pyodideError && !processingError && activeClusteringRef && (
+                    <>
+                        {!hasActiveDataToCluster && (
+                            <Empty description="No suitable category data found for this specific analysis to perform clustering." />
+                        )}
+                        {hasActiveDataToCluster && !hasActiveResults && pyodideResult && (
+                            <Empty description="No categories found after processing clustering results for this analysis." />
+                        )}
+                        {hasActiveDataToCluster && hasActiveResults && (
+                            <>
+                                {/* Plot/Summary/Legend Row */}
+                                <Row gutter={[16, 16]}>
+                                    {/* Legend Column */}
+                                    <Col xs={24} md={4} lg={3}>
+                                        <CustomLegends
+                                            cardTitle="Ref Clusters"
+                                            colorItems={legendColorItems}
+                                            highlightedLabelsSet={highlightedRefClusterIdsSet}
+                                            presentClusterIds={presentClusterIds}
+                                            onToggleColorVisibility={handleToggleHighlightRefCluster}
+                                            onToggleShapeVisibility={() => { }}
+                                            onToggleSizeVisibility={() => { }}
+                                            showColor={true}
+                                            showShape={false}
+                                            showSize={false}
+                                        />
+                                    </Col>
 
-                        {/* Plot Area */}
-                        <Col xs={24} md={10} lg={9}>
-                            <Card size="small" title="5th Percentile BMD vs. Cluster Rank">
-                                {hasResults && scatterPlotData ? (
-                                    <GOClusteringScatterPlot
-                                        plotData={scatterPlotData}
-                                        summaryTableData={summaryTableData}
-                                        // Pass highlighted Set for marker styling
-                                        highlightedRefClusterIds={highlightedRefClusterIdsSet}
-                                    />
-                                ) : (
-                                    <Empty description={!hasResults ? "No clustering results to plot." : "Preparing plot data..."} />
-                                )}
-                            </Card>
-                        </Col>
-
-                        {/* Tables Area */}
-                        <Col xs={24} md={10} lg={12}>
-                            {hasResults ? (
-                                <Collapse defaultActiveKey={['cat_details']} accordion>
-                                    {/* Panel for Category Details */}
-                                    <Panel
-                                        header={`Category Details (${categoryTableData.length} items)`}
-                                        key="cat_details"
-                                    >
-                                        <div style={{ marginTop: '0.5rem' }}>
-                                            <Table<CategoryRow>
-                                                dataSource={categoryTableData}
-                                                columns={categoryColumns}
-                                                rowKey="key"
-                                                pagination={{
-                                                    pageSize: 10,
-                                                    showSizeChanger: true,
-                                                    size: 'small',
-                                                }}
-                                                size="small"
-                                                scroll={{ x: 800, y: 300 }}
-                                            />
-                                        </div>
-                                    </Panel>
-                                    {/* Panel for Summary */}
-                                    {summaryTableData && summaryTableData.length > 0 && (
-                                        <Panel
-                                            header={`Cluster Summary (${summaryTableData.length} clusters)`}
-                                            key="cat_summary"
-                                        >
-                                            <div style={{ marginTop: '0.5rem' }}>
-                                                <Table<SummaryRow>
-                                                    dataSource={summaryTableData}
-                                                    columns={summaryColumns}
-                                                    rowKey="key"
-                                                    pagination={false}
+                                    {/* Main Content Area (Plot and Summary Table) */}
+                                    <Col xs={24} md={20} lg={21}>
+                                        <Row gutter={[16, 16]}>
+                                            {/* Plot Area */}
+                                            <Col xs={24} lg={14}>
+                                                <Card
                                                     size="small"
-                                                />
-                                            </div>
-                                        </Panel>
-                                    )}
-                                </Collapse>
-                            ) : (
-                                pyodideResult && (
-                                    <Empty description="No categories found after processing clustering results." />
-                                )
-                            )}
-                        </Col>
-                    </Row>
-                )}
+                                                    title="5th Percentile BMD vs. Cluster Rank"
+                                                    style={{ minHeight: `${PLOT_AREA_MIN_HEIGHT}px` }}
+                                                    bodyStyle={{ height: 'calc(100% - 40px)' }}
+                                                >
+                                                    {scatterPlotData ? (
+                                                        <GOClusteringScatterPlot
+                                                            plotData={scatterPlotData}
+                                                            summaryTableData={summaryTableData}
+                                                            highlightedRefClusterIds={
+                                                                highlightedRefClusterIdsSet
+                                                            }
+                                                        />
+                                                    ) : (
+                                                        <div
+                                                            style={{
+                                                                display: 'flex',
+                                                                justifyContent: 'center',
+                                                                alignItems: 'center',
+                                                                height: '400px',
+                                                            }}
+                                                        >
+                                                            <Empty description="Preparing plot data..." />
+                                                        </div>
+                                                    )}
+                                                </Card>
+                                            </Col>
 
-                {/* Empty States */}
-                {!isLoading && !error && !hasDataToCluster && rawSuccess && (
-                    <Empty description="No suitable data found in selected analyses for clustering." />
+                                            {/* Summary Table Area */}
+                                            <Col xs={24} lg={10}>
+                                                <GOClusteringSummaryTable
+                                                    dataSource={summaryTableData}
+                                                    loading={isPyodideLoading}
+                                                />
+                                            </Col>
+                                        </Row>
+                                    </Col>
+                                </Row>
+
+                                {/* Render AnalysisControls Component */}
+                                <AnalysisControls
+                                    isExportDisabled={isExportDisabled}
+                                    onCopy={handleCopyToClipboard}
+                                    onExport={handleExportToFile}
+                                    enrichmentInputValue={textInputValue}
+                                    onEnrichmentInputChange={handleTextInputChange}
+                                    enrichmentDropdownValue={dropdownValue}
+                                    onEnrichmentDropdownChange={handleDropdownChange}
+                                    onEnrichmentSubmit={handleEnrichmentSubmit}
+                                    isEnrichmentSubmitDisabled={isEnrichmentSubmitDisabled}
+                                />
+
+                                {/* Details Table Area */}
+                                <Row gutter={[16, 16]} style={{ marginTop: '0px' }}>
+                                    <Col span={24}>
+                                        <GOClusteringDetailsTable
+                                            dataSource={categoryTableData}
+                                            loading={isPyodideLoading}
+                                        />
+                                    </Col>
+                                </Row>
+                            </>
+                        )}
+                    </>
                 )}
-                {!isLoading && !error && !hasDataToCluster && !rawSuccess && !rawError && (
-                    <Empty description="Select analyses from 'Experiments' to run clustering." />
+                {/* Show Empty state if no active ref is selected */}
+                {!activeClusteringRef && selectedBmdResultRefs.length > 0 && (
+                    <Empty description="Select an analysis tab above." />
                 )}
             </Card>
         </div>
@@ -10079,6 +10425,232 @@ export function useProcessedPlotData(
             return null;
         }
     }, [categoryAnalysisItems, analysisName, referenceMap]);
+}
+// src/hooks/useClusteringVisualizationData.ts
+import { useMemo } from 'react';
+import { CategoryRow, SummaryRow } from '../utils/clusteringUtils'; // Adjust path
+import { ReferenceUmapItem } from '../data/referenceUmapData'; // Adjust path
+import { ClusteringScatterPoint } from '../components/analysis/GOClusteringScatterPlot'; // Adjust path
+import { generateHaltonColors } from '../utils/colorUtils'; // Adjust path
+import {
+    UNCLUSTERED_COLOR,
+    DEFAULT_MARKER_COLOR,
+} from '../utils/legendUtils'; // Adjust path
+
+const JITTER_AMOUNT = 0.3;
+
+interface UseClusteringVisualizationDataProps {
+    categoryTableData: CategoryRow[] | null;
+    summaryTableData: SummaryRow[] | null;
+    referenceDataMap: Map<string, ReferenceUmapItem> | null;
+    referenceData: ReferenceUmapItem[] | null;
+}
+
+// --- Update Return Type ---
+export interface ClusteringVisualizationData {
+    clusterColorMap: Map<string | number, string> | null;
+    jitterMap: Map<string, number>;
+    scatterPlotData: ClusteringScatterPoint[] | null;
+    legendColorItems: [string, string][];
+    presentClusterIds: Set<string>; // <<< ADDED: Set of cluster IDs present in scatterPlotData
+}
+// ------------------------
+
+export function useClusteringVisualizationData({
+    categoryTableData,
+    summaryTableData,
+    referenceDataMap,
+    referenceData,
+}: UseClusteringVisualizationDataProps): ClusteringVisualizationData {
+    const hookLogPrefix = '[useClusteringVisualizationData v2]'; // Version Bump
+
+    // --- Generate Cluster Color Map (Keep as is) ---
+    const clusterColorMap = useMemo(() => {
+        // ... (logic remains the same) ...
+        const colorMapLogPrefix = `${hookLogPrefix} [clusterColorMap]`;
+        console.log(`${colorMapLogPrefix} Generating...`);
+        if (!referenceData) {
+            console.log(`${colorMapLogPrefix} No reference data available.`);
+            return null;
+        }
+        const uniqueClusterIds = Array.from(
+            new Set(
+                referenceData
+                    .map((item) => item.cluster_id)
+                    .filter((id) => id != null && id !== -1 && id !== '-1')
+            )
+        );
+        uniqueClusterIds.sort((a, b) => {
+            const numA = Number(a);
+            const numB = Number(b);
+            if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+            return String(a).localeCompare(String(b));
+        });
+
+        if (uniqueClusterIds.length === 0) {
+            console.log(
+                `${colorMapLogPrefix} No valid cluster IDs found in reference data.`
+            );
+            return new Map<string | number, string>();
+        }
+
+        const colors = generateHaltonColors(uniqueClusterIds.length);
+        const map = new Map<string | number, string>();
+        uniqueClusterIds.forEach((id, index) => {
+            map.set(String(id), colors[index % colors.length]);
+        });
+        map.set('-1', UNCLUSTERED_COLOR);
+        console.log(
+            `${colorMapLogPrefix} Generated map for ${map.size} clusters (incl. -1).`
+        );
+        return map;
+    }, [referenceData]);
+
+    // --- Generate Stable Jitter Map (Keep as is) ---
+    const jitterMap = useMemo((): Map<string, number> => {
+        // ... (logic remains the same) ...
+        const mapLogPrefix = `${hookLogPrefix} [JitterMap]`;
+        console.log(`${mapLogPrefix} Generating jitter map...`);
+        const map = new Map<string, number>();
+        if (!categoryTableData || categoryTableData.length === 0) {
+            console.log(`${mapLogPrefix} No category data available.`);
+            return map;
+        }
+        categoryTableData.forEach((row) => {
+            if (row.categoryId && !map.has(row.categoryId)) {
+                const jitterOffset = (Math.random() - 0.5) * 2 * JITTER_AMOUNT;
+                map.set(row.categoryId, jitterOffset);
+            }
+        });
+        console.log(
+            `${mapLogPrefix} Generated jitter map for ${map.size} unique GO IDs.`
+        );
+        return map;
+    }, [categoryTableData]);
+
+    // --- Prepare Data for Scatter Plot AND Collect Present IDs ---
+    const { scatterPlotData, presentClusterIds } = useMemo(() => {
+        const plotLogPrefix = `${hookLogPrefix} [ScatterData & PresentIDs]`;
+        const presentIds = new Set<string>(); // <<< Initialize Set here
+        if (
+            !categoryTableData ||
+            categoryTableData.length === 0 ||
+            !summaryTableData ||
+            summaryTableData.length === 0 ||
+            !referenceDataMap ||
+            !clusterColorMap ||
+            !jitterMap
+        ) {
+            console.log(`${plotLogPrefix} Prerequisites not met.`);
+            return { scatterPlotData: null, presentClusterIds: presentIds }; // Return empty set
+        }
+
+        console.log(`${plotLogPrefix} Preparing data...`);
+        const clusterRankMap = new Map<string, number>();
+        summaryTableData.forEach((summary) => {
+            if (summary.cluster && summary.sort != null && !isNaN(summary.sort)) {
+                clusterRankMap.set(String(summary.cluster), summary.sort);
+            }
+        });
+
+        const points: ClusteringScatterPoint[] = [];
+        categoryTableData.forEach((catRow) => {
+            const rank = clusterRankMap.get(String(catRow.cluster));
+            const bmdValue = parseFloat(catRow.clusterBMD);
+            const goId = catRow.categoryId;
+            const goIdUpper = goId?.toUpperCase();
+
+            const refItem = goIdUpper ? referenceDataMap.get(goIdUpper) : null;
+            const referenceClusterId = refItem?.cluster_id ?? null;
+
+            let calculatedJitteredRank: number | null = null;
+            if (rank != null) {
+                const jitterOffset = jitterMap.get(goId) ?? 0;
+                calculatedJitteredRank = rank + jitterOffset;
+            }
+
+            let pointColor = DEFAULT_MARKER_COLOR;
+            const refClusterIdStr = String(referenceClusterId);
+            if (referenceClusterId === -1 || refClusterIdStr === '-1') {
+                pointColor = UNCLUSTERED_COLOR;
+            } else if (referenceClusterId != null) {
+                pointColor =
+                    clusterColorMap.get(refClusterIdStr) || DEFAULT_MARKER_COLOR;
+            }
+
+            if (rank != null && !isNaN(bmdValue) && isFinite(bmdValue)) {
+                points.push({
+                    goId: goId,
+                    goTerm: catRow.categoryTitle,
+                    pyodideCluster: String(catRow.cluster),
+                    referenceClusterId: referenceClusterId,
+                    rank: rank,
+                    bmdValue: bmdValue,
+                    jitteredRank: calculatedJitteredRank,
+                    color: pointColor,
+                });
+                // --- Add the present cluster ID to the set ---
+                if (referenceClusterId !== null && referenceClusterId !== undefined) {
+                    presentIds.add(String(referenceClusterId)); // Ensure it's a string
+                }
+                // ---------------------------------------------
+            }
+        });
+
+        console.log(
+            `${plotLogPrefix} Prepared ${points.length} points. Found ${presentIds.size} present cluster IDs.`
+        );
+        return { scatterPlotData: points, presentClusterIds: presentIds }; // Return both
+    }, [
+        categoryTableData,
+        summaryTableData,
+        referenceDataMap,
+        clusterColorMap,
+        jitterMap,
+    ]);
+    // ---------------------------------------------------------
+
+    // --- Generate Legend Items (Keep as is) ---
+    const legendColorItems = useMemo((): [string, string][] => {
+        // ... (logic remains the same) ...
+        const legendLogPrefix = `${hookLogPrefix} [LegendItems]`;
+        if (!clusterColorMap || clusterColorMap.size === 0) {
+            console.log(`${legendLogPrefix} No clusterColorMap available.`);
+            return [];
+        }
+        console.log(
+            `${legendLogPrefix} Generating legend items from color map...`
+        );
+        const items: [string, string][] = [];
+        const sortedClusterIds = Array.from(clusterColorMap.keys())
+            .filter((id) => String(id) !== '-1')
+            .sort((a, b) => {
+                const numA = Number(a);
+                const numB = Number(b);
+                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                return String(a).localeCompare(String(b));
+            });
+        sortedClusterIds.forEach((clusterId) => {
+            const color = clusterColorMap.get(clusterId);
+            if (color) {
+                items.push([String(clusterId), color]);
+            }
+        });
+        if (clusterColorMap.has('-1')) {
+            items.push(['-1', UNCLUSTERED_COLOR]);
+        }
+        console.log(`${legendLogPrefix} Generated ${items.length} legend items.`);
+        return items;
+    }, [clusterColorMap]);
+
+    // --- Return all calculated visualization data ---
+    return {
+        clusterColorMap,
+        jitterMap,
+        scatterPlotData,
+        legendColorItems,
+        presentClusterIds, // <<< Include the set in the return value
+    };
 }
 // referenceUmapData.ts
 // Generated from anc2vec_embeddings_umap_projection_coordinates_hdbscan_clusters_40-500.csv on 2025-04-01T21:04:09.073Z
@@ -30830,41 +31402,40 @@ export default uiSlice.reducer;
 // Selectors (can be in uiSelectors.ts)
 export const selectUIState = (state: RootState) => state.ui;
 export const selectIsAddProjectModalOpen = (state: RootState) => state.ui.isAddProjectModalOpen;// src/store/slices/analysisUISlice.ts
-// Manages UI state for analysis views, including filters, styling, and interactions.
-
 import { createSlice, PayloadAction, createSelector } from '@reduxjs/toolkit';
-import type { RootState } from '../store'; // Adjust path if needed
+import type { RootState } from '../store';
 
-// Define HighlightMode enum
+// Define HighlightMode enum (keep as is)
 export enum HighlightMode {
   NONE = 'none',
-  SELECTED = 'selected', // For GO ID Filter "Exact Match"
-  CLUSTER = 'cluster', // For GO ID Filter "Cluster Match"
+  SELECTED = 'selected',
+  CLUSTER = 'cluster',
 }
 
-// Define the state interface - Use array for multiple highlights
+// Define the state interface - Add activeClusteringRef
 export interface AnalysisUIState {
   // UMAP View Styling & Filtering
   colorBy: string;
   shapeBy: string;
   sizeBy: string;
-  hiddenColorLabels: string[]; // Labels hidden in the UMAP color legend
-  hiddenShapeLabels: string[]; // Labels hidden in the UMAP shape legend
-  hiddenSizeLabels: string[]; // Labels hidden in the UMAP size legend
-  goIdInputString: string; // Raw text input for GO IDs
-  goIdFilterList: string[]; // Parsed list of GO IDs from input string
-  highlightMode: HighlightMode; // How to highlight based on goIdFilterList
-  committedRankSliderValue: [number, number]; // Current [minRank, maxRank] from SlidingWindowFilter
+  hiddenColorLabels: string[];
+  hiddenShapeLabels: string[];
+  hiddenSizeLabels: string[];
+  goIdInputString: string;
+  goIdFilterList: string[];
+  highlightMode: HighlightMode;
+  committedRankSliderValue: [number, number];
 
-  // --- Clustering View Specific State ---
-  highlightedClusteringRefClusterIds: string[]; // <<< Stores STRING IDs of highlighted clusters
+  // Clustering View Specific State
+  highlightedClusteringRefClusterIds: string[];
+  activeClusteringRef: string | null; // <<< NEW STATE: ID of the single analysis to show
 
   // Cross-component Interaction State
-  accumulationPlotSelectedGoIds: string[]; // GO IDs selected via Accumulation plots
-  tableSelectedGoId: string | null; // GO ID selected by clicking a table row (UMAP view)
+  accumulationPlotSelectedGoIds: string[];
+  tableSelectedGoId: string | null;
 }
 
-// Define initial state
+// Define initial state - Initialize new state
 const initialState: AnalysisUIState = {
   // UMAP Defaults
   colorBy: 'cluster_id',
@@ -30876,19 +31447,20 @@ const initialState: AnalysisUIState = {
   goIdInputString: '',
   goIdFilterList: [],
   highlightMode: HighlightMode.NONE,
-  committedRankSliderValue: [1, 5000], // Default wide range
+  committedRankSliderValue: [1, 5000],
 
-  // --- Clustering Defaults ---
-  highlightedClusteringRefClusterIds: [], // <<< Initially empty array
+  // Clustering Defaults
+  highlightedClusteringRefClusterIds: [],
+  activeClusteringRef: null, // <<< Initialize as null
 
   // Interaction Defaults
   accumulationPlotSelectedGoIds: [],
   tableSelectedGoId: null,
 };
 
-// --- Helper Functions ---
-// Generic helper to toggle an item's presence in an array
+// --- Helper Functions (Keep as is) ---
 const toggleItemInArray = <T>(arr: T[], item: T): T[] => {
+  // ... (implementation remains the same)
   const currentArr = arr || []; // Ensure it's an array
   const index = currentArr.indexOf(item);
   if (index > -1) {
@@ -30902,12 +31474,9 @@ const toggleItemInArray = <T>(arr: T[], item: T): T[] => {
     return [...currentArr, item];
   }
 };
-
-// Helper to parse GO IDs from the input text area
 const parseGoIdInput = (input: string): string[] => {
+  // ... (implementation remains the same)
   if (!input) return [];
-  // Split by newline, comma, semicolon, or one or more spaces
-  // Trim whitespace, filter empty strings, convert to uppercase
   return input
     .split(/[\n,;\s]+/)
     .map((id) => id.trim())
@@ -30921,7 +31490,7 @@ const analysisUISlice = createSlice({
   name: 'analysisUI',
   initialState,
   reducers: {
-    // --- UMAP Styling Reducers ---
+    // --- UMAP Styling Reducers (Keep as is) ---
     setColorBy(state, action: PayloadAction<string>) {
       state.colorBy = action.payload;
       state.hiddenColorLabels = [];
@@ -30943,7 +31512,7 @@ const analysisUISlice = createSlice({
       state.hiddenSizeLabels = [];
     },
 
-    // --- UMAP Legend Visibility Reducers ---
+    // --- UMAP Legend Visibility Reducers (Keep as is) ---
     toggleColorLabelVisibility(state, action: PayloadAction<string>) {
       state.hiddenColorLabels = toggleItemInArray(
         state.hiddenColorLabels,
@@ -30963,19 +31532,18 @@ const analysisUISlice = createSlice({
       );
     },
 
-    // --- Clustering Legend Highlight Reducer (Toggle Add/Remove) ---
+    // --- Clustering Legend Highlight Reducer (Keep as is) ---
     toggleClusteringRefClusterHighlight(
       state,
-      action: PayloadAction<string> // Expects string cluster ID
+      action: PayloadAction<string>
     ) {
-      // Use helper to add/remove the ID from the array
       state.highlightedClusteringRefClusterIds = toggleItemInArray(
         state.highlightedClusteringRefClusterIds,
         action.payload
       );
     },
 
-    // --- GO ID Filter/Highlight Reducers ---
+    // --- GO ID Filter/Highlight Reducers (Keep as is) ---
     setGoIdInputString(state, action: PayloadAction<string>) {
       state.goIdInputString = action.payload;
       state.goIdFilterList = parseGoIdInput(action.payload);
@@ -30989,7 +31557,7 @@ const analysisUISlice = createSlice({
       }
     },
 
-    // --- Cross-component Interaction Reducers ---
+    // --- Cross-component Interaction Reducers (Keep as is) ---
     setAccumulationPlotSelection(state, action: PayloadAction<string[]>) {
       state.accumulationPlotSelectedGoIds = action.payload || [];
     },
@@ -30997,11 +31565,12 @@ const analysisUISlice = createSlice({
       state.tableSelectedGoId = action.payload;
     },
 
-    // --- Rank Filter Reducer ---
+    // --- Rank Filter Reducer (Keep as is) ---
     setCommittedRankSliderValue(
       state,
       action: PayloadAction<[number, number]>
     ) {
+      // ... (validation logic remains the same) ...
       if (
         Array.isArray(action.payload) &&
         action.payload.length === 2 &&
@@ -31021,30 +31590,36 @@ const analysisUISlice = createSlice({
         );
       }
     },
+
+    // --- NEW Reducer for Active Clustering Ref ---
+    setActiveClusteringRef(state, action: PayloadAction<string | null>) {
+      console.log(
+        `[analysisUISlice] Setting activeClusteringRef: ${action.payload}`
+      );
+      state.activeClusteringRef = action.payload;
+    },
+    // ---------------------------------------------
   },
 });
 
 // --- Export the action creators ---
 export const {
-  // UMAP Styling
+  // ... (existing exports) ...
   setColorBy,
   setShapeBy,
   setSizeBy,
   resetStyling,
-  // UMAP Legends
   toggleColorLabelVisibility,
   toggleShapeLabelVisibility,
   toggleSizeLabelVisibility,
-  // Clustering Legends
   toggleClusteringRefClusterHighlight,
-  // GO ID Filter/Highlight
   setGoIdInputString,
   setHighlightMode,
-  // Interactions
   setAccumulationPlotSelection,
   setTableSelectedGoId,
-  // Rank Filter
   setCommittedRankSliderValue,
+  // --- Export NEW action ---
+  setActiveClusteringRef,
 } = analysisUISlice.actions;
 
 // --- Export the reducer function ---
@@ -31054,52 +31629,48 @@ export default analysisUISlice.reducer;
 export const selectAnalysisUIState = (state: RootState): AnalysisUIState =>
   state.analysisUI;
 
-// Selectors for UMAP styling options
+// ... (existing selectors for UMAP, GO ID, Rank, Interactions) ...
 export const selectColorBy = (state: RootState): string =>
   state.analysisUI.colorBy;
 export const selectShapeBy = (state: RootState): string =>
   state.analysisUI.shapeBy;
 export const selectSizeBy = (state: RootState): string =>
   state.analysisUI.sizeBy;
-
-// Selectors for UMAP hidden legend items (arrays)
 export const selectHiddenColorLabels = (state: RootState): string[] =>
   state.analysisUI.hiddenColorLabels || [];
 export const selectHiddenShapeLabels = (state: RootState): string[] =>
   state.analysisUI.hiddenShapeLabels || [];
 export const selectHiddenSizeLabels = (state: RootState): string[] =>
   state.analysisUI.hiddenSizeLabels || [];
-
-// Selectors for GO ID filter/highlight
 export const selectGoIdInputString = (state: RootState): string =>
   state.analysisUI.goIdInputString;
 export const selectGoIdFilterList = (state: RootState): string[] =>
   state.analysisUI.goIdFilterList || [];
 export const selectHighlightMode = (state: RootState): HighlightMode =>
   state.analysisUI.highlightMode;
-
-// Selector for UMAP rank filter
 export const selectCommittedSlidingWindowValue = (
   state: RootState
 ): [number, number] => state.analysisUI.committedRankSliderValue;
-
-// Selectors for cross-component interactions
 export const selectAccumulationPlotSelectedGoIds = (state: RootState): string[] =>
   state.analysisUI.accumulationPlotSelectedGoIds || [];
 export const selectTableSelectedGoId = (state: RootState): string | null =>
   state.analysisUI.tableSelectedGoId;
 
-// Selectors for Clustering highlighted legend items
+// Selectors for Clustering highlighted legend items (Keep as is)
 export const selectHighlightedClusteringRefClusterIds = (
   state: RootState
 ): string[] => state.analysisUI.highlightedClusteringRefClusterIds || [];
-
 export const selectHighlightedClusteringRefClusterIdsSet = createSelector(
   [selectHighlightedClusteringRefClusterIds],
   (idsArray): Set<string> => new Set(idsArray)
 );
 
-// --- Memoized selectors returning Sets (more efficient for lookups) ---
+// --- NEW Selector for Active Clustering Ref ---
+export const selectActiveClusteringRef = (state: RootState): string | null =>
+  state.analysisUI.activeClusteringRef;
+// --------------------------------------------
+
+// --- Memoized selectors returning Sets (Keep as is) ---
 export const selectHiddenColorLabelsSet = createSelector(
   [selectHiddenColorLabels],
   (labelsArray): Set<string> => new Set(labelsArray)

@@ -2,23 +2,29 @@
 import React from 'react';
 import {
     Button,
-    Input,
+    InputNumber, // Changed from Input
     Select,
     Space,
     Typography,
     Row,
     Col,
-    Divider,
-    Card
+    Card,
+    Tooltip,
 } from 'antd';
 import {
     CopyOutlined,
     DownloadOutlined,
-    ExperimentOutlined, // Example icon for enrichment
+    ExperimentOutlined,
 } from '@ant-design/icons';
 
 const { Text } = Typography;
 const { Option } = Select;
+
+// Define structure for cluster dropdown options
+interface ClusterOption {
+    value: string; // Cluster ID (as string)
+    label: string; // Text to display (e.g., "Cluster 1")
+}
 
 interface AnalysisControlsProps {
     // Export related props
@@ -26,13 +32,23 @@ interface AnalysisControlsProps {
     onCopy: () => void;
     onExport: () => void;
 
-    // Enrichment related props
-    enrichmentInputValue: string;
-    onEnrichmentInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    enrichmentDropdownValue: string | undefined;
-    onEnrichmentDropdownChange: (value: string) => void;
-    onEnrichmentSubmit: () => void; // Callback for the submit button
-    isEnrichmentSubmitDisabled?: boolean; // Optional: disable state for submit
+    // --- Enrichment related props (Managed by parent) ---
+    // Network Nodes Input
+    networkNodesCount: number;
+    onNetworkNodesCountChange: (value: number | null) => void;
+
+    // Cluster Selection Dropdown
+    availableClusterOptions: ClusterOption[]; // Options for the dropdown
+    selectedClusterForEnrichment: string | null;
+    onClusterForEnrichmentChange: (value: string | null) => void;
+
+    // Background Selection Dropdown (Retained)
+    enrichmentBackgroundValue: string | undefined;
+    onEnrichmentBackgroundChange: (value: string) => void;
+
+    // Submit Action
+    onEnrichmentSubmit: () => void;
+    isEnrichmentSubmitDisabled?: boolean; // Can still be passed if parent has other reasons to disable
 }
 
 const AnalysisControls: React.FC<AnalysisControlsProps> = React.memo(
@@ -40,18 +56,32 @@ const AnalysisControls: React.FC<AnalysisControlsProps> = React.memo(
         isExportDisabled,
         onCopy,
         onExport,
-        enrichmentInputValue,
-        onEnrichmentInputChange,
-        enrichmentDropdownValue,
-        onEnrichmentDropdownChange,
+        networkNodesCount,
+        onNetworkNodesCountChange,
+        availableClusterOptions,
+        selectedClusterForEnrichment,
+        onClusterForEnrichmentChange,
+        enrichmentBackgroundValue,
+        onEnrichmentBackgroundChange,
         onEnrichmentSubmit,
-        isEnrichmentSubmitDisabled = false, // Default to enabled
+        isEnrichmentSubmitDisabled = false, // Default from parent
     }) => {
+        // Determine if button should be disabled based on selections
+        const isSubmitDisabledInternally =
+            !selectedClusterForEnrichment || !enrichmentBackgroundValue;
+
+        const enrichmentButtonTooltip = !selectedClusterForEnrichment
+            ? 'Select a cluster to submit'
+            : !enrichmentBackgroundValue
+                ? 'Select a background gene set'
+                : ''; // No tooltip if enabled
+
         return (
             <Card size="small" style={{ marginBottom: '16px' }}>
                 <Row gutter={[16, 8]} align="bottom">
-                    {/* Section 1: Export Controls */}
+                    {/* Section 1: Export Controls (No changes) */}
                     <Col xs={24} md={10} lg={8}>
+                        {/* ... export buttons ... */}
                         <Space direction="vertical" size="small">
                             <Text strong>Export Scatter Plot Data</Text>
                             <Space>
@@ -75,51 +105,78 @@ const AnalysisControls: React.FC<AnalysisControlsProps> = React.memo(
                         </Space>
                     </Col>
 
-                    {/* Optional Divider */}
-                    {/* <Col xs={0} md={1} style={{ textAlign: 'center' }}>
-            <Divider type="vertical" style={{ height: '100%' }} />
-          </Col> */}
-
-                    {/* Section 2: Enrichment Analysis Config */}
+                    {/* Section 2: Enrichment Analysis Config (UPDATED) */}
                     <Col xs={24} md={14} lg={16}>
                         <Space direction="vertical" size="small" style={{ width: '100%' }}>
                             <Text strong>Gene Enrichment Analysis</Text>
                             <Space wrap>
+                                {/* Input for Network Nodes Count */}
                                 <Space>
-                                    <Text>Genes:</Text>
-                                    <Input
-                                        placeholder="Enter gene list..."
-                                        value={enrichmentInputValue}
-                                        onChange={onEnrichmentInputChange}
-                                        style={{ width: 200 }}
+                                    <Text>Number of Network Source Nodes:</Text>
+                                    <InputNumber
+                                        min={1}
+                                        max={50} // As per requirement
+                                        value={networkNodesCount}
+                                        onChange={onNetworkNodesCountChange}
                                         size="small"
+                                        style={{ width: 70 }}
                                     />
                                 </Space>
+
+                                {/* Dropdown for Cluster Selection */}
+                                <Space>
+                                    <Text>Submit Genes for Cluster:</Text>
+                                    <Select
+                                        placeholder="Select Cluster..."
+                                        value={selectedClusterForEnrichment}
+                                        onChange={onClusterForEnrichmentChange}
+                                        options={availableClusterOptions} // Use options from props
+                                        style={{ width: 150 }}
+                                        size="small"
+                                        allowClear
+                                        disabled={availableClusterOptions.length === 0} // Disable if no clusters
+                                    />
+                                </Space>
+
+                                {/* Dropdown for Background Selection (Retained) */}
                                 <Space>
                                     <Text>Background:</Text>
                                     <Select
                                         placeholder="Select background..."
-                                        value={enrichmentDropdownValue}
-                                        onChange={onEnrichmentDropdownChange}
+                                        value={enrichmentBackgroundValue}
+                                        onChange={onEnrichmentBackgroundChange}
                                         style={{ width: 200 }}
                                         size="small"
                                         allowClear
                                     >
-                                        {/* Replace with actual background options */}
-                                        <Option value="genome">Whole Genome</Option>
-                                        <Option value="platform">Array Platform</Option>
-                                        <Option value="custom">Custom List</Option>
+                                        <Option value="GO_Biological_Process_2023">
+                                            GO Biological Process 2023
+                                        </Option>
+                                        <Option value="KEGG_2021_Human">KEGG 2021 Human</Option>
+                                        <Option value="Reactome_2022">Reactome 2022</Option>
+                                        <Option value="MSigDB_Hallmark_2020">
+                                            MSigDB Hallmark 2020
+                                        </Option>
+                                        {/* Add more relevant options */}
                                     </Select>
                                 </Space>
-                                <Button
-                                    type="primary"
-                                    icon={<ExperimentOutlined />}
-                                    onClick={onEnrichmentSubmit}
-                                    disabled={isEnrichmentSubmitDisabled}
-                                    size="small"
-                                >
-                                    Run Enrichment
-                                </Button>
+
+                                {/* Submit Button */}
+                                <Tooltip title={enrichmentButtonTooltip}>
+                                    <span>
+                                        <Button
+                                            type="primary"
+                                            icon={<ExperimentOutlined />}
+                                            onClick={onEnrichmentSubmit}
+                                            disabled={
+                                                isEnrichmentSubmitDisabled || isSubmitDisabledInternally
+                                            } // Combine parent disable flag with internal check
+                                            size="small"
+                                        >
+                                            Run Enrichment
+                                        </Button>
+                                    </span>
+                                </Tooltip>
                             </Space>
                         </Space>
                     </Col>

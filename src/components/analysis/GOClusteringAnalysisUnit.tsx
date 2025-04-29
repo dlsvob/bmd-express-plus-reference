@@ -1,5 +1,5 @@
 // src/components/analysis/GOClusteringAnalysisUnit.tsx
-// Handles multiple selected analyses via Tabs. Adds Copy/Export controls.
+// Handles multiple selected analyses via Tabs. Adds Copy/Export controls and Enrichment Analysis.
 
 import React, { useMemo, useCallback, useEffect, useState } from 'react';
 import {
@@ -11,7 +11,7 @@ import {
     Col,
     Tabs,
     Button,
-    Input,
+    InputNumber, // Use InputNumber for the node count
     Select,
     Space,
     Typography,
@@ -22,42 +22,48 @@ import {
     DownloadOutlined,
     ExperimentOutlined,
 } from '@ant-design/icons';
-import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
-import { selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice';
+import debounce from 'lodash.debounce'; // <-- Import debounce
+import { useAppSelector, useAppDispatch } from '../../store/hooks'; // Adjust path
+import { selectSelectedProjectName } from '../../store/selectors/projectSelectors'; // Adjust path
+import { selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice'; // Adjust path
 import {
     selectActiveClusteringRef,
     setActiveClusteringRef,
     selectHighlightedClusteringRefClusterIdsSet,
     toggleClusteringRefClusterHighlight,
-} from '../../store/slices/analysisUISlice';
+} from '../../store/slices/analysisUISlice'; // Adjust path
 import {
     selectReferenceDataMap,
     selectReferenceData,
-} from '../../store/selectors/referenceDataSelector';
-import { useGetRawAnalysisDataQuery } from '../../store/apis/experimentsApi';
-import { ApiClusteringInputItem } from '../../utils/clusteringUtils';
+} from '../../store/selectors/referenceDataSelector'; // Adjust path
+import { useGetRawAnalysisDataQuery } from '../../store/apis/experimentsApi'; // Adjust path
+import {
+    ApiClusteringInputItem,
+    CategoryRow,
+    SummaryRow,
+} from '../../utils/clusteringUtils'; // Adjust path
 import {
     usePyodideClustering,
     PyodideClusteringResult,
-} from '../../hooks/usePyodideClustering';
-import { useProcessedClusteringData } from '../../hooks/useProcessedClusteringData';
-import { useClusteringVisualizationData } from '../../hooks/useClusteringVisualizationData';
-import { BMDResult, CategoryAnalysisItem } from '../../models/BMDxExported';
+} from '../../hooks/usePyodideClustering'; // Adjust path
+import { useProcessedClusteringData } from '../../hooks/useProcessedClusteringData'; // Adjust path
+import { useClusteringVisualizationData } from '../../hooks/useClusteringVisualizationData'; // Adjust path
+import { BMDResult, CategoryAnalysisItem } from '../../models/BMDxExported'; // Adjust path
 import GOClusteringScatterPlot, {
     ClusteringScatterPoint,
-} from './GOClusteringScatterPlot';
-import GOClusteringSummaryTable from './GOClusteringSummaryTable';
-import GOClusteringDetailsTable from './GOClusteringDetailsTable';
-import CustomLegends from './CustomLegends';
-import AnalysisControls from './AnalysisControls';
+} from './GOClusteringScatterPlot'; // Adjust path
+import GOClusteringSummaryTable from './GOClusteringSummaryTable'; // Adjust path
+import GOClusteringDetailsTable from './GOClusteringDetailsTable'; // Adjust path
+import CustomLegends from './CustomLegends'; // Adjust path
+import AnalysisControls from './AnalysisControls'; // Adjust path
+import GeneEnrichmentAnalysis from './GeneEnrichmentAnalysis'; // Adjust path
 
-const PRIMARY_COLOR = '#1677ff';
+const PRIMARY_COLOR = '#1677ff'; // Example color
 const { Text } = Typography;
 const { Option } = Select;
 
+// Helper function to get a displayable error message
 const getErrorMessage = (error: unknown): string => {
-    // ... (error message helper remains the same) ...
     if (!error) {
         return 'An unknown error occurred.';
     }
@@ -79,15 +85,28 @@ const getErrorMessage = (error: unknown): string => {
     }
 };
 
+// Define structure for cluster dropdown options used in AnalysisControls
+interface ClusterOption {
+    value: string; // Cluster ID (as string)
+    label: string; // Text to display (e.g., "Cluster 1")
+}
+
 const GOClusteringAnalysisUnit: React.FC = () => {
-    const logPrefix = '[GOClusteringAnalysisUnit v16 - Fixed Ref Error]'; // Version Bump
+    const logPrefix = '[GOClusteringAnalysisUnit v20 - Debounce Submit]'; // Version Bump
     const dispatch = useAppDispatch();
 
-    // --- State for controls ---
-    const [textInputValue, setTextInputValue] = useState<string>('');
-    const [dropdownValue, setDropdownValue] = useState<string | undefined>(
-        undefined
-    );
+    // --- State for Enrichment Controls ---
+    const [networkNodesCount, setNetworkNodesCount] = useState<number>(50);
+    const [selectedClusterForEnrichment, setSelectedClusterForEnrichment] =
+        useState<string | null>(null);
+    const [enrichmentBackground, setEnrichmentBackground] = useState<
+        string | undefined
+    >(undefined);
+    const [runEnrichmentTrigger, setRunEnrichmentTrigger] =
+        useState<boolean>(false);
+    const [geneListForEnrichment, setGeneListForEnrichment] = useState<
+        string[] | null
+    >(null);
 
     // --- Selectors ---
     const projectName = useAppSelector(selectSelectedProjectName);
@@ -98,6 +117,16 @@ const GOClusteringAnalysisUnit: React.FC = () => {
     const highlightedRefClusterIdsSet = useAppSelector(
         selectHighlightedClusteringRefClusterIdsSet
     );
+
+    // --- Log component render ---
+    console.log(`${logPrefix} Rendering. State:`, {
+        activeClusteringRef,
+        selectedClusterForEnrichment,
+        enrichmentBackground,
+        runEnrichmentTrigger,
+        geneListLength: geneListForEnrichment?.length,
+        networkNodesCount,
+    });
 
     // --- Data Fetching ---
     const {
@@ -115,9 +144,8 @@ const GOClusteringAnalysisUnit: React.FC = () => {
         }
     );
 
-    // --- Generate Name Map ---
+    // --- Generate Name Map (Memoized) ---
     const bmdRefToExperimentNameMap = useMemo(() => {
-        // ... (logic remains the same) ...
         const mapLogPrefix = `${logPrefix} [bmdRefToExperimentNameMap]`;
         console.log(`${mapLogPrefix} Generating map...`);
         const tempMap = new Map<number, string>();
@@ -137,9 +165,8 @@ const GOClusteringAnalysisUnit: React.FC = () => {
         return tempMap;
     }, [rawSuccess, rawData]);
 
-    // --- Effect to manage activeClusteringRef ---
+    // --- Effect to manage activeClusteringRef and reset enrichment state ---
     useEffect(() => {
-        // ... (logic remains the same) ...
         const effectLogPrefix = `${logPrefix} [useEffect activeRef]`;
         if (
             !isLoadingRaw &&
@@ -155,6 +182,10 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                     `${effectLogPrefix} Initializing or resetting activeClusteringRef to first selected: ${firstRef}`
                 );
                 dispatch(setActiveClusteringRef(firstRef));
+                setSelectedClusterForEnrichment(null);
+                setRunEnrichmentTrigger(false);
+                setGeneListForEnrichment(null);
+                setEnrichmentBackground(undefined);
             } else {
                 console.log(
                     `${effectLogPrefix} Active ref ${activeClusteringRef} is valid.`
@@ -169,6 +200,10 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                     `${effectLogPrefix} No refs selected, clearing activeClusteringRef.`
                 );
                 dispatch(setActiveClusteringRef(null));
+                setSelectedClusterForEnrichment(null);
+                setRunEnrichmentTrigger(false);
+                setGeneListForEnrichment(null);
+                setEnrichmentBackground(undefined);
             }
         }
     }, [
@@ -179,16 +214,14 @@ const GOClusteringAnalysisUnit: React.FC = () => {
         logPrefix,
     ]);
 
-    // --- Calculate Active Analysis Name (Moved Up) ---
+    // --- Calculate Active Analysis Name ---
     const activeAnalysisName = activeClusteringRef
         ? bmdRefToExperimentNameMap.get(Number(activeClusteringRef)) ||
         `Analysis ${activeClusteringRef}`
         : 'No Analysis Selected';
-    // -------------------------------------------------
 
-    // --- Prepare Data for Clustering ---
+    // --- Prepare Data for Clustering (Based on active ref) ---
     const rowDataForClustering = useMemo(() => {
-        // ... (logic remains the same) ...
         const prepLogPrefix = `${logPrefix} [rowDataForClustering]`;
         if (
             !activeClusteringRef ||
@@ -205,12 +238,14 @@ const GOClusteringAnalysisUnit: React.FC = () => {
         );
 
         const finalInputItems: ApiClusteringInputItem[] = [];
-        rawData.rawCategoryAnalysisItems.forEach((entry) => {
+        const itemsToProcess = rawData.rawCategoryAnalysisItems || [];
+        itemsToProcess.forEach((entry) => {
             if (String(entry.bmdResultRef) !== String(activeClusteringRef)) {
                 return;
             }
             const item = entry.item;
             if (!item || !item.categoryIdentifier?.id) return;
+
             finalInputItems.push({
                 'Category ID': item.categoryIdentifier.id,
                 'Category Title': item.categoryIdentifier.title ?? '',
@@ -256,6 +291,16 @@ const GOClusteringAnalysisUnit: React.FC = () => {
             pyodideError ? getErrorMessage(pyodideError) : null
         );
 
+    // Log when table data changes
+    useEffect(() => {
+        console.log(`${logPrefix} Processed table data updated:`, {
+            categoryTableDataCount: categoryTableData?.length,
+            summaryTableDataCount: summaryTableData?.length,
+            processingError: !!processingError,
+        });
+    }, [categoryTableData, summaryTableData, processingError, logPrefix]);
+
+
     // --- Call the Visualization Data Hook ---
     const { scatterPlotData, legendColorItems, presentClusterIds } =
         useClusteringVisualizationData({
@@ -264,6 +309,27 @@ const GOClusteringAnalysisUnit: React.FC = () => {
             referenceDataMap,
             referenceData,
         });
+
+    // Log when viz data changes
+    useEffect(() => {
+        console.log(`${logPrefix} Visualization data updated:`, {
+            scatterPlotDataCount: scatterPlotData?.length,
+            legendColorItemsCount: legendColorItems?.length,
+            presentClusterIdsCount: presentClusterIds?.size,
+        });
+    }, [scatterPlotData, legendColorItems, presentClusterIds, logPrefix]);
+
+
+    // --- Derive Cluster Options for Dropdown ---
+    const clusterOptionsForDropdown = useMemo((): ClusterOption[] => {
+        if (!summaryTableData) return [];
+        return [...summaryTableData]
+            .sort((a, b) => (a.sort ?? Infinity) - (b.sort ?? Infinity))
+            .map((summary) => ({
+                value: String(summary.cluster),
+                label: `Cluster ${summary.cluster} (${summary.numCategoryIDs} cats)`,
+            }));
+    }, [summaryTableData]);
 
     // --- Combined Loading/Error State ---
     const isLoading = isLoadingRaw || isPyodideLoading;
@@ -282,24 +348,104 @@ const GOClusteringAnalysisUnit: React.FC = () => {
 
     const handleActiveRefChange = useCallback(
         (activeKey: string) => {
+            console.log(`${logPrefix} handleActiveRefChange called with key: ${activeKey}`);
             dispatch(setActiveClusteringRef(activeKey));
+            // Reset enrichment state when changing tabs
+            setSelectedClusterForEnrichment(null);
+            setRunEnrichmentTrigger(false);
+            setGeneListForEnrichment(null);
+            setEnrichmentBackground(undefined);
         },
-        [dispatch]
+        [dispatch, logPrefix]
     );
 
-    // --- Handlers for controls ---
-    const handleTextInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setTextInputValue(e.target.value);
+    // --- Handlers for Enrichment controls ---
+    const handleNetworkNodesChange = (value: number | null) => {
+        const newValue = value ?? 50;
+        console.log(`${logPrefix} handleNetworkNodesChange: ${newValue}`);
+        setNetworkNodesCount(newValue);
     };
 
-    const handleDropdownChange = (value: string) => {
-        setDropdownValue(value);
+    const handleClusterForEnrichmentChange = (value: string | null) => {
+        console.log(`${logPrefix} handleClusterForEnrichmentChange: ${value}`);
+        setSelectedClusterForEnrichment(value);
+        setRunEnrichmentTrigger(false); // Reset trigger on new selection
+        setGeneListForEnrichment(null);
     };
 
+    const handleEnrichmentBackgroundChange = (value: string) => {
+        console.log(`${logPrefix} handleEnrichmentBackgroundChange: ${value}`);
+        setEnrichmentBackground(value);
+        setRunEnrichmentTrigger(false); // Reset trigger if background changes
+    };
+
+    // --- Debounced Enrichment Submit Logic ---
+    const debouncedSubmitLogic = useMemo(
+        () =>
+            debounce(() => {
+                console.log(
+                    `${logPrefix} Debounced submit logic executing. State:`, { selectedClusterForEnrichment, enrichmentBackground }
+                );
+                if (
+                    !selectedClusterForEnrichment ||
+                    !enrichmentBackground ||
+                    !categoryTableData
+                ) {
+                    console.log(`${logPrefix} Debounced submit: Aborted - missing selections.`);
+                    setRunEnrichmentTrigger(false);
+                    setGeneListForEnrichment(null);
+                    return;
+                }
+
+                const genes = categoryTableData
+                    .filter(
+                        (row) => String(row.cluster) === String(selectedClusterForEnrichment)
+                    )
+                    .map((row) => (row.allGenes || '').split(';'))
+                    .flat()
+                    .map((g) => g.trim())
+                    .filter((g) => g.length > 0);
+
+                const uniqueGenes = [...new Set(genes)];
+
+                if (uniqueGenes.length === 0) {
+                    console.log(`${logPrefix} Debounced submit: Aborted - no genes found for cluster ${selectedClusterForEnrichment}.`);
+                    setRunEnrichmentTrigger(false);
+                    setGeneListForEnrichment(null);
+                    return;
+                }
+
+                console.log(
+                    `${logPrefix} Debounced submit: Setting gene list (${uniqueGenes.length} genes) and trigger.`
+                );
+                setGeneListForEnrichment(uniqueGenes);
+                setRunEnrichmentTrigger(true); // Set the trigger
+            }, 500), // Debounce for 500ms
+        [selectedClusterForEnrichment, enrichmentBackground, categoryTableData, logPrefix]
+    );
+
+    // --- Handler attached to the button ---
+    const handleEnrichmentSubmit = useCallback(() => {
+        console.log(`${logPrefix} handleEnrichmentSubmit called (triggering debounce).`);
+        if (!selectedClusterForEnrichment || !enrichmentBackground) {
+            message.warning('Please select a cluster and a background gene set.');
+            return;
+        }
+        debouncedSubmitLogic();
+    }, [debouncedSubmitLogic, selectedClusterForEnrichment, enrichmentBackground]);
+
+    // --- Cleanup debounce on unmount ---
+    useEffect(() => {
+        return () => {
+            debouncedSubmitLogic.cancel();
+        };
+    }, [debouncedSubmitLogic]);
+    // ------------------------------------
+
+    // --- Export Handlers ---
     const formatDataForExport = (
         data: ClusteringScatterPoint[] | null
     ): string => {
-        // ... (logic remains the same) ...
         if (!data || data.length === 0) {
             return '';
         }
@@ -329,7 +475,6 @@ const GOClusteringAnalysisUnit: React.FC = () => {
     };
 
     const handleCopyToClipboard = useCallback(async () => {
-        // ... (logic remains the same) ...
         const tsvData = formatDataForExport(scatterPlotData);
         if (!tsvData) {
             message.warning('No data available to copy.');
@@ -345,7 +490,6 @@ const GOClusteringAnalysisUnit: React.FC = () => {
     }, [scatterPlotData]);
 
     const handleExportToFile = useCallback(() => {
-        // ... (logic uses activeAnalysisName, which is now declared above) ...
         const tsvData = formatDataForExport(scatterPlotData);
         if (!tsvData) {
             message.warning('No data available to export.');
@@ -358,7 +502,6 @@ const GOClusteringAnalysisUnit: React.FC = () => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.setAttribute('href', url);
-        // Use activeAnalysisName which is now guaranteed to be initialized here
         const safeAnalysisName = activeAnalysisName.replace(/[^a-z0-9]/gi, '_');
         link.setAttribute(
             'download',
@@ -370,21 +513,8 @@ const GOClusteringAnalysisUnit: React.FC = () => {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
         message.success('Scatter plot data export initiated.');
-    }, [scatterPlotData, activeAnalysisName]); // Dependency array is correct
-
-    const handleEnrichmentSubmit = useCallback(() => {
-        // ... (logic uses activeAnalysisName, which is now declared above) ...
-        console.log('Enrichment Submitted:', {
-            genes: textInputValue,
-            background: dropdownValue,
-            activeAnalysis: activeClusteringRef,
-        });
-        message.info(
-            `Enrichment analysis submitted for ${activeAnalysisName} (Not Implemented)`
-        );
-    }, [textInputValue, dropdownValue, activeClusteringRef, activeAnalysisName]); // Dependency array is correct
-
-    // ---------------------------------------------
+    }, [scatterPlotData, activeAnalysisName]);
+    // ------------------------------------
 
     // === Render Logic ===
     const PLOT_AREA_MIN_HEIGHT = 550;
@@ -404,7 +534,6 @@ const GOClusteringAnalysisUnit: React.FC = () => {
     }, [selectedBmdResultRefs, bmdRefToExperimentNameMap]);
 
     const isExportDisabled = !scatterPlotData || scatterPlotData.length === 0;
-    const isEnrichmentSubmitDisabled = !textInputValue || !dropdownValue;
 
     // Handle overall loading/error/no selection states first
     if (isLoadingRaw) {
@@ -478,7 +607,7 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                 )}
 
                 {/* Render Plot and Tables if clustering ran and produced results for the active ref */}
-                {!isPyodideLoading && !pyodideError && !processingError && activeClusteringRef && (
+                {!isPyodideLoading && !error && activeClusteringRef && (
                     <>
                         {!hasActiveDataToCluster && (
                             <Empty description="No suitable category data found for this specific analysis to perform clustering." />
@@ -545,6 +674,7 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                                                 <GOClusteringSummaryTable
                                                     dataSource={summaryTableData}
                                                     loading={isPyodideLoading}
+                                                // No onRow needed for enrichment here
                                                 />
                                             </Col>
                                         </Row>
@@ -556,20 +686,42 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                                     isExportDisabled={isExportDisabled}
                                     onCopy={handleCopyToClipboard}
                                     onExport={handleExportToFile}
-                                    enrichmentInputValue={textInputValue}
-                                    onEnrichmentInputChange={handleTextInputChange}
-                                    enrichmentDropdownValue={dropdownValue}
-                                    onEnrichmentDropdownChange={handleDropdownChange}
+                                    networkNodesCount={networkNodesCount}
+                                    onNetworkNodesCountChange={handleNetworkNodesChange}
+                                    availableClusterOptions={clusterOptionsForDropdown}
+                                    selectedClusterForEnrichment={selectedClusterForEnrichment}
+                                    onClusterForEnrichmentChange={
+                                        handleClusterForEnrichmentChange
+                                    }
+                                    enrichmentBackgroundValue={enrichmentBackground}
+                                    onEnrichmentBackgroundChange={
+                                        handleEnrichmentBackgroundChange
+                                    }
                                     onEnrichmentSubmit={handleEnrichmentSubmit}
-                                    isEnrichmentSubmitDisabled={isEnrichmentSubmitDisabled}
+                                // isEnrichmentSubmitDisabled handled internally
                                 />
 
+                                {/* Conditionally Render Enrichment Analysis */}
+                                {runEnrichmentTrigger &&
+                                    geneListForEnrichment &&
+                                    enrichmentBackground &&
+                                    selectedClusterForEnrichment && (
+                                        <GeneEnrichmentAnalysis
+                                            geneList={geneListForEnrichment}
+                                            backgroundType={enrichmentBackground}
+                                            analysisName={`Cluster ${selectedClusterForEnrichment} (${activeAnalysisName})`}
+                                            triggerRun={runEnrichmentTrigger}
+                                            maxNodesToShow={networkNodesCount} // Pass node count
+                                        />
+                                    )}
+
                                 {/* Details Table Area */}
-                                <Row gutter={[16, 16]} style={{ marginTop: '0px' }}>
+                                <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
                                     <Col span={24}>
                                         <GOClusteringDetailsTable
                                             dataSource={categoryTableData}
                                             loading={isPyodideLoading}
+                                        // No onRow needed for enrichment here
                                         />
                                     </Col>
                                 </Row>
