@@ -1,0 +1,147 @@
+# plumber.R
+library(plumber)
+
+#* @apiTitle My Data‐Processing API
+
+# Allow CORS from anywhere (or lock it down to your SPA’s origin)
+#* @filter cors
+function(req, res) {
+  res$setHeader("Access-Control-Allow-Origin", "*")
+  if (req$REQUEST_METHOD == "OPTIONS") {
+    res$setHeader("Access-Control-Allow-Methods",
+                  "GET,POST,OPTIONS")
+    res$setHeader("Access-Control-Allow-Headers",
+                  "Content-Type,Authorization")
+    res$status <- 200
+    return(list())
+  }
+  plumber::forward()
+}
+
+#* Process incoming data and return a result
+#* @post /process
+#* @json
+function(req, res) {
+  # req$body is already parsed JSON
+  input_data <- req$body
+
+  # ---- your R processing here ----
+  # e.g. compute column means if data is a data‑frame list
+  if (is.list(input_data) && length(input_data) && 
+      is.numeric(input_data[[1]])) {
+    result <- lapply(input_data, mean)
+  } else {
+    result <- list(error = "unexpected format")
+  }
+
+  # return as JSON
+  res$status <- 200
+  result
+}
+import React, { useState } from "react"
+import { usePyodide } from "./pyContext"
+
+export function PyExample() {
+  const pyodide = usePyodide()
+  const [out, setOut] = useState<any>(null)
+
+  async function sendViaPy() {
+    // 1. Prepare your JS payload
+    const jsData = { a: [1,2,3], b: [4,5,6] }
+    // 2. Expose it to Python
+    pyodide.globals.set("payload", jsData)
+    // 3. Run an async Python snippet
+    const code = `
+from js import fetch, JSON
+import asyncio
+
+async def call_connect():
+    resp = await fetch(
+        "https://connect.your.org/__api__/my‐data‐processor/process",
+        {
+            "method": "POST",
+            "headers": {
+                "Content-Type": "application/json",
+                # "Authorization": "Key MY_CONNECT_KEY"
+            },
+            "body": JSON.stringify(payload)
+        }
+    )
+    if not resp.ok:
+        text = await resp.text()
+        raise RuntimeError(f"{resp.status}: {text}")
+    return await resp.json()
+
+# run and assign back to a Python var
+result = asyncio.get_event_loop().run_until_complete(call_connect())
+`
+    await pyodide.runPythonAsync(code)
+    // 4. Grab the result back
+    const pyResult = pyodide.globals.get("result").toJs()
+    setOut(pyResult)
+  }
+
+  return (
+    <div>
+      <button onClick={sendViaPy}>Send via Pyodide</button>
+      {out && <pre>{JSON.stringify(out,null,2)}</pre>}
+    </div>
+  )
+}
+// src/pyContext.tsx
+import React, { createContext, useContext, useEffect, useState } from "react"
+import { loadPyodide, PyodideInterface } from "pyodide"
+
+const PyContext = createContext<PyodideInterface | null>(null)
+
+export const PyodideProvider: React.FC = ({ children }) => {
+  const [pyodide, setPyodide] = useState<PyodideInterface | null>(null)
+
+  useEffect(() => {
+    (async () => {
+      const p = await loadPyodide({ stdout: console.log })
+      setPyodide(p)
+    })()
+  }, [])
+
+  return (
+    <PyContext.Provider value={pyodide}>
+      {children}
+    </PyContext.Provider>
+  )
+}
+
+export const usePyodide = () => {
+  const ctx = useContext(PyContext)
+  if (!ctx) throw new Error("Pyodide not ready")
+  return ctx
+}
+// src/api.ts
+export interface Payload {
+  [key: string]: number[];
+}
+export interface Result {
+  [key: string]: number;
+}
+
+export async function processData(
+  data: Payload
+): Promise<Result> {
+  const resp = await fetch(
+    "https://connect.your.org/__api__/my‐data‐processor/process",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // If you locked the API behind a key:
+        // "Authorization": "Key YOUR_CONNECT_API_KEY"
+      },
+      body: JSON.stringify(data),
+    }
+  );
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`API error: ${resp.status} ${err}`);
+  }
+  return resp.json() as Promise<Result>;
+}
