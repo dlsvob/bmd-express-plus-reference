@@ -22,9 +22,8 @@ import GOUmapAnalysisUnit from '../analysis/GOUmapAnalysisUnit/GOUmapAnalysisUni
 import GOClusteringAnalysisUnit from '../analysis/GOClusteringAnalysisUnit/GOClusteringAnalysisUnit';
 import AppHeader from './AppHeader';
 import { usePyodide } from '../../contexts/PyodideProvider';
-import styles from './AppLayoutController.module.css'; // Keep using the CSS module
+import styles from './AppLayoutController.module.css';
 
-// --- Use Layout components ---
 const { Content, Header } = Layout;
 
 // --- Menu Items Configuration ---
@@ -43,7 +42,7 @@ const menuItems: MenuProps['items'] = [
 ];
 
 // --- Internal Component for Main Content Area ---
-// --- REMOVED the extra wrapper div ---
+// --- Renders the view directly, no extra wrapper ---
 const AppContentInternal: React.FC = () => {
     const { error: pyodideError } = usePyodide();
     const selectedProjectName = useAppSelector(selectSelectedProjectName);
@@ -111,6 +110,7 @@ const AppContentInternal: React.FC = () => {
     }
 
     // --- Render the view component directly ---
+    // --- Ensure the view itself can fill height if needed by its parent ---
     return <>{mainContent}</>;
 };
 
@@ -142,8 +142,8 @@ const NavigationMenu: React.FC<{
 // --- Main Layout Controller Component ---
 const AppLayoutController: React.FC = () => {
     console.log(
-        '[AppLayoutController] Rendering with scroll on Spin container...'
-    );
+        '[AppLayoutController] Rendering with scroll on Spin component (Reverted)...'
+    ); // Log message indicates reverted state
     const dispatch = useAppDispatch();
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -193,11 +193,12 @@ const AppLayoutController: React.FC = () => {
 
     return (
         // --- Outer Layout: Full viewport height, NO SCROLL ---
-        <Layout style={{ height: '100vh', overflow: 'hidden' }}>
+        <Layout style={{
+            height: '100vh', overflow: 'hidden', position: 'relative', background: 'transparent'}}>
             {/* --- Fixed Header --- */}
             <Header
                 className={styles.fixedHeader} // Use CSS module class
-                style={{ height: `${HEADER_HEIGHT}px`, padding: '0 16px' }} // Ensure padding is set
+                style={{ height: `${HEADER_HEIGHT}px`, padding: '0 16px', backgroundColor: '#e2f2ff' }} // Ensure padding is set
             >
                 <AppHeader
                     projectList={projectsData}
@@ -228,8 +229,9 @@ const AppLayoutController: React.FC = () => {
                     spinning={pyodideLoading}
                     tip={pyodideSpinTip}
                     size="large"
-                    // Apply styles directly to the Spin wrapper via CSS class
-                    wrapperClassName={styles.spinWrapperScrollable}
+                    // Apply scroll and padding styles directly to Spin's container
+                    // Use wrapperClassName to target the correct div for overflow/padding
+                    wrapperClassName={styles.spinWrapperScrollable} // <<< USING CLASSNAME
                     style={{
                         flexGrow: 1, // Fill Content
                         display: 'flex', // Keep flex for AppContentInternal
@@ -238,7 +240,7 @@ const AppLayoutController: React.FC = () => {
                         // overflow: 'auto', // <<< SCROLL HANDLED BY CLASS >>>
                     }}
                 >
-                    {/* --- AppContentInternal renders view directly --- */}
+                    {/* AppContentInternal renders view directly */}
                     <AppContentInternal />
                 </Spin>
             </Content>

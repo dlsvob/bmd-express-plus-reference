@@ -1,10 +1,12 @@
-// src/components/views/ExperimentListView.tsx
 import React, { useMemo, useCallback } from 'react';
-import { Typography, Button, Checkbox, Space, Spin, Alert } from 'antd';
+import { Typography, Button, Checkbox, Space, Spin, Alert, Empty } from 'antd';
 import { useGetSelectableAnalysesQuery } from '../../store/apis/experimentsApi';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setActiveView } from '../../store/slices/navigationSlice';
-import { setSelectedAnalysisRefs, selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice';
+import {
+    setSelectedAnalysisRefs,
+    selectSelectedAnalysisRefs,
+} from '../../store/slices/selectedAnalysisSlice';
 import styles from './ExperimentListView.module.css';
 
 type CheckboxValueType = string | number;
@@ -15,7 +17,9 @@ interface ExperimentListViewProps {
     projectName: string;
 }
 
-const ExperimentListView: React.FC<ExperimentListViewProps> = ({ projectName }) => {
+const ExperimentListView: React.FC<ExperimentListViewProps> = ({
+    projectName,
+}) => {
     const dispatch = useAppDispatch();
 
     const {
@@ -23,95 +27,139 @@ const ExperimentListView: React.FC<ExperimentListViewProps> = ({ projectName }) 
         isLoading: isLoadingList,
         error: listError,
         isSuccess,
-    } = useGetSelectableAnalysesQuery(
-        { projectName },
-        { skip: !projectName }
-    );
+    } = useGetSelectableAnalysesQuery({ projectName }, { skip: !projectName });
 
     const selectedValues = useAppSelector(selectSelectedAnalysisRefs);
 
     const checkboxOptions = useMemo(() => {
         const currentList = selectableAnalyses ?? [];
-        console.log(`[ExperimentListView] Recalculating checkboxOptions. Selectable analyses count: ${currentList.length}`);
-        const sortedData = [...currentList].sort((a, b) => (a.bmdResultName ?? '').localeCompare(b.bmdResultName ?? ''));
-        return sortedData.map(item => ({
+        console.log(
+            `[ExperimentListView] Recalculating checkboxOptions. Selectable analyses count: ${currentList.length}`
+        );
+        const sortedData = [...currentList].sort((a, b) =>
+            (a.bmdResultName ?? '').localeCompare(b.bmdResultName ?? '')
+        );
+        return sortedData.map((item) => ({
             label: item.bmdResultName,
-            value: String(item.bmdResultRef), // Ensure value is string for Checkbox.Group
+            value: String(item.bmdResultRef),
         }));
     }, [selectableAnalyses]);
 
-    const handleSelectionChange = useCallback((checkedValues: CheckboxValueType[]) => {
-        const stringValues = checkedValues.map(String);
-        console.log("[ExperimentListView] handleSelectionChange - Dispatching string values:", stringValues);
-        dispatch(setSelectedAnalysisRefs(stringValues));
-    }, [dispatch]);
+    const availableCount = selectableAnalyses?.length ?? 0;
+
+    const handleSelectionChange = useCallback(
+        (checkedValues: CheckboxValueType[]) => {
+            const stringValues = checkedValues.map(String);
+            console.log(
+                '[ExperimentListView] handleSelectionChange - Dispatching string values:',
+                stringValues
+            );
+            dispatch(setSelectedAnalysisRefs(stringValues));
+        },
+        [dispatch]
+    );
 
     const handleRunAnalysis = useCallback(() => {
         if (!selectedValues || selectedValues.length === 0) return;
-        // Navigate to the default analysis view
         dispatch(setActiveView('categoryAnalysis'));
     }, [dispatch, selectedValues]);
 
-    // --- Loading State ---
     if (isLoadingList) {
         return (
-            <div className={styles.viewContainer} style={{ textAlign: 'center', paddingTop: '50px' }}>
+            <div
+                className={styles.viewContainer}
+                style={{ textAlign: 'center', paddingTop: '50px' }}
+            >
                 <Spin tip="Loading experiments..." />
             </div>
         );
     }
 
-    // --- Error State ---
     if (listError) {
-        const errorMessage = typeof listError === 'object' && listError !== null && 'message' in listError ? String(listError.message) : String(listError);
+        const errorMessage =
+            typeof listError === 'object' &&
+                listError !== null &&
+                'message' in listError
+                ? String(listError.message)
+                : String(listError);
         return (
             <div className={styles.viewContainer} style={{ padding: '24px' }}>
-                <Alert message="Error Loading Experiments" description={errorMessage} type="error" showIcon />
+                <Alert
+                    message="Error Loading Experiments"
+                    description={errorMessage}
+                    type="error"
+                    showIcon
+                />
             </div>
         );
     }
 
-    // --- Success State & Render ---
-    const noDataAvailable = isSuccess && (!selectableAnalyses || selectableAnalyses.length === 0);
+    const noDataAvailable =
+        isSuccess && (!selectableAnalyses || selectableAnalyses.length === 0);
+
+    let titleText = 'Select BMD Results Set:';
+    if (isSuccess) {
+        titleText = `Select BMD Results Set (${availableCount} available):`;
+    } else if (isLoadingList) {
+        titleText = 'Loading BMD Results...';
+    }
 
     return (
-        // Outer container for centering
         <div className={styles.viewContainer}>
-            {/* Flex container for vertical layout */}
             <div className={styles.flexContainer}>
-                {/* Header Area (Button) - Fixed height */}
                 <div className={styles.headerArea}>
-                    <Title level={5} style={{ margin: 0, flexGrow: 1 }}>Select BMD Results:</Title>
-                    <Button
-                        type="primary"
-                        onClick={handleRunAnalysis}
-                        disabled={!selectedValues || selectedValues.length === 0 || noDataAvailable}
+                    <Title
+                        level={5}
+                        style={{
+                            margin: 0,
+                            flexGrow: 1,
+                            fontSize: '1.4em', // <<< ADJUSTED FONT SIZE
+                        }}
                     >
-                        Run Category Analysis {selectedValues?.length > 0 ? `(${selectedValues.length})` : ''}
-                    </Button>
+                        {titleText}
+                    </Title>
                 </div>
 
-                {/* List Area - Grows and Scrolls */}
                 <div className={styles.listArea}>
-                    {noDataAvailable ? (
-                        <div style={{ padding: '20px', textAlign: 'center' }}>
-                            <Text type="secondary">No BMD results found for this project.</Text>
-                        </div>
-                    ) : (
-                        <Checkbox.Group
-                            style={{ width: '100%' }}
-                            value={selectedValues}
-                            onChange={handleSelectionChange}
+                    <div className={styles.fixedButtonContainer}>
+                        <Button
+                            type="primary"
+                            onClick={handleRunAnalysis}
+                            disabled={
+                                !selectedValues || selectedValues.length === 0 || noDataAvailable
+                            }
                         >
-                            <Space direction="vertical" style={{ width: '100%' }}>
-                                {checkboxOptions.map(option => (
-                                    <Checkbox key={option.value} value={option.value}>
-                                        {option.label}
-                                    </Checkbox>
-                                ))}
-                            </Space>
-                        </Checkbox.Group>
-                    )}
+                            Run Category Analysis{' '}
+                            {selectedValues?.length > 0 ? `(${selectedValues.length})` : ''}
+                        </Button>
+                    </div>
+
+                    <div className={styles.scrollableCheckboxes}>
+                        {noDataAvailable ? (
+                            <Empty
+                                description="No BMD results found for this project."
+                                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                            />
+                        ) : (
+                            <Checkbox.Group
+                                style={{ width: '100%' }}
+                                value={selectedValues}
+                                onChange={handleSelectionChange}
+                            >
+                                    <Space
+                                        direction="vertical"
+                                        style={{ width: '100%' }}
+                                        className={styles.checkboxListContent} // <<< ADDED CLASSNAME
+                                    >
+                                    {checkboxOptions.map((option) => (
+                                        <Checkbox key={option.value} value={option.value}>
+                                            {option.label}
+                                        </Checkbox>
+                                    ))}
+                                </Space>
+                            </Checkbox.Group>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

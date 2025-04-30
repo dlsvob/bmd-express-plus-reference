@@ -1,0 +1,43 @@
+/* src/components/layout/AppHeader.module.css */
+
+/* Target the main AntD Select wrapper */
+.projectSelector :global(.ant-select-selector) {
+    border: 1px solid #91caff !important;
+    /* Apply light blue border */
+    /* You might need !important to override AntD's specificity */
+}
+
+/* Optional: Style on hover/focus if desired */
+.projectSelector:not(.ant-select-disabled):hover :global(.ant-select-selector) {
+    border-color: #69b1ff !important;
+    /* Slightly darker blue on hover */
+}
+
+.projectSelector:global(.ant-select-focused):not(.ant-select-disabled) :global(.ant-select-selector) {
+    border-color: #69b1ff !important;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+    /* Standard AntD focus glow */
+}
+
+
+/* Target the dropdown arrow icon */
+/* AntD v5 uses specific class names, inspect element if this doesn't work */
+.projectSelector :global(.ant-select-arrow .anticon-down),
+.projectSelector :global(.ant-select-arrow .anticon-loading) {
+    /* Handle loading state too */
+    color: #1677ff;
+    /* Standard AntD blue for the arrow */
+    /* If you want the lighter blue: color: #91caff; */
+}
+
+/* Ensure disabled state looks okay */
+.projectSelector:global(.ant-select-disabled) :global(.ant-select-selector) {
+    border-color: #d9d9d9 !important;
+    /* Default disabled border */
+    background-color: #f5f5f5 !important;
+}
+
+.projectSelector:global(.ant-select-disabled) :global(.ant-select-arrow .anticon) {
+    color: rgba(0, 0, 0, 0.25) !important;
+    /* Default disabled icon color */
+}

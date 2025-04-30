@@ -9,32 +9,30 @@
     z-index: 1000;
     background: #fff;
     box-shadow: 0 2px 8px #f0f1f2;
-    /* padding is set inline in TSX */
     display: flex;
     align-items: center;
-    /* Height is set inline */
 }
 
 /* --- Main Content Area (AntD <Content>) --- */
 /* This container just defines the space below the header */
 .mainContentArea {
     box-sizing: border-box;
-    overflow: hidden;
-    /* <<< IMPORTANT: No scroll here */
+    overflow: hidden !important;
+    /* <<< ENSURE NO SCROLL HERE */
     /* Flex properties are set inline */
     /* Padding is set inline (likely 0) */
 }
 
-/* --- NEW: Class for the Spin wrapper to handle scrolling --- */
+/* --- Class for the Spin wrapper to handle scrolling --- */
 .spinWrapperScrollable {
     /* Ensure it behaves correctly as a flex child */
     flex-grow: 1;
     min-height: 0;
     /* Make THIS the scroll container */
     overflow: auto !important;
-    /* Use !important if necessary to override AntD */
+    /* Use !important if necessary */
     /* Add padding inside the scrollable area */
-    padding: 16px;
+    padding: 24px;
     box-sizing: border-box;
     /* Ensure its direct child (Spin container) fills height */
 }
@@ -47,7 +45,8 @@
     flex-direction: column;
     min-height: 0;
     /* Allow spin container to shrink */
+    box-sizing: border-box;
+    /* Include padding/border */
 }
-
 
 /* --- REMOVE any styles for intermediate wrappers from previous attempts --- */
