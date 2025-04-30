@@ -3,24 +3,24 @@ import { Select, Button, Space, Typography, Tooltip } from 'antd';
 import {
     PlusOutlined,
     MenuOutlined,
-    BarChartOutlined, // Icon for the Run Analysis button
+    BarChartOutlined,
 } from '@ant-design/icons';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setActiveProject } from '../../store/slices/projectSlice';
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
 import {
     setActiveView,
-    selectCurrentView, // <<< Import selector for current view
+    selectCurrentView,
 } from '../../store/slices/navigationSlice';
 import {
-    clearSelectedAnalyses, // <<< Keep this import
-    selectSelectedAnalysisRefs, // <<< Import selector for selected refs
+    clearSelectedAnalyses,
+    selectSelectedAnalysisRefs,
 } from '../../store/slices/selectedAnalysisSlice';
 import {
     setActiveClusteringRef,
     setGoIdInputString,
 } from '../../store/slices/analysisUISlice';
-import styles from './AppHeader.module.css'; // Import CSS module
+import styles from './AppHeader.module.css';
 
 const { Option } = Select;
 const { Text } = Typography;
@@ -48,23 +48,22 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 }) => {
     const dispatch = useAppDispatch();
     const activeProjectName = useAppSelector(selectSelectedProjectName);
-    const currentViewKey = useAppSelector(selectCurrentView); // <<< Get current view
-    const selectedRefs = useAppSelector(selectSelectedAnalysisRefs); // <<< Get selected refs
+    const currentViewKey = useAppSelector(selectCurrentView);
+    const selectedRefs = useAppSelector(selectSelectedAnalysisRefs);
 
     console.log(
         `[AppHeader] Rendering. activeProjectName: ${activeProjectName}, currentView: ${currentViewKey}, selectedRefs: ${selectedRefs.length}`
     );
 
     const handleProjectChange = (value: string | null) => {
-        // <<< Only dispatch if the project name actually changes >>>
         if (value !== activeProjectName) {
             console.log(
                 `[AppHeader] Project CHANGED. Dispatching actions to switch project TO: ${value || 'None'
                 }`
             );
             dispatch(setActiveProject(value));
-            dispatch(setActiveView('experiments')); // Reset view on project change
-            dispatch(clearSelectedAnalyses()); // <<< Clear selections on project change
+            dispatch(setActiveView('experiments'));
+            dispatch(clearSelectedAnalyses());
             dispatch(setActiveClusteringRef(null));
             dispatch(setGoIdInputString(''));
         } else {
@@ -76,16 +75,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 
     const handleAddNewProject = () => {
         console.log('Import Project button clicked - Implement me!');
-        // TODO: Implement project import functionality (e.g., open modal)
+        // TODO: Implement project import functionality
     };
 
-    // --- Callback for the Run Analysis button ---
     const handleRunAnalysis = useCallback(() => {
         if (!selectedRefs || selectedRefs.length === 0) return;
         console.log('[AppHeader] Run Analysis clicked, dispatching setActiveView.');
-        dispatch(setActiveView('categoryAnalysis')); // Navigate to the first analysis view
+        dispatch(setActiveView('categoryAnalysis'));
     }, [dispatch, selectedRefs]);
-    // --- End Callback ---
 
     let placeholderText = 'Select Project...';
     if (isLoading) {
@@ -99,18 +96,20 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     const isRunAnalysisDisabled = selectedRefs.length === 0;
     const showRunAnalysisButton = currentViewKey === 'experiments';
 
+    // Define the fixed width for the button container
+    const buttonContainerWidth = '450px'; // <<< UPDATED WIDTH
+
     return (
-        // Use Flexbox for 3-section layout (Left, Center, Right)
         <div
             style={{
                 display: 'flex',
-                justifyContent: 'space-between', // Distribute space
+                justifyContent: 'space-between',
                 alignItems: 'center',
                 width: '100%',
             }}
         >
-            {/* --- Left Section --- */}
-            <Space align="center" style={{ flexShrink: 0 }}> {/* Prevent shrinking */}
+            {/* --- Left Section (Unchanged) --- */}
+            <Space align="center" style={{ flexShrink: 0 }}>
                 <Button
                     type="text"
                     icon={<MenuOutlined />}
@@ -125,7 +124,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                         fontSize: '1.4em',
                         marginLeft: '8px',
                         marginRight: '24px',
-                        whiteSpace: 'nowrap', // Prevent title wrapping
+                        whiteSpace: 'nowrap',
                     }}
                 >
                     BMD Express...Plus!
@@ -144,8 +143,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                         !projectList ||
                         projectList.length === 0
                     }
-                    allowClear // Allow clearing selection
-                    onClear={() => handleProjectChange(null)} // Handle clear event
+                    allowClear
+                    onClear={() => handleProjectChange(null)}
                 >
                     {projectList?.map((project) => (
                         <Option key={project.name} value={project.name}>
@@ -165,24 +164,26 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 </Tooltip>
             </Space>
 
-            {/* --- Center Section (Conditional Button) --- */}
-            {/* This div will be centered between the left and right sections */}
-            <div style={{ textAlign: 'center' }}>
+            {/* --- Center Section (UPDATED) --- */}
+            <div style={{ flexGrow: 1, display: 'flex', justifyContent: 'center', padding: '0 16px' }}>
                 {showRunAnalysisButton && (
-                    <Button
-                        type="primary"
-                        icon={<BarChartOutlined />}
-                        onClick={handleRunAnalysis}
-                        disabled={isRunAnalysisDisabled}
-                    >
-                        Run Category Analysis{' '}
-                        {selectedRefs.length > 0 ? `(${selectedRefs.length})` : ''}
-                    </Button>
+                    /* Wrapper Div with FIXED width and centering */
+                    <div style={{ width: buttonContainerWidth, marginLeft: 'auto', marginRight: 'auto' }}> {/* <<< Use width instead of maxWidth */}
+                        <Button
+                            type="primary"
+                            icon={<BarChartOutlined />}
+                            onClick={handleRunAnalysis}
+                            disabled={isRunAnalysisDisabled}
+                            style={{ width: '100%' }} // Button fills wrapper
+                        >
+                            Run Category Analysis{' '}
+                            {selectedRefs.length > 0 ? `(${selectedRefs.length})` : ''}
+                        </Button>
+                    </div>
                 )}
             </div>
 
-            {/* --- Right Section (Placeholder for balance) --- */}
-            {/* Use a Space component matching the left side for better width calculation */}
+            {/* --- Right Section (Placeholder - Unchanged) --- */}
             <Space align="center" style={{ visibility: 'hidden', flexShrink: 0 }}>
                 <Button type="text" icon={<MenuOutlined />} style={{ fontSize: '20px' }} />
                 <Text strong style={{ fontSize: '1.4em', marginLeft: '8px', marginRight: '24px', whiteSpace: 'nowrap' }}>

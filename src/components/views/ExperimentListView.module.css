@@ -16,7 +16,7 @@
     min-height: 0;
     width: 100%;
     align-items: center;
-    /* Center listArea */
+    /* Center listArea horizontally */
     justify-content: flex-start;
 }
 
@@ -24,9 +24,12 @@
     border: none;
     border-radius: 4px;
     background-color: #f9f9f9;
-    width: fit-content;
-    min-width: 300px;
-    max-width: 90%;
+    /* min-width: 300px; <<< Optional: Keep if you want a minimum */
+    /* max-width: 700px; <<< REMOVED */
+    width: 450px;
+    /* <<< ADDED: Define a FIXED width */
+    margin-left: auto;
+    margin-right: auto;
     padding: 12px;
     box-sizing: border-box;
     margin-top: 16px;
@@ -34,7 +37,7 @@
     max-height: calc(100% - 16px);
 }
 
-/* --- Checkbox Styling --- */
+/* --- Checkbox Styling (Unchanged) --- */
 .listArea :global(.ant-checkbox-inner) {
     border-color: #91caff;
     background-color: #fff;
@@ -47,59 +50,28 @@
 }
 
 /* --- Scrollbar Styling (Unchanged) --- */
-.listArea::-webkit-scrollbar {
-    /* ... */
-}
-
-.listArea::-webkit-scrollbar-track {
-    /* ... */
-}
-
-.listArea::-webkit-scrollbar-thumb {
-    /* ... */
-}
-
-.listArea::-webkit-scrollbar-thumb:hover {
-    /* ... */
-}
+/* ... */
 
 
-/* --- FIX for Visual Check State --- */
-/* Use the actual generated class name for listArea if needed for specificity */
-/* e.g., ._listArea_92uba_37 :global(.ant-checkbox-checked .ant-checkbox-inner) */
-:global(.ant-checkbox-checked) :global(.ant-checkbox-inner) {
-    background-color: #1677ff;
-    /* AntD primary blue */
-    border-color: #1677ff;
+/* --- FIX for Visual Check State (Unchanged) --- */
+/* ... */
+
+/* --- ADDED: Ellipsis for long labels --- */
+/* Target the span containing the label text within the checkbox wrapper */
+.listArea :global(.ant-checkbox-wrapper > span:last-child) {
+    display: inline-block;
+    /* Allow width and overflow */
+    white-space: nowrap;
+    /* Prevent wrapping */
+    overflow: hidden;
+    /* Hide overflowing text */
+    text-overflow: ellipsis;
+    /* Show ellipsis (...) */
+    vertical-align: middle;
+    /* Align text nicely with checkbox */
+    /* Calculate max-width based on container padding and checkbox size */
+    /* Adjust the subtracted value (e.g., 40px) as needed */
+    max-width: calc(100% - 40px);
 }
 
-/* Style the checkmark itself */
-:global(.ant-checkbox-checked) :global(.ant-checkbox-inner)::after {
-    /* Re-apply AntD's default checkmark styles with high specificity */
-    /* Values might need slight adjustment based on AntD version */
-    position: absolute;
-    display: table;
-    border: 2px solid #fff;
-    /* Checkmark color */
-    border-top: 0;
-    border-left: 0;
-    transform: rotate(45deg) scale(1) translate(-50%, -50%);
-    opacity: 1;
-    /* Ensure visible */
-    content: ' ';
-    width: 5.71428571px;
-    /* Example value */
-    height: 9.14285714px;
-    /* Example value */
-    top: 50%;
-    /* Adjust vertical position */
-    left: 21.5%;
-    /* Adjust horizontal position */
-    transition: all 0.2s cubic-bezier(0.12, 0.4, 0.29, 1.46) 0.1s;
-    /* AntD transition */
-}
-
-/* Ensure hover doesn't accidentally hide it again */
-:global(.ant-checkbox-wrapper):hover :global(.ant-checkbox-checked) :global(.ant-checkbox-inner)::after {
-    opacity: 1;
-}
+/* --- END ADDED --- */

@@ -22,12 +22,11 @@ import GOUmapAnalysisUnit from '../analysis/GOUmapAnalysisUnit/GOUmapAnalysisUni
 import GOClusteringAnalysisUnit from '../analysis/GOClusteringAnalysisUnit/GOClusteringAnalysisUnit';
 import AppHeader from './AppHeader';
 import { usePyodide } from '../../contexts/PyodideProvider';
-import styles from './AppLayoutController.module.css';
+import styles from './AppLayoutController.module.css'; // Ensure this path is correct
 
 const { Content, Header } = Layout;
 
 // --- Menu Items Configuration ---
-// Define this at the top level so it's accessible by NavigationMenu
 const menuItems: MenuProps['items'] = [
     { key: 'experiments', icon: <ExperimentOutlined />, label: 'Experiments' },
     {
@@ -42,7 +41,7 @@ const menuItems: MenuProps['items'] = [
     { key: 'settings', icon: <SettingOutlined />, label: 'Project Settings' },
 ];
 
-// --- Internal Component for Main Content Area (Unchanged) ---
+// --- Internal Component for Main Content Area ---
 const AppContentInternal: React.FC = () => {
     const { error: pyodideError } = usePyodide();
     const selectedProjectName = useAppSelector(selectSelectedProjectName);
@@ -88,48 +87,42 @@ const AppContentInternal: React.FC = () => {
                 break;
         }
     } else {
-        // Should not be reached if pyodideLoading is handled by Spin
         mainContent = (
             <div style={{ textAlign: 'center', marginTop: '50px' }}>
                 <Spin size="large" />
             </div>
         );
     }
-    // No wrapper needed here
     return <>{mainContent}</>;
 };
 
-// --- Navigation Menu Component (Full Implementation) ---
+// --- Navigation Menu Component ---
 const NavigationMenu: React.FC<{
     currentViewKey: string | null;
     onClick: MenuProps['onClick'];
     disabled: boolean;
 }> = ({ currentViewKey, onClick, disabled }) => {
-    // No need for usePyodide here, disabled state is passed via props
-
     return (
         <Menu
             mode="inline"
-            // Determine default open keys based on the current view belonging to a submenu
             defaultOpenKeys={
                 currentViewKey &&
                     ['categoryAnalysis', 'goClustering'].includes(currentViewKey)
-                    ? ['analysis'] // Keep the 'Analysis' submenu open if its child is active
+                    ? ['analysis']
                     : []
             }
-            // Highlight the currently selected view key
             selectedKeys={currentViewKey ? [currentViewKey] : []}
             style={{ height: '100%', borderRight: 0 }}
-            items={menuItems} // Use the top-level menuItems constant
-            onClick={onClick} // Pass the click handler from props
-            disabled={disabled} // Pass the disabled state from props
+            items={menuItems}
+            onClick={onClick}
+            disabled={disabled}
         />
     );
 };
 
 // --- Main Layout Controller Component ---
 const AppLayoutController: React.FC = () => {
-    console.log('[AppLayoutController] Rendering with Outer Padding v9 - Centering Spin STYLE...'); // Updated log
+    console.log('[AppLayoutController] Rendering with CSS Mask approach...'); // Updated log
     const dispatch = useAppDispatch();
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -169,41 +162,24 @@ const AppLayoutController: React.FC = () => {
         <>Initializing Pyodide Environment...</>
     ) : undefined;
 
-    // --- Define header height (Unchanged) ---
     const HEADER_HEIGHT = 64;
-
-    // --- Determine styles for Spin (Centering and Base) ---
     const showCentering = !isProjectSelected || pyodideLoading;
 
-    // Base style for Spin (padding, height, flex)
     const baseSpinStyle: React.CSSProperties = {
-        height: '100%', // Spin container should fill its parent
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         boxSizing: 'border-box',
         minHeight: 0,
         flexGrow: 1,
-        padding: '24px', // <<< INNER PADDING (Inside Border)
+        padding: '24px', // Inner padding
     };
 
-    // Conditional style for centering
     const centeringStyle: React.CSSProperties = showCentering
-        ? {
-            justifyContent: 'center', // Center vertically
-            alignItems: 'center', // Center horizontally
-        }
-        : {
-            // When not centering, use defaults to allow content alignment
-            justifyContent: 'flex-start',
-            alignItems: 'stretch',
-        };
+        ? { justifyContent: 'center', alignItems: 'center' }
+        : { justifyContent: 'flex-start', alignItems: 'stretch' };
 
-    // Combine base and conditional styles for the Spin component
-    const spinStyle: React.CSSProperties = {
-        ...baseSpinStyle,
-        ...centeringStyle, // <<< Apply centering styles HERE
-    };
-    // --- End style determination ---
+    const spinStyle: React.CSSProperties = { ...baseSpinStyle, ...centeringStyle };
 
     return (
         <Layout
@@ -235,20 +211,16 @@ const AppLayoutController: React.FC = () => {
                 />
             </Header>
 
-            {/* --- Outer Content Area (Provides Padding/Margin) --- */}
             <Content className={styles.outerContentArea}>
                 {/* --- Inner Bordered Scrollable Div --- */}
-                {/* No conditional style needed here */}
                 <div className={styles.innerBorderedScrollable}>
-                    {/* --- Spin: Applies INNER padding and CONDITIONAL centering via style --- */}
+                    {/* Spin is now the direct child */}
                     <Spin
                         spinning={pyodideLoading}
                         tip={pyodideSpinTip}
                         size="large"
-                        style={spinStyle} // <<< Apply combined style HERE
-                    // Removed wrapperClassName
+                        style={spinStyle}
                     >
-                        {/* <<< ALWAYS render AppContentInternal >>> */}
                         <AppContentInternal />
                     </Spin>
                 </div>
@@ -260,13 +232,12 @@ const AppLayoutController: React.FC = () => {
                 placement="left"
                 onClose={closeDrawer}
                 open={isDrawerOpen}
-                styles={{ body: { padding: 0 } }} // Removes default body padding
+                styles={{ body: { padding: 0 } }}
             >
-                {/* Render the fully defined NavigationMenu component */}
                 <NavigationMenu
                     currentViewKey={currentViewKey}
                     onClick={handleMenuClick}
-                    disabled={!isProjectSelected} // Disable menu if no project selected
+                    disabled={!isProjectSelected}
                 />
             </Drawer>
             <PyodideErrorNotifier />

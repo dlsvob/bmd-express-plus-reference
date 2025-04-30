@@ -40,13 +40,30 @@
     border-radius: 8px;
     background-color: #ffffff;
     box-sizing: border-box;
-    padding: 20;
-    /* Padding applied inside Spin */
+    /* No padding here - applied inside Spin */
     display: flex;
-    /* Keep as flex container */
     flex-direction: column;
-    /* Keep as flex container */
+
+    /* --- UPDATED MASKING (Top and Bottom Fade) --- */
+    /* Define the mask: fade at top and bottom */
+    mask-image: linear-gradient(to bottom,
+            /* Direction */
+            transparent 0%,
+            /* Start transparent at the top */
+            black 30px,
+            /* Fade to opaque over 30px */
+            black calc(100% - 30px),
+            /* Stay opaque until 30px from bottom */
+            transparent 100%
+            /* Fade to transparent at the bottom */
+        );
+    /* Add vendor prefix */
+    -webkit-mask-image: linear-gradient(to bottom,
+            transparent 0%,
+            black 30px,
+            black calc(100% - 30px),
+            transparent 100%);
+    /* --- END UPDATED MASKING --- */
 }
 
-/* --- REMOVED .spinContainer --- */
-/* --- REMOVED .spinCenteringWrapper --- */
+/* Spin styles are now primarily handled by the inline 'spinStyle' object */
