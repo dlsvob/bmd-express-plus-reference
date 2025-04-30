@@ -1,7 +1,7 @@
 // src/store/apis/idbBaseQuery.ts
 import { BaseQueryFn } from '@reduxjs/toolkit/query/react';
 import { IDBPDatabase, StoreNames } from 'idb';
-import { ProjectDB, openProjectDB, CAT_ANALYSIS_STORE, BMD_RESULT_STORE, EXP_STORE, WILLIAMS_STORE, ANOVA_STORE, CURVE_FIT_STORE, ORIOGEN_STORE } from '../../utils/myIDB';d
+import { ProjectDB, openProjectDB, CAT_ANALYSIS_STORE, BMD_RESULT_STORE, EXP_STORE, WILLIAMS_STORE, ANOVA_STORE, CURVE_FIT_STORE, ORIOGEN_STORE } from '../../utils/myIDB';
 import { CategoryAnalysisItem, BMDResult } from '../../models/BMDxExported';
 
 // --- Filter Constants ---
