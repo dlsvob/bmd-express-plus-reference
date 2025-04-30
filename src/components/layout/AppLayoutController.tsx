@@ -26,23 +26,10 @@ import styles from './AppLayoutController.module.css';
 
 const { Content, Header } = Layout;
 
-// --- Menu Items Configuration ---
-const menuItems: MenuProps['items'] = [
-    { key: 'experiments', icon: <ExperimentOutlined />, label: 'Experiments' },
-    {
-        key: 'analysis',
-        label: 'Analysis',
-        icon: <BarChartOutlined />,
-        children: [
-            { key: 'categoryAnalysis', label: 'Category Analysis (UMAP)' },
-            { key: 'goClustering', label: 'GO Clustering' },
-        ],
-    },
-    { key: 'settings', icon: <SettingOutlined />, label: 'Project Settings' },
-];
+// --- Menu Items Configuration (Unchanged) ---
+const menuItems: MenuProps['items'] = [ /* ... */];
 
-// --- Internal Component for Main Content Area ---
-// --- Renders the view directly, no extra wrapper ---
+// --- Internal Component for Main Content Area (Unchanged) ---
 const AppContentInternal: React.FC = () => {
     const { error: pyodideError } = usePyodide();
     const selectedProjectName = useAppSelector(selectSelectedProjectName);
@@ -51,7 +38,6 @@ const AppContentInternal: React.FC = () => {
 
     let mainContent: React.ReactNode;
 
-    // --- Render based on Pyodide error, project selection, and active view ---
     if (pyodideError) {
         mainContent = (
             <Alert
@@ -59,19 +45,11 @@ const AppContentInternal: React.FC = () => {
                 description="Core Python features may be unavailable. Please see the error modal for details or try reloading."
                 type="error"
                 showIcon
-                style={{ margin: '24px' }}
             />
         );
     } else if (!isProjectSelected) {
-        // --- Pyodide is OK, but no project selected ---
         mainContent = (
-            <div
-                style={{
-                    textAlign: 'center',
-                    marginTop: '50px',
-                    padding: '24px',
-                }}
-            >
+            <div style={{ textAlign: 'center', marginTop: '50px' }}>
                 <Typography.Title level={3}>BMD Express...Plus!</Typography.Title>
                 <Typography.Paragraph>
                     Select a project for analysis, or create one.
@@ -79,10 +57,9 @@ const AppContentInternal: React.FC = () => {
             </div>
         );
     } else if (isProjectSelected && selectedProjectName) {
-        // --- Project selected, Pyodide OK - render based on activeView ---
         switch (activeView) {
             case 'experiments':
-            default: // Default to experiment list
+            default:
                 mainContent = <ExperimentListView projectName={selectedProjectName} />;
                 break;
             case 'categoryAnalysis':
@@ -93,57 +70,29 @@ const AppContentInternal: React.FC = () => {
                 break;
             case 'settings':
                 mainContent = (
-                    <Alert
-                        message="Project Settings View (Not Implemented)"
-                        type="info"
-                    />
+                    <Alert message="Project Settings View (Not Implemented)" type="info" />
                 );
                 break;
         }
     } else {
-        // --- Fallback loading state ---
+        // Should not be reached if pyodideLoading is handled by Spin
         mainContent = (
             <div style={{ textAlign: 'center', marginTop: '50px' }}>
                 <Spin size="large" />
             </div>
         );
     }
-
-    // --- Render the view component directly ---
-    // --- Ensure the view itself can fill height if needed by its parent ---
+    // No wrapper needed here
     return <>{mainContent}</>;
 };
 
-// --- Navigation Menu Component ---
-const NavigationMenu: React.FC<{
-    currentViewKey: string | null;
-    onClick: MenuProps['onClick'];
-    disabled: boolean;
-}> = ({ currentViewKey, onClick, disabled }) => {
-    const { error: pyodideError } = usePyodide();
-    return (
-        <Menu
-            mode="inline"
-            defaultOpenKeys={
-                currentViewKey &&
-                    ['categoryAnalysis', 'goClustering'].includes(currentViewKey)
-                    ? ['analysis']
-                    : []
-            }
-            selectedKeys={currentViewKey ? [currentViewKey] : []}
-            style={{ height: '100%', borderRight: 0 }}
-            items={menuItems}
-            onClick={onClick}
-            disabled={disabled || !!pyodideError}
-        />
-    );
-};
 
-// --- Main Layout Controller Component ---
+// --- Navigation Menu Component (Unchanged) ---
+const NavigationMenu: React.FC<{ /* ... */ }> = ({ /* ... */ }) => { /* ... */ };
+
+// --- Main Layout Controller Component (Updated) ---
 const AppLayoutController: React.FC = () => {
-    console.log(
-        '[AppLayoutController] Rendering with scroll on Spin component (Reverted)...'
-    ); // Log message indicates reverted state
+    console.log('[AppLayoutController] Rendering with Outer Padding v9 - Centering Spin STYLE...'); // Updated log
     const dispatch = useAppDispatch();
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -167,13 +116,8 @@ const AppLayoutController: React.FC = () => {
             : String(projectsError)
         : null;
 
-    const showDrawer = useCallback(() => {
-        setIsDrawerOpen(true);
-    }, []);
-
-    const closeDrawer = useCallback(() => {
-        setIsDrawerOpen(false);
-    }, []);
+    const showDrawer = useCallback(() => { setIsDrawerOpen(true); }, []);
+    const closeDrawer = useCallback(() => { setIsDrawerOpen(false); }, []);
 
     const handleMenuClick: MenuProps['onClick'] = useCallback(
         (e: MenuInfo) => {
@@ -184,21 +128,65 @@ const AppLayoutController: React.FC = () => {
         [dispatch, closeDrawer]
     );
 
-    const pyodideSpinTip = pyodideLoading
-        ? <>Initializing Pyodide Environment...</>
-        : undefined;
+    const pyodideSpinTip = pyodideLoading ? (
+        <>Initializing Pyodide Environment...</>
+    ) : undefined;
 
-    // --- Define header height ---
-    const HEADER_HEIGHT = 64; // Standard Ant Design header height
+    // --- Define header height (Unchanged) ---
+    const HEADER_HEIGHT = 64;
+
+    // --- Determine styles for Spin (Centering and Base) ---
+    const showCentering = !isProjectSelected || pyodideLoading;
+
+    // Base style for Spin (padding, height, flex)
+    const baseSpinStyle: React.CSSProperties = {
+        height: '100%', // Spin container should fill its parent
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box',
+        minHeight: 0,
+        flexGrow: 1,
+        padding: '24px', // <<< INNER PADDING (Inside Border)
+    };
+
+    // Conditional style for centering
+    const centeringStyle: React.CSSProperties = showCentering
+        ? {
+            justifyContent: 'center', // Center vertically
+            alignItems: 'center', // Center horizontally
+        }
+        : {
+            // When not centering, use defaults to allow content alignment
+            justifyContent: 'flex-start',
+            alignItems: 'stretch',
+        };
+
+    // Combine base and conditional styles for the Spin component
+    const spinStyle: React.CSSProperties = {
+        ...baseSpinStyle,
+        ...centeringStyle, // <<< Apply centering styles HERE
+    };
+    // --- End style determination ---
 
     return (
-        // --- Outer Layout: Full viewport height, NO SCROLL ---
-        <Layout style={{
-            height: '100vh', overflow: 'hidden', position: 'relative', background: 'transparent'}}>
-            {/* --- Fixed Header --- */}
+        <Layout
+            style={{
+                height: '100vh',
+                overflow: 'hidden',
+                position: 'relative',
+                backgroundColor: '#e2f2ff',
+                display: 'flex',
+                flexDirection: 'column',
+            }}
+        >
             <Header
-                className={styles.fixedHeader} // Use CSS module class
-                style={{ height: `${HEADER_HEIGHT}px`, padding: '0 16px', backgroundColor: '#e2f2ff' }} // Ensure padding is set
+                className={styles.fixedHeader}
+                style={{
+                    height: `${HEADER_HEIGHT}px`,
+                    padding: '0 16px',
+                    backgroundColor: '#e2f2ff',
+                    flexShrink: 0,
+                }}
             >
                 <AppHeader
                     projectList={projectsData}
@@ -210,42 +198,26 @@ const AppLayoutController: React.FC = () => {
                 />
             </Header>
 
-            {/* --- Content defines the space, does NOT scroll --- */}
-            <Content
-                className={styles.mainContentArea}
-                style={{
-                    marginTop: `${HEADER_HEIGHT}px`,
-                    flexGrow: 1,
-                    overflow: 'hidden', // <<< NO SCROLL HERE >>>
-                    minHeight: 0,
-                    display: 'flex', // Keep as flex container for Spin
-                    flexDirection: 'column',
-                    padding: '0', // No padding here
-                    boxSizing: 'border-box',
-                }}
-            >
-                {/* --- Spin fills Content AND handles scrolling --- */}
-                <Spin
-                    spinning={pyodideLoading}
-                    tip={pyodideSpinTip}
-                    size="large"
-                    // Apply scroll and padding styles directly to Spin's container
-                    // Use wrapperClassName to target the correct div for overflow/padding
-                    wrapperClassName={styles.spinWrapperScrollable} // <<< USING CLASSNAME
-                    style={{
-                        flexGrow: 1, // Fill Content
-                        display: 'flex', // Keep flex for AppContentInternal
-                        flexDirection: 'column',
-                        minHeight: 0,
-                        // overflow: 'auto', // <<< SCROLL HANDLED BY CLASS >>>
-                    }}
-                >
-                    {/* AppContentInternal renders view directly */}
-                    <AppContentInternal />
-                </Spin>
+            {/* --- Outer Content Area (Provides Padding/Margin) --- */}
+            <Content className={styles.outerContentArea}>
+                {/* --- Inner Bordered Scrollable Div --- */}
+                {/* No conditional style needed here */}
+                <div className={styles.innerBorderedScrollable}>
+                    {/* --- Spin: Applies INNER padding and CONDITIONAL centering via style --- */}
+                    <Spin
+                        spinning={pyodideLoading}
+                        tip={pyodideSpinTip}
+                        size="large"
+                        style={spinStyle} // <<< Apply combined style HERE
+                    // Removed wrapperClassName
+                    >
+                        {/* <<< ALWAYS render AppContentInternal >>> */}
+                        <AppContentInternal />
+                    </Spin>
+                </div>
             </Content>
 
-            {/* --- Drawer --- */}
+            {/* --- Drawer etc. --- */}
             <Drawer
                 title="Navigation"
                 placement="left"

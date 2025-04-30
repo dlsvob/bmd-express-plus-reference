@@ -13,40 +13,40 @@
     align-items: center;
 }
 
-/* --- Main Content Area (AntD <Content>) --- */
-/* This container just defines the space below the header */
-.mainContentArea {
-    box-sizing: border-box;
-    overflow: hidden !important;
-    /* <<< ENSURE NO SCROLL HERE */
-    /* Flex properties are set inline */
-    /* Padding is set inline (likely 0) */
-}
-
-/* --- Class for the Spin wrapper to handle scrolling --- */
-.spinWrapperScrollable {
-    /* Ensure it behaves correctly as a flex child */
+/* --- Outer Content Area (Provides Padding/Margin) --- */
+.outerContentArea {
+    margin-top: 64px;
+    /* Fixed header height */
     flex-grow: 1;
     min-height: 0;
-    /* Make THIS the scroll container */
-    overflow: auto !important;
-    /* Use !important if necessary */
-    /* Add padding inside the scrollable area */
-    padding: 24px;
+    overflow: hidden !important;
+    /* Outer area does NOT scroll */
     box-sizing: border-box;
-    /* Ensure its direct child (Spin container) fills height */
-}
-
-/* Target the direct child of the wrapper, which is the actual spin container */
-.spinWrapperScrollable> :global(.ant-spin-container) {
-    height: 100%;
+    padding: 16px;
+    /* <<< OUTER PADDING */
+    background-color: transparent;
     display: flex;
-    /* Make the container flex too */
     flex-direction: column;
-    min-height: 0;
-    /* Allow spin container to shrink */
-    box-sizing: border-box;
-    /* Include padding/border */
 }
 
-/* --- REMOVE any styles for intermediate wrappers from previous attempts --- */
+/* --- Inner Bordered Scrollable Div --- */
+.innerBorderedScrollable {
+    flex-grow: 1;
+    min-height: 0;
+    overflow: auto !important;
+    /* SCROLL THIS INNER DIV */
+    border: 3px solid #1677ff;
+    /* BORDER */
+    border-radius: 8px;
+    background-color: #ffffff;
+    box-sizing: border-box;
+    padding: 0;
+    /* Padding applied inside Spin */
+    display: flex;
+    /* Keep as flex container */
+    flex-direction: column;
+    /* Keep as flex container */
+}
+
+/* --- REMOVED .spinContainer --- */
+/* --- REMOVED .spinCenteringWrapper --- */

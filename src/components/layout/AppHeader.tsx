@@ -1,11 +1,21 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Select, Button, Space, Typography, Tooltip } from 'antd';
-import { PlusOutlined, MenuOutlined } from '@ant-design/icons';
+import {
+    PlusOutlined,
+    MenuOutlined,
+    BarChartOutlined, // Icon for the Run Analysis button
+} from '@ant-design/icons';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setActiveProject } from '../../store/slices/projectSlice';
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
-import { setActiveView } from '../../store/slices/navigationSlice';
-import { clearSelectedAnalyses } from '../../store/slices/selectedAnalysisSlice';
+import {
+    setActiveView,
+    selectCurrentView, // <<< Import selector for current view
+} from '../../store/slices/navigationSlice';
+import {
+    clearSelectedAnalyses, // <<< Keep this import
+    selectSelectedAnalysisRefs, // <<< Import selector for selected refs
+} from '../../store/slices/selectedAnalysisSlice';
 import {
     setActiveClusteringRef,
     setGoIdInputString,
@@ -38,20 +48,23 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 }) => {
     const dispatch = useAppDispatch();
     const activeProjectName = useAppSelector(selectSelectedProjectName);
+    const currentViewKey = useAppSelector(selectCurrentView); // <<< Get current view
+    const selectedRefs = useAppSelector(selectSelectedAnalysisRefs); // <<< Get selected refs
 
     console.log(
-        `[AppHeader] Rendering. activeProjectName from selector: ${activeProjectName}`
+        `[AppHeader] Rendering. activeProjectName: ${activeProjectName}, currentView: ${currentViewKey}, selectedRefs: ${selectedRefs.length}`
     );
 
     const handleProjectChange = (value: string | null) => {
+        // <<< Only dispatch if the project name actually changes >>>
         if (value !== activeProjectName) {
             console.log(
-                `[AppHeader] handleProjectChange dispatching actions to switch project TO: ${value || 'None'
+                `[AppHeader] Project CHANGED. Dispatching actions to switch project TO: ${value || 'None'
                 }`
             );
             dispatch(setActiveProject(value));
             dispatch(setActiveView('experiments')); // Reset view on project change
-            dispatch(clearSelectedAnalyses());
+            dispatch(clearSelectedAnalyses()); // <<< Clear selections on project change
             dispatch(setActiveClusteringRef(null));
             dispatch(setGoIdInputString(''));
         } else {
@@ -66,6 +79,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         // TODO: Implement project import functionality (e.g., open modal)
     };
 
+    // --- Callback for the Run Analysis button ---
+    const handleRunAnalysis = useCallback(() => {
+        if (!selectedRefs || selectedRefs.length === 0) return;
+        console.log('[AppHeader] Run Analysis clicked, dispatching setActiveView.');
+        dispatch(setActiveView('categoryAnalysis')); // Navigate to the first analysis view
+    }, [dispatch, selectedRefs]);
+    // --- End Callback ---
+
     let placeholderText = 'Select Project...';
     if (isLoading) {
         placeholderText = 'Loading Projects...';
@@ -75,65 +96,104 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         placeholderText = 'No Projects Found';
     }
 
+    const isRunAnalysisDisabled = selectedRefs.length === 0;
+    const showRunAnalysisButton = currentViewKey === 'experiments';
+
     return (
-        <Space align="center">
-            {' '}
-            {/* Single Space for left alignment */}
-            <Button
-                type="text"
-                icon={<MenuOutlined />}
-                onClick={onMenuClick}
-                disabled={!projectSelected || disabled}
-                aria-label="Open navigation menu"
-                style={{ fontSize: '20px' }} // Increased icon size
-            />
-            <Text
-                strong
-                style={{
-                    fontSize: '1.4em', // Increased font size
-                    marginLeft: '8px',
-                    marginRight: '24px', // Added right margin
-                }}
-            >
-                BMD Express...Plus!
-            </Text>
-            <Select
-                className={styles.projectSelector} // Added className
-                style={{ width: 200 }} // Keep width
-                placeholder={placeholderText}
-                onChange={handleProjectChange}
-                value={activeProjectName} // Use value for controlled component
-                loading={isLoading}
-                disabled={
-                    disabled ||
-                    isLoading ||
-                    !!error ||
-                    !projectList ||
-                    projectList.length === 0
-                }
-                allowClear // Allow clearing selection
-                onClear={() => handleProjectChange(null)} // Handle clear event
-            >
-                {projectList?.map((project) => (
-                    <Option key={project.name} value={project.name}>
-                        {project.name}
-                    </Option>
-                ))}
-            </Select>
-            <Tooltip title="Import Project">
-                {' '}
-                {/* Updated tooltip */}
+        // Use Flexbox for 3-section layout (Left, Center, Right)
+        <div
+            style={{
+                display: 'flex',
+                justifyContent: 'space-between', // Distribute space
+                alignItems: 'center',
+                width: '100%',
+            }}
+        >
+            {/* --- Left Section --- */}
+            <Space align="center" style={{ flexShrink: 0 }}> {/* Prevent shrinking */}
                 <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={handleAddNewProject}
-                    disabled={disabled || isLoading || !!error}
+                    type="text"
+                    icon={<MenuOutlined />}
+                    onClick={onMenuClick}
+                    disabled={!projectSelected || disabled}
+                    aria-label="Open navigation menu"
+                    style={{ fontSize: '20px' }}
+                />
+                <Text
+                    strong
+                    style={{
+                        fontSize: '1.4em',
+                        marginLeft: '8px',
+                        marginRight: '24px',
+                        whiteSpace: 'nowrap', // Prevent title wrapping
+                    }}
                 >
-                    Import Project {/* Updated text */}
+                    BMD Express...Plus!
+                </Text>
+                <Select
+                    className={styles.projectSelector}
+                    style={{ width: 200 }}
+                    placeholder={placeholderText}
+                    onChange={handleProjectChange}
+                    value={activeProjectName}
+                    loading={isLoading}
+                    disabled={
+                        disabled ||
+                        isLoading ||
+                        !!error ||
+                        !projectList ||
+                        projectList.length === 0
+                    }
+                    allowClear // Allow clearing selection
+                    onClear={() => handleProjectChange(null)} // Handle clear event
+                >
+                    {projectList?.map((project) => (
+                        <Option key={project.name} value={project.name}>
+                            {project.name}
+                        </Option>
+                    ))}
+                </Select>
+                <Tooltip title="Import Project">
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={handleAddNewProject}
+                        disabled={disabled || isLoading || !!error}
+                    >
+                        Import Project
+                    </Button>
+                </Tooltip>
+            </Space>
+
+            {/* --- Center Section (Conditional Button) --- */}
+            {/* This div will be centered between the left and right sections */}
+            <div style={{ textAlign: 'center' }}>
+                {showRunAnalysisButton && (
+                    <Button
+                        type="primary"
+                        icon={<BarChartOutlined />}
+                        onClick={handleRunAnalysis}
+                        disabled={isRunAnalysisDisabled}
+                    >
+                        Run Category Analysis{' '}
+                        {selectedRefs.length > 0 ? `(${selectedRefs.length})` : ''}
+                    </Button>
+                )}
+            </div>
+
+            {/* --- Right Section (Placeholder for balance) --- */}
+            {/* Use a Space component matching the left side for better width calculation */}
+            <Space align="center" style={{ visibility: 'hidden', flexShrink: 0 }}>
+                <Button type="text" icon={<MenuOutlined />} style={{ fontSize: '20px' }} />
+                <Text strong style={{ fontSize: '1.4em', marginLeft: '8px', marginRight: '24px', whiteSpace: 'nowrap' }}>
+                    BMD Express...Plus!
+                </Text>
+                <Select style={{ width: 200 }} />
+                <Button type="primary" icon={<PlusOutlined />}>
+                    Import Project
                 </Button>
-            </Tooltip>
-            {/* --- Right Section (can be added later if needed, outside this Space) --- */}
-        </Space>
+            </Space>
+        </div>
     );
 };
 

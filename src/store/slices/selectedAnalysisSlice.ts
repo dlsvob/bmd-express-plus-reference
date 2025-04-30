@@ -1,7 +1,9 @@
 // src/store/slices/selectedAnalysisSlice.ts
+// (Verify this structure exists)
+
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { RootState } from '../store';
-import type { DetailedAnalysisData } from '../../models/applicationModel';
+import type { DetailedAnalysisData } from '../../models/applicationModel'; // Ensure this type is defined/imported
 
 export interface SelectedAnalysisState {
   selectedRefs: string[]; // Use React.Key[] for consistency with Antd Table? string[] is likely fine.
