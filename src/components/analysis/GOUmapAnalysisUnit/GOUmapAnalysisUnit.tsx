@@ -1,31 +1,21 @@
 // src/components/analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit.tsx
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-    Row, Col, Spin, Alert, Space, Switch, Typography, Card, RadioChangeEvent, Empty // Added Empty
-} from 'antd';
-import UmapPlotComponent from './UmapPlotComponent'; // Relative path
-import { useAppSelector, useAppDispatch } from '../../../store/hooks'; // Adjusted path
-import {
-    usePreparedPlotData,
-} from '../../../hooks/usePreparedPlotData'; // Adjusted path
-import type {
-    AnalysisTableRow,
-    PreparedPlotHookData,
-} from '../../../models/applicationModel'; // Adjusted path
-import type { BMDResult } from '../../../models/BMDxExported'; // ADDED Import
-import { selectSelectedAnalysisRefs } from '../../../store/slices/selectedAnalysisSlice'; // Adjusted path
-import {
-    selectReferenceDataMap,
-    selectReferenceData,
-} from '../../../store/selectors/referenceDataSelector'; // Adjusted path
+import { Row, Col, Spin, Alert, Space, Switch, Typography, Card, RadioChangeEvent, Empty } from 'antd';
+import UmapPlotComponent from './UmapPlotComponent';
+import { useAppSelector, useAppDispatch } from '../../../store/hooks';
+import { usePreparedPlotData } from '../../../hooks/usePreparedPlotData';
+import type { AnalysisTableRow, PreparedPlotHookData } from '../../../models/applicationModel';
+import type { BMDResult } from '../../../models/BMDxExported';
+import { selectSelectedAnalysisRefs } from '../../../store/slices/selectedAnalysisSlice';
+import { selectReferenceDataMap, selectReferenceData } from '../../../store/selectors/referenceDataSelector';
 import {
     HighlightMode,
     selectColorBy,
     selectShapeBy,
     selectSizeBy,
-    selectHiddenColorLabelsSet, // Use Set selector
-    selectHiddenShapeLabelsSet, // Use Set selector
-    selectHiddenSizeLabelsSet, // Use Set selector
+    selectHiddenColorLabelsSet,
+    selectHiddenShapeLabelsSet,
+    selectHiddenSizeLabelsSet,
     selectHighlightMode,
     selectCommittedSlidingWindowValue,
     selectGoIdInputString,
@@ -43,29 +33,23 @@ import {
     setGoIdInputString,
     setHighlightMode as setHighlightModeAction,
     setTableSelectedGoId,
-} from '../../../store/slices/analysisUISlice'; // Adjusted path
-import { selectSelectedProjectName } from '../../../store/selectors/projectSelectors'; // Adjusted path
-import { useGetRawAnalysisDataQuery } from '../../../store/apis/experimentsApi'; // Adjusted path
-import { GOUmapAnalysisTable } from './GOUmapAnalysisTable'; // Relative path
-import { DEFAULT_GOUMAP_TABLE_COLUMNS } from '../../../config/tableColumnDefinitions'; // Adjusted path
-import type {
-    TablePaginationConfig,
-    SorterResult,
-    FilterValue,
-} from 'antd/es/table/interface';
-import type { ColumnType } from 'antd/es/table'; // ADDED Correct import for ColumnType
-import CustomLegends from '../shared/CustomLegends'; // Adjusted path
-import StylingSelectors from '../controls/StylingSelectors'; // Adjusted path
-import SlidingWindowFilter from '../controls/SlidingWindowFilter'; // Adjusted path
-import AccumulationPlot from './AccumulationPlot'; // Relative path
-import GoIdFilterUI from '../controls/GoUIdFilterUI'; // Adjusted path
+} from '../../../store/slices/analysisUISlice';
+import { selectSelectedProjectName } from '../../../store/selectors/projectSelectors';
+import { useGetRawAnalysisDataQuery } from '../../../store/apis/experimentsApi';
+import { GOUmapAnalysisTable } from './GOUmapAnalysisTable';
+import { DEFAULT_GOUMAP_TABLE_COLUMNS } from '../../../config/tableColumnDefinitions';
+import type { TablePaginationConfig, SorterResult, FilterValue } from 'antd/es/table/interface';
+import type { ColumnType } from 'antd/es/table';
+import CustomLegends from '../shared/CustomLegends';
+import StylingSelectors from '../controls/StylingSelectors';
+import SlidingWindowFilter from '../controls/SlidingWindowFilter';
+import AccumulationPlot from './AccumulationPlot';
+import GoIdFilterUI from '../controls/GoUIdFilterUI';
 import {
     COLOR_BY_OPTIONS,
     SHAPE_BY_OPTIONS,
     SIZE_BY_OPTIONS,
-} from '../../../config/analysisConstants'; // Adjusted path
-// Removed CSS Module import if not needed
-// import styles from './GOUmapAnalysisUnit.module.css';
+} from '../../../config/analysisConstants';
 
 const { Text } = Typography;
 type UmapViewMode = 'single' | 'multiple';
@@ -250,9 +234,8 @@ const GOUmapAnalysisUnit: React.FC = () => {
         // Root div - no border class here
         <div>
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
-
                 {/* Filters Row - Card border removed */}
-                <Card size="small" bordered={false} /* className={styles.innerSectionCard} - Optional */ >
+                <Card size="small" variant={'borderless'} /* className={styles.innerSectionCard} - Optional */ >
                     <Row gutter={[16, 16]} align="middle">
                         <Col span={24}>
                             <GoIdFilterUI
@@ -304,7 +287,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
                         {/* Color Legend */}
                         <Col flex="200px">
                             <CustomLegends
-                                // No cardTitle prop passed here
+                                // No cardTitle prop passed here to avoid redundant label
                                 colorItems={colorItems}
                                 hiddenColorLabelsSet={hiddenColorLabelsSet}
                                 onToggleColorVisibility={handleToggleColorVisibility}
@@ -321,7 +304,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
                             <Spin spinning={isLoading} tip="Loading analysis data...">
                                 <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                                     {/* Accumulation Plots Section - Card border removed */}
-                                    <Card size="small" title="Accumulation Plots" bordered={false} /* className={styles.innerSectionCard} - Optional */ >
+                                    <Card size="small" title="Accumulation Plots" variant={'borderless'} /* className={styles.innerSectionCard} - Optional */ >
                                         <Row gutter={[16, 16]}>
                                             {selectedBmdResultRefs?.map((refStr) => {
                                                 const numericRef = Number(refStr);
@@ -379,7 +362,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
                         {/* Shape/Size Legend */}
                         <Col flex="200px">
                             <CustomLegends
-                                // No cardTitle prop passed here
+                                // No cardTitle prop passed here to avoid redundant label
                                 shapeItems={shapeItems}
                                 sizeItems={sizeItems}
                                 hiddenShapeLabelsSet={hiddenShapeLabelsSet}

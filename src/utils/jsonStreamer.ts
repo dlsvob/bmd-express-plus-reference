@@ -45,12 +45,12 @@ async function flushBatches(db: IDBPDatabase<ProjectDB>, batches: StoreBatches):
         const putPromises: Promise<unknown>[] = [];
 
         storesWithData.forEach(storeName => {
-            // --- FIX: Add null check for tx ---
+            // --- Null check for tx ---
             if (!tx) {
                 console.error("[JsonStreamer-idb] Transaction became undefined unexpectedly inside loop.");
                 return; // Skip this store if tx is somehow undefined
             }
-            // ---------------------------------
+
             const batch = batches[storeName];
             itemsFlushed += batch.length;
             const store = tx.objectStore(storeName); // Now tx is guaranteed to be defined here
@@ -68,7 +68,7 @@ async function flushBatches(db: IDBPDatabase<ProjectDB>, batches: StoreBatches):
         });
 
         await Promise.all(putPromises);
-        // --- FIX: Add null check for tx before accessing done ---
+        // --- Null check for tx before accessing done ---
         if (tx) {
             await tx.done;
         }
@@ -165,21 +165,21 @@ export async function streamJsonToStores(
             reader.read().then(({ done, value }) => {
                 if (done) {
                     console.log('[JsonStreamer-idb] File reading finished. Signaling done to Oboe.');
-                    // --- FIX: Disable eslint rule for this line ---
+                    // --- Disable eslint rule for this line ---
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     (parser as any).emit('done');
                     // ---------------------------------------------
                     return;
                 }
                 const chunkText = decoder.decode(value, { stream: true });
-                // --- FIX: Disable eslint rule for this line ---
+                // --- Disable eslint rule for this line ---
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (parser as any).emit('data', chunkText);
                 // ---------------------------------------------
                 pump();
             }).catch((error) => {
                 console.error('[JsonStreamer-idb] File reading error:', error);
-                // --- FIX: Disable eslint rule for this line ---
+                // --- Disable eslint rule for this line ---
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (parser as any).emit('fail', error);
                 // ---------------------------------------------

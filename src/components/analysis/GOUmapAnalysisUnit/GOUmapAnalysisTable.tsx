@@ -3,9 +3,9 @@ import React from 'react';
 import { Table } from 'antd';
 import type { TableProps } from 'antd';
 import type { ColumnType } from 'antd/es/table';
-import { AnalysisTableRow } from '../../../models/applicationModel'; // Adjust path as needed
-import { HighlightMode } from '../../../store/slices/analysisUISlice'; // Adjust path as needed
-import { HIDDEN_OPACITY } from '../../../utils/styleUtils'; // Import HIDDEN_OPACITY
+import { AnalysisTableRow } from '../../../models/applicationModel';
+import { HighlightMode } from '../../../store/slices/analysisUISlice';
+import { HIDDEN_OPACITY } from '../../../utils/styleUtils';
 
 // --- Helper function to convert HEX to RGBA ---
 function hexToRgba(hex: string, alpha: number): string {
@@ -36,7 +36,6 @@ const HIDDEN_ROW_STYLE: React.CSSProperties = {
     backgroundColor: '#f5f5f5', // Light grey background
     color: '#bfbfbf', // Dimmed text color
 };
-// --------------------------------
 
 // --- Component Props Interface ---
 interface GOUmapAnalysisTableProps extends Omit<TableProps<AnalysisTableRow>, 'columns' | 'dataSource' | 'onRow' | 'onChange'> {
@@ -74,8 +73,7 @@ export const GOUmapAnalysisTable: React.FC<GOUmapAnalysisTableProps> = React.mem
         ...restTableProps
     }) {
 
-        // --- Implement onRow to set background color AND attach onClick ---
-        // --- FIX: Remove unused 'index' parameter ---
+        // --- onRow sets background color AND attaches onClick ---
         const handleRow = (record: AnalysisTableRow /*, index?: number */) => {
             // ------------------------------------------
             const rowStyle: React.CSSProperties = {};
@@ -112,7 +110,7 @@ export const GOUmapAnalysisTable: React.FC<GOUmapAnalysisTableProps> = React.mem
             // Return props for the <tr> element
             return {
                 style: rowStyle,
-                onClick: () => { // Attach onClick handler
+                onClick: () => {
                     if (onRowClick) {
                         onRowClick(record);
                     }
@@ -143,6 +141,4 @@ export const GOUmapAnalysisTable: React.FC<GOUmapAnalysisTableProps> = React.mem
     }
 );
 
-// --- FIX: Add display name ---
 GOUmapAnalysisTable.displayName = 'GOUmapAnalysisTable';
-// -----------------------------

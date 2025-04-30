@@ -1,10 +1,10 @@
 // src/hooks/useAvailableProjectsList.ts
 import { useState, useEffect } from 'react';
-import { ProjectInfo } from './useProjectData'; // Keep this type import
-import { listProjectDatabaseNames } from '../utils/myIDB'; // Adjust path if needed
+import { ProjectInfo } from './useProjectData';
+import { listProjectDatabaseNames } from '../utils/myIDB';
 
 /**
- * Hook to fetch the list of available projects by calling the utility function
+ * Fetches the list of available projects by calling the utility function
  * that uses indexedDB.databases().
  */
 export const useAvailableProjectList = (): {

@@ -1,15 +1,11 @@
 // src/hooks/useProcessedPlotData.ts
 import { useMemo } from 'react';
 import { CategoryAnalysisItem } from '../models/BMDxExported';
-// --- FIX: Remove unused import ---
-// import { filterPlotItems } from '../utils/plotUtils';
-// ---------------------------------
 import { ReferenceUmapItem } from '../data/referenceUmapData';
 
-// Define the structure for each point returned by the hook
 export interface ProcessedPlotPoint {
     bmd: number;
-    go_id: string; // Standardized name
+    go_id: string;
     direction: string | null | undefined;
     percentage: number | null | undefined;
     cluster_id: string | number;
@@ -26,7 +22,7 @@ export interface ProcessedPlotData {
 }
 
 export function useProcessedPlotData(
-    categoryAnalysisItems: CategoryAnalysisItem[] | undefined | null | object, // Allow object type temporarily for check
+    categoryAnalysisItems: CategoryAnalysisItem[] | undefined | null | object,
     analysisName: string,
     referenceMap: Map<string, ReferenceUmapItem> | null
 ): ProcessedPlotData | null {
@@ -42,7 +38,7 @@ export function useProcessedPlotData(
         }
 
         try {
-            // --- FIX: Remove incorrect filter call if it existed ---
+            // --- Remove incorrect filter call if it existed ---
             // const filteredItems = categoryAnalysisItems.filter(filterPlotItems); // Incorrect usage
             // Process all items initially, filtering happens inside the map/filter below
             const allItems = categoryAnalysisItems;
@@ -54,18 +50,15 @@ export function useProcessedPlotData(
             }
 
             const detailedPoints = allItems
-                // --- FIX: Remove unused 'idx' parameter ---
-                .map((item /*, idx */) => {
-                    // ---------------------------------------
+                .map((item) => {
                     const bmd = item.bmdFifthPercentileTotalGenes;
                     const current_go_id = item.categoryIdentifier?.id;
-                    // --- FIX: Ensure key exists before lookup ---
+                    // --- Ensure key exists before lookup ---
                     const refPoint = (current_go_id && typeof current_go_id === 'string')
                         ? referenceMap.get(current_go_id.toUpperCase()) // Normalize key for lookup
                         : null;
-                    // ------------------------------------------
 
-                    // --- FIX: Apply filtering criteria here ---
+                    // --- Apply filtering criteria ---
                     if (bmd != null && !isNaN(bmd) && isFinite(bmd) && bmd > 0 &&
                         typeof current_go_id === 'string' && current_go_id.startsWith('GO:') &&
                         refPoint // Ensure refPoint exists

@@ -1,39 +1,17 @@
 // src/components/analysis/GOClusteringAnalysisUnit/GOClusteringAnalysisUnit.tsx
-// Full listing - Verify against your working version before this change.
 import React, { useMemo, useCallback, useEffect, useState } from 'react';
-import {
-  Card, Spin, Alert, Empty, Row, Col, Tabs, message, Space, Typography
-} from 'antd';
-import {
-  CopyOutlined, DownloadOutlined, ExperimentOutlined
-} from '@ant-design/icons';
+import { Card, Spin, Alert, Empty, Row, Col, Tabs, message, Space } from 'antd';
 import debounce from 'lodash.debounce';
 import { useAppSelector, useAppDispatch } from '../../../store/hooks';
 import { selectSelectedProjectName } from '../../../store/selectors/projectSelectors';
 import { selectSelectedAnalysisRefs } from '../../../store/slices/selectedAnalysisSlice';
-import {
-  selectActiveClusteringRef,
-  setActiveClusteringRef,
-  selectHighlightedClusteringRefClusterIdsSet,
-  toggleClusteringRefClusterHighlight,
-} from '../../../store/slices/analysisUISlice';
-import {
-  selectReferenceDataMap,
-  selectReferenceData,
-} from '../../../store/selectors/referenceDataSelector';
+import { selectActiveClusteringRef, setActiveClusteringRef, selectHighlightedClusteringRefClusterIdsSet, toggleClusteringRefClusterHighlight } from '../../../store/slices/analysisUISlice';
+import { selectReferenceDataMap, selectReferenceData } from '../../../store/selectors/referenceDataSelector';
 import { useGetRawAnalysisDataQuery } from '../../../store/apis/experimentsApi';
-import {
-  ApiClusteringInputItem,
-  CategoryRow,
-  SummaryRow,
-} from '../../../utils/clusteringUtils';
-import {
-  usePyodideClustering,
-  PyodideClusteringResult,
-} from '../../../hooks/usePyodideClustering';
+import { ApiClusteringInputItem } from '../../../utils/clusteringUtils';
+import { usePyodideClustering } from '../../../hooks/usePyodideClustering';
 import { useProcessedClusteringData } from '../../../hooks/useProcessedClusteringData';
 import { useClusteringVisualizationData } from '../../../hooks/useClusteringVisualizationData';
-import { BMDResult, CategoryAnalysisItem } from '../../../models/BMDxExported';
 import GOClusteringScatterPlot, {
   ClusteringScatterPoint,
 } from './GOClusteringScatterPlot';
@@ -43,8 +21,6 @@ import CustomLegends from '../shared/CustomLegends';
 import AnalysisControls from '../controls/AnalysisControls'; // Corrected path
 import GeneEnrichmentAnalysis from './GeneEnrichmentAnalysis';
 import styles from './GOClusteringAnalysisUnit.module.css';
-
-const { Text } = Typography;
 
 const getErrorMessage = (error: unknown): string => {
   if (!error) return 'An unknown error occurred.';

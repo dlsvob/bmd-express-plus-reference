@@ -1,6 +1,4 @@
 # src/py/categoryClustering.py
-
-import json
 import math
 import numpy as np
 import pandas as pd
@@ -12,9 +10,9 @@ import js # Use js.console.log/error for debugging in Pyodide
 print("=== categoryClustering.py LOADED (v3 - Include Gene Strings in Label) ===") # Version Bump
 
 
-##############################################################################
-# Helper function to convert NumPy types to native Python types for JSON.
-##############################################################################
+###########################################################################
+# Helper function to convert NumPy types to native Python types for JSON. #
+###########################################################################
 def convert_np(o):
     if isinstance(o, np.generic):
         return o.item()
@@ -25,9 +23,9 @@ def convert_np(o):
     return o
 
 
-##############################################################################
-# Clustering function expecting direct list/PyProxy input
-##############################################################################
+###########################################################
+# Clustering function expecting direct list/PyProxy input #
+###########################################################
 def hierarchical_clustering_from_rows(
     row_data_obj, # Expects JS array -> Python list or PyProxy
     method: str = "average",
@@ -85,7 +83,6 @@ def hierarchical_clustering_from_rows(
             js.console.error(msg)
             return json.dumps({"error": msg, "data_repr": str(row)})
 
-        # --- MODIFIED LABEL BUILDING ---
         label_parts = []
         items_to_iterate = row.items() if isinstance(row, dict) else row
 
@@ -93,30 +90,28 @@ def hierarchical_clustering_from_rows(
         # Use .get() to safely handle potentially missing keys
         genes_up_str = row.get("Genes Up", "")
         genes_down_str = row.get("Genes Down", "")
-        all_genes_str = row.get("All Genes", "") # Get All Genes string as well
+        all_genes_str = row.get("All Genes", "")
 
         # Add required fields first
         label_parts.append(f"Category ID: {cat_id}")
         # Explicitly add the gene strings to the label parts
         label_parts.append(f"Genes Up: {genes_up_str}")
         label_parts.append(f"Genes Down: {genes_down_str}")
-        label_parts.append(f"All Genes: {all_genes_str}") # Add All Genes string
+        label_parts.append(f"All Genes: {all_genes_str}")
 
         # Iterate through the rest of the items for other metadata
         for key, value in items_to_iterate:
             # Skip keys already handled or not desired in the label
-            # *** REMOVED "Genes Up", "Genes Down", "All Genes" from this skip list ***
             if key in ["Category ID", "categoryIdentifier", "Genes Up", "Genes Down", "All Genes"]:
                 continue
             # Ensure value is stringified properly if it's not already a string
             label_parts.append(f"{key}: {str(value)}")
-        # --- END MODIFIED LABEL BUILDING ---
 
         composite_label = " | ".join(label_parts)
         labels.append(composite_label)
 
         # Process gene sets using keys expected from JS (for Jaccard distance)
-        # This part remains the same - uses the original strings for set creation
+        # Uses the original strings for set creation
         up = parse_genes(genes_up_str)
         down = parse_genes(genes_down_str)
         active_set = up.union(down)
@@ -164,10 +159,9 @@ def hierarchical_clustering_from_rows(
     return result_json
 
 
-##############################################################################
-# Existing clustering function: expects a standard JSON string with "distanceMatrix" and "labels".
-# NO CHANGES NEEDED HERE
-##############################################################################
+####################################################################################################
+# Clustering function: expects a standard JSON string with "distanceMatrix" and "labels". #
+####################################################################################################
 def hierarchical_clustering_pearson(
     distance_data_json: str,
     method: str = "average",
@@ -255,7 +249,7 @@ def hierarchical_clustering_pearson(
     result = {
         "clusterAssignments": cluster_assignments.tolist(),
         "leavesOrder": leaves_order,
-        "orderedLabels": ordered_labels, # These labels now include the gene strings
+        "orderedLabels": ordered_labels,
         "orderedClusters": ordered_clusters,
         "linkageMatrix": linked.tolist(),
     }

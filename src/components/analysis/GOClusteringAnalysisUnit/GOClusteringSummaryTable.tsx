@@ -2,9 +2,8 @@
 import React, { useMemo } from 'react';
 import { Table, Empty } from 'antd';
 import type { TableColumnType } from 'antd';
-import { SummaryRow } from '../../../utils/clusteringUtils'; // Adjust path if needed
+import { SummaryRow } from '../../../utils/clusteringUtils';
 
-// Define Props interface
 interface GOClusteringSummaryTableProps {
     dataSource: SummaryRow[] | null;
     loading?: boolean;
@@ -67,8 +66,5 @@ const GOClusteringSummaryTable: React.FC<GOClusteringSummaryTableProps> = React.
     }
 );
 
-// --- FIX: Add display name ---
 GOClusteringSummaryTable.displayName = 'GOClusteringSummaryTable';
-// -----------------------------
-
 export default GOClusteringSummaryTable;

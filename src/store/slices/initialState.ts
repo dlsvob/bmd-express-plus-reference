@@ -1,25 +1,17 @@
 // src/store/slices/initialState.ts
 
-// Import types used within the state definitions
-import { HighlightMode } from './analysisUISlice'; // Or define HighlightMode here
-import { SelectedAnalysisDetailItem } from '../models/reduxTypes'; // Correct path
-
+// --- Types used within the state ---
+import { HighlightMode } from './analysisUISlice';
+import { SelectedAnalysisDetailItem } from '../models/reduxTypes';
 import { ReferenceUmapItem, hardcodedReferenceData } from '../../data/referenceUmapData';
-import {
-  DoseResponseExperiment,
-  CategoryAnalysisResult,
-  BMDResult,
-  WilliamsTrendResult
-} from '../../models/BMDxExported';
+import { DoseResponseExperiment, CategoryAnalysisResult, BMDResult, WilliamsTrendResult } from '../../models/BMDxExported';
 
-
-// --- Base Type Definitions ---
+// --- Base Types ---
 export type Status = 'idle' | 'loading' | 'succeeded' | 'failed';
 export type PyodideStatus = 'idle' | 'loading' | 'ready' | 'failed';
 
 // --- Interfaces Matching Current Slices ---
-
-// Matches state managed by analysisUISlice.ts
+// --- Matches state managed by analysisUISlice.ts ---
 export interface AnalysisUIState {
   colorBy: string;
   shapeBy: string;
@@ -37,13 +29,13 @@ export interface AnalysisUIState {
   tableSelectedGoId: string | null;
 }
 
-// Matches state managed by selectedAnalysisSlice.ts
+// --- Matches state managed by selectedAnalysisSlice.ts ---
 export interface SelectedAnalysisState {
   selectedRefs: string[];
   selectedDetails: SelectedAnalysisDetailItem[] | null;
 }
 
-// Matches state managed by referenceDataSlice.ts
+// --- Matches state managed by referenceDataSlice.ts ---
 export interface ReferenceDataState {
   referenceUmapData: ReferenceUmapItem[] | null;
   isLoading: boolean;

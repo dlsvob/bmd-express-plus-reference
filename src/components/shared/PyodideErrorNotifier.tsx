@@ -2,28 +2,26 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Modal, Button, Alert } from 'antd';
 import { ExclamationCircleFilled } from '@ant-design/icons';
-import { PyodideContext } from '../../contexts/PyodideProvider'; // Keep import for useContext
+import { PyodideContext } from '../../contexts/PyodideProvider';
 
 const PyodideErrorNotifier: React.FC = () => {
-    // --- Safely access context ---
     const pyodideCtx = useContext(PyodideContext);
     // Provide default values if context is undefined
     const isLoading = pyodideCtx?.isLoading ?? false; // Default to false if no provider
-    const error = pyodideCtx?.error ?? null;         // Default to null if no provider
-    // -----------------------------
+    const error = pyodideCtx?.error ?? null; // Default to null if no provider
 
     const [isModalVisible, setIsModalVisible] = useState(false);
 
     useEffect(() => {
-        // Only show modal if context exists, is not loading, and has an error
+        // --- Only show modal if context exists, is not loading, and has an error ---
         if (pyodideCtx && !isLoading && error) {
             console.log("PyodideErrorNotifier: Detected Pyodide Initialization Error.", error);
             setIsModalVisible(true);
         } else {
-            // Ensure modal is hidden if context is missing or no error
+            // --- Ensure modal is hidden if context is missing or no error ---
             setIsModalVisible(false);
         }
-        // Depend on the context object itself, isLoading, and error
+        // --- Depend on the context object itself, isLoading, and error ---
     }, [pyodideCtx, isLoading, error]);
 
     const handleModalClose = () => {
@@ -38,9 +36,8 @@ const PyodideErrorNotifier: React.FC = () => {
     if (!pyodideCtx || !error || !isModalVisible) {
         return null;
     }
-    // -------------------------------------------------------------
 
-    // Modal rendering logic remains the same, but will only run if error exists
+    // --- Modal rendering logic; will only run if error exists ---
     return (
         <Modal
             title={

@@ -1,5 +1,4 @@
 // src/utils/analysisUtils.ts
-
 import { BMDResult, CategoryAnalysisItem } from '../models/BMDxExported';
 import { BaseCategoryAnalysisDataPoint } from '../models/applicationModel';
 
@@ -35,7 +34,7 @@ export function prepareGroupedOverlayData(
       continue;
     }
 
-    // --- FIX: Type the result of map correctly, then filter ---
+    // --- Type the result of map, then filter ---
     const mappedPoints: (BaseCategoryAnalysisDataPoint | null)[] = items // Map returns potentially null items
       .map((item) => {
         const goId = item?.categoryIdentifier?.id;
@@ -56,8 +55,8 @@ export function prepareGroupedOverlayData(
 
         const rankValue = bmdFifthPercentileTotalGenes;
 
-        // Create the base point object - properties match BaseCategoryAnalysisDataPoint
-        // Optional properties like finalColor etc. are not included here yet.
+        // --- Create the base point object - properties match BaseCategoryAnalysisDataPoint ---
+        // --- Optional properties like finalColor etc. are not included here yet. ---
         return {
           go_id: goId,
           go_term: goTerm || 'Unknown Term',
@@ -69,14 +68,12 @@ export function prepareGroupedOverlayData(
           geneAllCount: geneAllCount,
           genesThatPassedAllFilters: genesPassed,
           rankValue: rankValue,
-          // rank is added later
         };
       });
 
-    // Filter out the nulls using a simpler type predicate
+    // Filter out nulls
     const basePoints: BaseCategoryAnalysisDataPoint[] = mappedPoints
       .filter((p): p is BaseCategoryAnalysisDataPoint => p !== null);
-    // -------------------------------------------------------
 
     console.log(
       `   → [prepareGroupedOverlayData v4] built ${basePoints.length} base points for ref ${refStr}`

@@ -1,5 +1,4 @@
 // src/store/slices/uiSlice.ts
-
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { UIState } from '../models/reduxTypes';
 import { RootState } from '../store';

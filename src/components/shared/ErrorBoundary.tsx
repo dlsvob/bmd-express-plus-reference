@@ -1,6 +1,6 @@
 // src/components/ErrorBoundary.tsx
 import { Component, ErrorInfo, ReactNode } from 'react';
-import { Alert } from 'antd'; // Use Ant Design for styling
+import { Alert } from 'antd';
 
 interface Props {
     children: ReactNode;
@@ -61,8 +61,6 @@ class ErrorBoundary extends Component<Props, State> {
                 </div>
             );
         }
-
-        // Normally, just render children
         return this.props.children;
     }
 }

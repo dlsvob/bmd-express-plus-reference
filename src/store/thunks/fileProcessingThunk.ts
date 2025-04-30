@@ -4,14 +4,14 @@ import { IDBPDatabase } from 'idb';
 import { openAndPrepareProjectDB, ProjectDB } from '../../utils/myIDB';
 import { streamJsonToStores } from '../../utils/jsonStreamer';
 
-// Helper function to get base name
+// --- Helper function to get base name ---
 const getBaseProjectName = (file: File): string => {
     const fileName = file?.name || 'untitled_project';
     const name = fileName.replace(/\.(json|bm2)$/i, '');
     return name.replace(/\.bm2$/i, '');
 };
 
-// Helper function to create timestamp
+// --- Helper function for creating timestamp ---
 const createTimestamp = (): string => {
     const now = new Date();
     const dd = String(now.getDate()).padStart(2, '0');
@@ -68,9 +68,7 @@ export const processFileThunk = createAsyncThunk<
             }
             return uniqueProjectName;
 
-            // --- FIX: Change 'any' to 'unknown' ---
         } catch (err: unknown) {
-            // ------------------------------------
             console.error('[ThunkStream] Error during file processing and streaming:', err);
 
             if (db) {
@@ -92,10 +90,8 @@ export const processFileThunk = createAsyncThunk<
                 }
             }
 
-            // --- FIX: Use instanceof Error ---
             const errorMessage = err instanceof Error ? err.message : String(err);
             return rejectWithValue(errorMessage || 'File processing and streaming failed');
-            // ---------------------------------
         }
     }
 );

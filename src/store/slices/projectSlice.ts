@@ -1,11 +1,8 @@
 // src/store/slices/projectSlice.ts
-
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import type { ProjectState, ProjectInfo } from '../models/reduxTypes'; // Correct path
-// --- FIX: Import listProjectDatabaseNames ---
-import { listProjectDatabaseNames } from '../../utils/myIDB'; // Import the function to get names
-// -----------------------------------------
-import { getValidProjectNames } from '../../utils/projectDBUtils'; // Keep this import
+import type { ProjectState, ProjectInfo } from '../models/reduxTypes';
+import { listProjectDatabaseNames } from '../../utils/myIDB';
+import { getValidProjectNames } from '../../utils/projectDBUtils';
 import { RootState } from '../store';
 
 // --- Initial State ---

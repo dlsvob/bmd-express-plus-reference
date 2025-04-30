@@ -42,12 +42,11 @@ interface EnrichrResultsResponse {
 }
 
 // --- API Slice Definition ---
-
 export const enrichrApi = createApi({
     reducerPath: 'enrichrApi',
     baseQuery: fetchBaseQuery({ baseUrl: 'https://maayanlab.cloud/Enrichr' }),
     endpoints: (builder) => ({
-        // Mutation to add a gene list
+        // --- Mutation to add a gene list ---
         addList: builder.mutation<EnrichrAddListResponse, EnrichrAddListArgs>({
             query: ({ geneList, description }) => {
                 const formData = new FormData();
@@ -61,7 +60,7 @@ export const enrichrApi = createApi({
                 };
             },
         }),
-        // Query to get enrichment results
+        // --- Query to get enrichment results ---
         getEnrichmentResults: builder.query<
             EnrichrResultsResponse,
             EnrichrResultsArgs
@@ -72,11 +71,11 @@ export const enrichrApi = createApi({
     }),
 });
 
-// Export hooks for usage in components
+// --- Export hooks for use in components ---
 export const { useAddListMutation, useLazyGetEnrichmentResultsQuery } =
     enrichrApi;
 
-// Export types if needed elsewhere
+// --- Export types if needed elsewhere ---
 export type {
     EnrichrAddListArgs,
     EnrichrAddListResponse,

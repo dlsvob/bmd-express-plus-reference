@@ -2,11 +2,8 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { hardcodedReferenceData } from '../../data/referenceUmapData';
 import { ReferenceUmapItem } from '../../data/referenceUmapData';
-// import { RootState } from '../store'; // Keep commented if RootState isn't used directly here
 
-// --- FIX: Export the interface ---
-export interface ReferenceDataState { // Add export
-    // ---------------------------------
+export interface ReferenceDataState {
     referenceUmapData: ReferenceUmapItem[] | null;
     isLoading: boolean;
     error: string | null;
@@ -44,7 +41,3 @@ export const {
 } = referenceDataSlice.actions;
 
 export default referenceDataSlice.reducer;
-
-// --- REMOVE Selector from here, keep it in referenceDataSelector.ts ---
-// export const selectReferenceDataState = (state: RootState): ReferenceDataState => state.referenceData;
-// ---------------------------------------------------------------------

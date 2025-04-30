@@ -2,14 +2,14 @@
 import { createSlice, PayloadAction, createSelector } from '@reduxjs/toolkit';
 import type { RootState } from '../store';
 
-// Define HighlightMode enum (keep as is)
+// --- Define HighlightMode enum ---
 export enum HighlightMode {
   NONE = 'none',
   SELECTED = 'selected',
   CLUSTER = 'cluster',
 }
 
-// Define the state interface - Add activeClusteringRef
+// --- Define the state interface ---
 export interface AnalysisUIState {
   // UMAP View Styling & Filtering
   colorBy: string;
@@ -23,16 +23,16 @@ export interface AnalysisUIState {
   highlightMode: HighlightMode;
   committedRankSliderValue: [number, number];
 
-  // Clustering View Specific State
+  // --- Clustering View Specific State ---
   highlightedClusteringRefClusterIds: string[];
-  activeClusteringRef: string | null; // <<< NEW STATE: ID of the single analysis to show
+  activeClusteringRef: string | null;
 
-  // Cross-component Interaction State
+  // --- Cross-component Interaction State ---
   accumulationPlotSelectedGoIds: string[];
   tableSelectedGoId: string | null;
 }
 
-// Define initial state - Initialize new state
+// --- Define initial state ---
 const initialState: AnalysisUIState = {
   // UMAP Defaults
   colorBy: 'cluster_id',
@@ -46,18 +46,17 @@ const initialState: AnalysisUIState = {
   highlightMode: HighlightMode.NONE,
   committedRankSliderValue: [1, 5000],
 
-  // Clustering Defaults
+  // --- Clustering Defaults ---
   highlightedClusteringRefClusterIds: [],
   activeClusteringRef: null, // <<< Initialize as null
 
-  // Interaction Defaults
+  // --- Interaction Defaults ---
   accumulationPlotSelectedGoIds: [],
   tableSelectedGoId: null,
 };
 
-// --- Helper Functions (Keep as is) ---
+// --- Helper Functions ---
 const toggleItemInArray = <T>(arr: T[], item: T): T[] => {
-  // ... (implementation remains the same)
   const currentArr = arr || []; // Ensure it's an array
   const index = currentArr.indexOf(item);
   if (index > -1) {
@@ -71,8 +70,8 @@ const toggleItemInArray = <T>(arr: T[], item: T): T[] => {
     return [...currentArr, item];
   }
 };
+
 const parseGoIdInput = (input: string): string[] => {
-  // ... (implementation remains the same)
   if (!input) return [];
   return input
     .split(/[\n,;\s]+/)
@@ -80,7 +79,6 @@ const parseGoIdInput = (input: string): string[] => {
     .filter((id) => id.length > 0)
     .map((id) => id.toUpperCase());
 };
-// --- END HELPER FUNCTIONS ---
 
 // --- Create the Slice ---
 const analysisUISlice = createSlice({
@@ -109,7 +107,7 @@ const analysisUISlice = createSlice({
       state.hiddenSizeLabels = [];
     },
 
-    // --- UMAP Legend Visibility Reducers (Keep as is) ---
+    // --- UMAP Legend Visibility Reducers ---
     toggleColorLabelVisibility(state, action: PayloadAction<string>) {
       state.hiddenColorLabels = toggleItemInArray(
         state.hiddenColorLabels,
@@ -129,7 +127,7 @@ const analysisUISlice = createSlice({
       );
     },
 
-    // --- Clustering Legend Highlight Reducer (Keep as is) ---
+    // --- Clustering Legend Highlight Reducer ---
     toggleClusteringRefClusterHighlight(
       state,
       action: PayloadAction<string>
@@ -140,7 +138,7 @@ const analysisUISlice = createSlice({
       );
     },
 
-    // --- GO ID Filter/Highlight Reducers (Keep as is) ---
+    // --- GO ID Filter/Highlight Reducers ---
     setGoIdInputString(state, action: PayloadAction<string>) {
       state.goIdInputString = action.payload;
       state.goIdFilterList = parseGoIdInput(action.payload);
@@ -154,7 +152,7 @@ const analysisUISlice = createSlice({
       }
     },
 
-    // --- Cross-component Interaction Reducers (Keep as is) ---
+    // --- Cross-component Interaction Reducers ---
     setAccumulationPlotSelection(state, action: PayloadAction<string[]>) {
       state.accumulationPlotSelectedGoIds = action.payload || [];
     },
@@ -162,12 +160,11 @@ const analysisUISlice = createSlice({
       state.tableSelectedGoId = action.payload;
     },
 
-    // --- Rank Filter Reducer (Keep as is) ---
+    // --- Rank Filter Reducer ---
     setCommittedRankSliderValue(
       state,
       action: PayloadAction<[number, number]>
     ) {
-      // ... (validation logic remains the same) ...
       if (
         Array.isArray(action.payload) &&
         action.payload.length === 2 &&
@@ -188,20 +185,18 @@ const analysisUISlice = createSlice({
       }
     },
 
-    // --- NEW Reducer for Active Clustering Ref ---
+    // --- Reducer for Active Clustering Ref ---
     setActiveClusteringRef(state, action: PayloadAction<string | null>) {
       console.log(
         `[analysisUISlice] Setting activeClusteringRef: ${action.payload}`
       );
       state.activeClusteringRef = action.payload;
     },
-    // ---------------------------------------------
   },
 });
 
 // --- Export the action creators ---
 export const {
-  // ... (existing exports) ...
   setColorBy,
   setShapeBy,
   setSizeBy,
@@ -215,18 +210,14 @@ export const {
   setAccumulationPlotSelection,
   setTableSelectedGoId,
   setCommittedRankSliderValue,
-  // --- Export NEW action ---
   setActiveClusteringRef,
 } = analysisUISlice.actions;
 
-// --- Export the reducer function ---
 export default analysisUISlice.reducer;
 
 // --- Selectors ---
 export const selectAnalysisUIState = (state: RootState): AnalysisUIState =>
   state.analysisUI;
-
-// ... (existing selectors for UMAP, GO ID, Rank, Interactions) ...
 export const selectColorBy = (state: RootState): string =>
   state.analysisUI.colorBy;
 export const selectShapeBy = (state: RootState): string =>
@@ -253,7 +244,7 @@ export const selectAccumulationPlotSelectedGoIds = (state: RootState): string[] 
 export const selectTableSelectedGoId = (state: RootState): string | null =>
   state.analysisUI.tableSelectedGoId;
 
-// Selectors for Clustering highlighted legend items (Keep as is)
+// Selectors for Clustering highlighted legend items
 export const selectHighlightedClusteringRefClusterIds = (
   state: RootState
 ): string[] => state.analysisUI.highlightedClusteringRefClusterIds || [];
@@ -262,12 +253,12 @@ export const selectHighlightedClusteringRefClusterIdsSet = createSelector(
   (idsArray): Set<string> => new Set(idsArray)
 );
 
-// --- NEW Selector for Active Clustering Ref ---
+// --- Selector for Active Clustering Ref ---
 export const selectActiveClusteringRef = (state: RootState): string | null =>
   state.analysisUI.activeClusteringRef;
 // --------------------------------------------
 
-// --- Memoized selectors returning Sets (Keep as is) ---
+// --- Memoized selectors returning Sets ---
 export const selectHiddenColorLabelsSet = createSelector(
   [selectHiddenColorLabels],
   (labelsArray): Set<string> => new Set(labelsArray)

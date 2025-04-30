@@ -2,19 +2,16 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import pyodideBaseQuery from './pyodideBaseQuery';
 import categoryClusteringScript from '../../py/categoryClustering.py?raw';
-// --- FIX: Import the specific type for rowData ---
-import type { ApiClusteringInputItem } from '../../utils/clusteringUtils'; // Adjust path if needed
+import type { ApiClusteringInputItem } from '../../utils/clusteringUtils';
 // -------------------------------------------------
 
-// Assumes global.d.ts declares __clustering_script
+// --- Assumes global.d.ts declares __clustering_script ---
 if (!window.__clustering_script) {
     window.__clustering_script = categoryClusteringScript;
 }
 
 export interface ClusteringParams {
-    // --- FIX: Replace any[] with specific type ---
     rowData: ApiClusteringInputItem[];
-    // --------------------------------------------
     method?: string;
     numClusters?: number;
 }
@@ -23,13 +20,11 @@ export const pyodideClusteringApi = createApi({
     reducerPath: 'pyodideClusteringApi',
     baseQuery: pyodideBaseQuery,
     endpoints: (builder) => ({
-        // Consider using mutation if it has side effects or isn't idempotent
+        // --- Consider using mutation if it has side effects or isn't idempotent ---
         runHierarchicalClustering: builder.query<string, ClusteringParams>({
             query: ({ rowData, method = 'average', numClusters = 0 }) => {
                 // Convert rowData to a JSON string, then double-stringify it.
-                // This double stringify seems unusual - verify if Python side expects this.
-                // If Python expects a direct list/object, pass rowData directly
-                // and adjust pyodideBaseQuery or the Python script.
+                // This double stringify is unusual, but Python side does expect this.
                 // Assuming double stringify is currently required:
                 const rowDataStr = JSON.stringify(rowData);
                 const doubleString = JSON.stringify(rowDataStr);

@@ -1,9 +1,0 @@
-/* Add this to your CSS */
-.clickable-row {
-    cursor: pointer;
-}
-
-.clickable-row:hover {
-    /* Optional: Add a subtle hover effect if desired */
-    background-color: rgba(0, 0, 0, 0.02) !important;
-}

@@ -1,31 +1,16 @@
 // src/hooks/useBMDAnalysisData.ts
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useProjectDatabase } from './useProjectDatabase';
-import {
-    DoseResponseExperiment,
-    BMDResult,
-    CategoryAnalysisResult,
-} from '../models/BMDxExported';
-// --- These types expect number for bmdResultRef ---
-import {
-    BMDAnalysisHookData,
-    SelectableAnalysisInfo,
-    DetailedAnalysisData,
-} from '../models/applicationModel';
-// -------------------------------------------------
-import {
-    EXP_STORE,
-    BMD_RESULT_STORE,
-    CAT_ANALYSIS_STORE,
-} from '../utils/myIDB';
+import { DoseResponseExperiment, BMDResult, CategoryAnalysisResult } from '../models/BMDxExported';
+import { BMDAnalysisHookData, SelectableAnalysisInfo, DetailedAnalysisData } from '../models/applicationModel';
+import { EXP_STORE, BMD_RESULT_STORE, CAT_ANALYSIS_STORE } from '../utils/myIDB';
 
-// --- FIX: Update return type to use number keys for maps ---
+// --- Return type uses number keys for maps ---
 export interface UseBMDAnalysisDataReturn extends BMDAnalysisHookData {
     experimentMap: Map<number, DoseResponseExperiment>; // Use number key
     bmdResultMap: Map<number, BMDResult>; // Use number key
     categoryAnalysisByBmdResultMap: Map<number, CategoryAnalysisResult>; // Use number key
 }
-// ---------------------------------------------------------
 
 export function useBMDAnalysisData(
     projectName: string | null
@@ -38,7 +23,6 @@ export function useBMDAnalysisData(
     const { db, isLoading: isDbLoading, error: dbError } = useProjectDatabase(projectName);
 
     useEffect(() => {
-        // ... (fetch logic remains the same) ...
         console.log('[useBMDAnalysisData useEffect] Clearing raw data.');
         setRawExperiments(null);
         setRawBmdResults(null);
@@ -87,7 +71,7 @@ export function useBMDAnalysisData(
         }
     }, [projectName, db, isDbLoading]);
 
-    // --- FIX: Use number keys for maps ---
+    // --- Use number keys for maps ---
     const experimentMap = useMemo(() => {
         console.log('[useBMDAnalysisData useMemo] Creating/Updating experimentMap...');
         const map = new Map<number, DoseResponseExperiment>(); // number key
@@ -129,7 +113,6 @@ export function useBMDAnalysisData(
         console.log(`[useBMDAnalysisData useMemo] Finished categoryAnalysisByBmdResultMap. Size: ${map.size}`);
         return map;
     }, [rawCategoryAnalyses]);
-    // ------------------------------------
 
     const selectableAnalyses = useMemo<SelectableAnalysisInfo[] | null>(() => {
         if (!rawBmdResults || !experimentMap || experimentMap.size === 0) {
@@ -137,14 +120,13 @@ export function useBMDAnalysisData(
         }
         const selectable: SelectableAnalysisInfo[] = [];
         rawBmdResults.forEach((bmdRes) => {
-            // --- FIX: Use number for bmdResultRef ---
+            // --- Use number for bmdResultRef ---
             const bmdRefNum = bmdRes?.['@ref'];
             const expLinkNum = bmdRes?.doseResponseExperiment; // This should be number
             if (bmdRefNum == null || typeof bmdRefNum !== 'number' || isNaN(bmdRefNum) ||
                 expLinkNum == null || typeof expLinkNum !== 'number' || isNaN(expLinkNum)) {
                 return;
             }
-            // ---------------------------------------
 
             const sourceExperiment = experimentMap.get(expLinkNum); // Use number key
             if (!sourceExperiment) return;
@@ -152,7 +134,7 @@ export function useBMDAnalysisData(
             // if (sourceExpKey == null || typeof sourceExpKey !== 'number' || isNaN(sourceExpKey)) return;
 
             selectable.push({
-                bmdResultRef: bmdRefNum, // <-- Assign number
+                bmdResultRef: bmdRefNum, // --- Assign number
                 bmdResultName: bmdRes.name || 'Unnamed BMD Result',
                 doseResponseExperimentRef: String(expLinkNum), // Keep as string if model needs it
                 doseResponseExperimentName: sourceExperiment.name || 'Unnamed Experiment',
@@ -162,9 +144,9 @@ export function useBMDAnalysisData(
         return selectable;
     }, [rawBmdResults, experimentMap]);
 
-    // --- FIX: getAnalysisDetails accepts number ---
+    // --- getAnalysisDetails accepts number ---
     const getAnalysisDetails = useCallback(
-        (bmdResultRef: number): DetailedAnalysisData | null => { // <-- Accepts number
+        (bmdResultRef: number): DetailedAnalysisData | null => { // Accepts number
             console.log(`[useBMDAnalysisData useCallback] getAnalysisDetails called with ref: ${bmdResultRef}`);
 
             const bmdResult = bmdResultMap.get(bmdResultRef); // Use number key
@@ -198,14 +180,13 @@ export function useBMDAnalysisData(
         },
         [bmdResultMap, categoryAnalysisByBmdResultMap, experimentMap] // Dependencies are the maps
     );
-    // ------------------------------------------
 
     const combinedIsLoading = isDbLoading || isLoading;
     const combinedError = dbError || error;
 
     return {
         selectableAnalyses,
-        getAnalysisDetails, // Function signature now matches model
+        getAnalysisDetails, // Function signature matches model
         isLoading: combinedIsLoading,
         error: combinedError,
         experimentMap,

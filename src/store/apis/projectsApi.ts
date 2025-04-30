@@ -1,9 +1,7 @@
 // src/store/apis/projectsApi.ts
 import { createApi, BaseQueryFn } from '@reduxjs/toolkit/query/react';
 
-// --- FIX: Export Project interface ---
-export interface Project { // Add export
-    // -----------------------------------
+export interface Project {
     name: string;
 }
 

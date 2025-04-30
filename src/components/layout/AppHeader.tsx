@@ -43,11 +43,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 
     const handleProjectChange = (value: string | null) => {
         if (value !== activeProjectName) {
-            console.log(`[AppHeader] handleProjectChange called with new value: ${value}`);
 
-            // --- ADD LOG HERE ---
-            console.log(`[AppHeader] Dispatching actions to switch project TO: ${value || 'None'}`);
-            // --------------------
+            console.log(`[AppHeader] handleProjectChange dispatching actions to switch project TO: ${value || 'None'}`);
 
             // 1. Set the new active project
             dispatch(setActiveProject(value));

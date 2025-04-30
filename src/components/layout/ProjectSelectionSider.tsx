@@ -20,8 +20,8 @@ interface ProjectSelectionSiderProps {
     projectList: ProjectListItem[] | undefined;
     isLoading: boolean;
     error: string | null;
-    disabled?: boolean; // General disabled state
-    width?: number; // Allow customizing width
+    disabled?: boolean;
+    width?: number;
 }
 
 const ProjectSelectionSider: React.FC<ProjectSelectionSiderProps> = ({
@@ -59,10 +59,10 @@ const ProjectSelectionSider: React.FC<ProjectSelectionSiderProps> = ({
             theme="light" // Or "dark"
             style={{
                 padding: '16px',
-                borderLeft: '1px solid #f0f0f0', // Add separator
-                overflow: 'auto', // Allow scrolling if content overflows
-                height: '100vh', // Make it full height
-                position: 'sticky', // Keep it sticky if main content scrolls
+                borderLeft: '1px solid #f0f0f0',
+                overflow: 'auto',
+                height: '100vh',
+                position: 'sticky',
                 top: 0,
             }}
         >
@@ -71,7 +71,7 @@ const ProjectSelectionSider: React.FC<ProjectSelectionSiderProps> = ({
                 {isLoading && <Spin size="small" />}
                 {error && <Text type="danger">Error loading</Text>}
                 <Select
-                    style={{ width: '100%' }} // Take full width of sider padding
+                    style={{ width: '100%' }}
                     placeholder={placeholderText}
                     onChange={handleProjectChange}
                     value={activeProjectName}
@@ -99,7 +99,7 @@ const ProjectSelectionSider: React.FC<ProjectSelectionSiderProps> = ({
                         icon={<PlusOutlined />}
                         onClick={handleAddNewProject}
                         disabled={disabled || isLoading || !!error}
-                        style={{ width: '100%' }} // Make button full width
+                        style={{ width: '100%' }}
                     >
                         New Project
                     </Button>

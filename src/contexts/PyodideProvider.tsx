@@ -1,20 +1,19 @@
 // src/contexts/PyodideProvider.tsx
 import { createContext, useState, useEffect, ReactNode, useContext } from 'react';
 import { PyodideInterface } from 'pyodide';
-import { initializePyodideContext } from '../utils/pyodideContextInitializer'; // Adjust path
+import { initializePyodideContext } from '../utils/pyodideContextInitializer';
 
-// 1. Define the shape of the context value
+// --- Define the shape of the context value
 export interface PyodideContextState {
     pyodideInstance: PyodideInterface | null;
     isLoading: boolean;
     error: Error | null;
 }
 
-// 2. Create the context object with a default value (often undefined or null initially)
-//    **** EXPORT THIS ****
+// --- Create the context object with a default value (often undefined or null initially) ---
 export const PyodideContext = createContext<PyodideContextState | undefined>(undefined);
 
-// 3. Define the Provider component (keep your existing logic)
+// --- Define the Provider component ---
 export const PyodideProvider = ({ children }: { children: ReactNode }) => {
     console.log('[PyodideProvider.tsx] PyodideProvider component rendering...');
     const [pyodideInstance, setPyodideInstance] = useState<PyodideInterface | null>(null);
@@ -31,9 +30,7 @@ export const PyodideProvider = ({ children }: { children: ReactNode }) => {
                 await initializePyodideContext(/* Pass setters if needed, or handle throw */);
                 setPyodideInstance(window.pyodide || null);
                 setError(null);
-                // --- FIX: Change 'any' to 'unknown' ---
             } catch (initError: unknown) {
-                // ------------------------------------
                 console.error("[PyodideProvider] Caught error during initialization:", initError);
                 setError(initError instanceof Error ? initError : new Error(String(initError)));
                 setPyodideInstance(null);
@@ -63,7 +60,7 @@ export const PyodideProvider = ({ children }: { children: ReactNode }) => {
     );
 };
 
-// Optional: Custom hook for using the context
+// Custom hook for using the context
 export const usePyodide = (): PyodideContextState => {
     const context = useContext(PyodideContext);
     if (context === undefined) {

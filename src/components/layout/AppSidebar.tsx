@@ -2,29 +2,19 @@
 import React from 'react';
 import { Layout, Menu } from 'antd';
 import type { MenuProps } from 'antd';
-import {
-    ExperimentOutlined,
-    BarChartOutlined,
-    SettingOutlined,
-} from '@ant-design/icons';
+import { ExperimentOutlined, BarChartOutlined, SettingOutlined } from '@ant-design/icons';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import {
-    setActiveView,
-    selectCurrentView,
-} from '../../store/slices/navigationSlice'; // Corrected path
+import { setActiveView, selectCurrentView } from '../../store/slices/navigationSlice';
 
 const { Sider } = Layout;
 
 type AppViewKey = 'experiments' | 'categoryAnalysis' | 'settings' | string;
 
-// --- Define Props ---
 interface AppSidebarProps {
-    projectSelected: boolean; // Receive the selection status
+    projectSelected: boolean;
 }
-// --------------------
 
 const AppSidebar: React.FC<AppSidebarProps> = ({ projectSelected }) => {
-    // Receive the prop
     const dispatch = useAppDispatch();
     const currentViewKey = useAppSelector(selectCurrentView);
 

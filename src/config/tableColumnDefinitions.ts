@@ -1,12 +1,9 @@
 // src/config/tableColumnDefinitions.ts
-// src/config/tableColumnDefinitions.ts
 import type { TableColumnType } from 'antd';
-// Use the specific data type alias for the table rows
-import { AnalysisTableRow } from '../models/applicationModel'; // Adjust path
+import { AnalysisTableRow } from '../models/applicationModel';
 
 // Define reusable column objects for Ant Design Tables displaying AnalysisTableRow data
 // Ensure keys are unique within the set of columns used in any single table instance.
-
 export const GO_ID_COLUMN: TableColumnType<AnalysisTableRow> = {
   title: 'GO ID',
   dataIndex: 'go_id',

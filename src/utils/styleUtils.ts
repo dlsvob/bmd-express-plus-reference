@@ -1,15 +1,15 @@
-/**
- * src/utils/styleUtils.ts
- *
+//src/utils/styleUtils.ts
+ 
+/*
  * Utilities for applying dynamic styling (color, shape, size, opacity)
  * to prepared analysis data points based on UI state and interactions.
  */
 
-import { HighlightMode } from '../store/slices/analysisUISlice'; // Adjust path if needed
+import { HighlightMode } from '../store/slices/analysisUISlice';
 import type {
   BaseCategoryAnalysisDataPoint,
   UmapAnalysisDataPoint,
-} from '../models/applicationModel'; // Adjust path if needed
+} from '../models/applicationModel';
 import {
   DEFAULT_MARKER_COLOR,
   DEFAULT_MARKER_SHAPE,
@@ -23,13 +23,9 @@ import {
   DEFAULT_SHAPE_LABEL,
   DEFAULT_SIZE_LABEL,
   UNCLUSTERED_COLOR,
-} from './legendUtils'; // Adjust path if needed
-import type { ReferenceUmapItem } from '../data/referenceUmapData'; // Adjust path if needed
+} from './legendUtils';
+import type { ReferenceUmapItem } from '../data/referenceUmapData';
 
-// Define input/output Map types
-// --- FIX: Remove unused type ---
-// type BaseGroupedData = Map<string, BaseCategoryAnalysisDataPoint[]>;
-// -----------------------------
 type StyledUmapGroupedData = Map<string, UmapAnalysisDataPoint[]>;
 
 // --- Constants for Opacity and Highlighting ---
@@ -38,9 +34,8 @@ export const HIDDEN_OPACITY = 0.0;
 export const DIM_OPACITY = 0.4;
 export const HIGHLIGHT_OPACITY = 1.0; // Opacity for highlighted points
 export const HIGHLIGHT_SIZE_MULTIPLIER = 1.5; // Size increase for highlighted points
-// ---------------------------------------------
 
-// --- Helper Functions (remain the same) ---
+// --- Helper Functions ---
 function getBinnedSize(percentage: number | null | undefined): number {
   if (percentage == null || isNaN(percentage)) return DEFAULT_MARKER_SIZE;
   for (let i = 0; i < PERCENTAGE_BINS.length; i++) {
@@ -58,7 +53,6 @@ function getDirectionColor(direction: string | null | undefined): string {
   const key = direction?.toLowerCase() ?? 'none';
   return DIRECTION_COLOR_MAP[key] || DEFAULT_MARKER_COLOR;
 }
-// ------------------------------------
 
 // --- Main Styling Function ---
 export function calculateOverlayStyles(
@@ -93,23 +87,15 @@ export function calculateOverlayStyles(
   const hiddenColorSet = hiddenColorLabels;
   const hiddenShapeSet = hiddenShapeLabels;
   const hiddenSizeSet = hiddenSizeLabels;
-
   const [startRank, endRank] = committedRankWindow;
   const isRankFilterActive =
     isFinite(startRank) &&
     isFinite(endRank) &&
     startRank <= endRank &&
     startRank >= 1;
-
   const styledGroupedData = new Map<string, UmapAnalysisDataPoint[]>();
-  // --- FIX: Remove unused counters ---
-  // let pointsProcessed = 0;
   let pointsSkippedMissingRef = 0;
-  // let pointsSkippedByRank = 0;
-  // let pointsOutput = 0;
-  // ---------------------------------
   const failedKeysSample = new Set<string>();
-
   const exactMatchGoIds = new Set(
     (goIdFilterList || []).map((id) => (id ?? '').toUpperCase())
   );
@@ -119,7 +105,6 @@ export function calculateOverlayStyles(
       }. Sample: ${Array.from(exactMatchGoIds).slice(0, 5).join(', ')}`
     );
   }
-
   const clusterMatchClusterIds = new Set<string | number>();
   if (highlightMode === HighlightMode.CLUSTER && exactMatchGoIds.size > 0) {
     exactMatchGoIds.forEach((goId) => {
@@ -133,7 +118,6 @@ export function calculateOverlayStyles(
   rankedBaseGroupedData.forEach((basePoints, refStringKey) => {
     const styledPoints = basePoints
       .map((basePoint, index) => {
-        // pointsProcessed++; // Removed
         const goIdSource = basePoint.go_id;
         const lookupKey =
           typeof goIdSource === 'string'
@@ -154,11 +138,6 @@ export function calculateOverlayStyles(
           (currentRank == null ||
             currentRank < startRank ||
             currentRank > endRank);
-
-        // if (isOutsideRankRange) { // Removed assignment
-        //   pointsSkippedByRank++;
-        // }
-
         const { colorBy, shapeBy, sizeBy } = stylingOptions;
         const experimentNameForLabel =
           bmdRefToExperimentNameMap?.get(basePoint.bmdResultRef) ||
@@ -167,10 +146,9 @@ export function calculateOverlayStyles(
 
         let baseFinalColor = DEFAULT_MARKER_COLOR;
         let colorLabel = experimentNameForLabel;
+
         switch (colorBy) {
-          // --- FIX: Add curly braces to case block ---
           case 'cluster_id': {
-            // -----------------------------------------
             const clusterId = refDataItem.cluster_id;
             if (clusterId === -1 || clusterId === '-1') {
               baseFinalColor = UNCLUSTERED_COLOR;
@@ -185,7 +163,7 @@ export function calculateOverlayStyles(
               colorLabel = `Unknown Cluster`;
             }
             break;
-          } // --- FIX: Closing brace for case block ---
+          }
           case 'direction':
             baseFinalColor = getDirectionColor(basePoint.direction);
             colorLabel = getDirectionLegendName(
@@ -244,16 +222,11 @@ export function calculateOverlayStyles(
 
         let finalSize = baseFinalSize;
         let finalOpacity = VISIBLE_OPACITY;
-        // --- FIX: Remove unused variable ---
-        // let highlightReason = 'None';
-        // ---------------------------------
 
         if (isOutsideRankRange) {
           finalOpacity = HIDDEN_OPACITY;
-          // highlightReason = 'Rank Filter'; // Removed
         } else if (isHiddenByLegend) {
           finalOpacity = HIDDEN_OPACITY;
-          // highlightReason = 'Legend Hide'; // Removed
         } else {
           const currentGoIdUpper = lookupKey;
           const isExactMatch =
@@ -277,7 +250,6 @@ export function calculateOverlayStyles(
           if (isSelectedFromAccumulation) {
             finalSize = baseFinalSize * HIGHLIGHT_SIZE_MULTIPLIER;
             finalOpacity = HIGHLIGHT_OPACITY;
-            // highlightReason = 'Accumulation Select'; // Removed
           } else if (
             highlightMode !== HighlightMode.NONE &&
             exactMatchGoIds.size > 0
@@ -287,11 +259,9 @@ export function calculateOverlayStyles(
               if (isExactMatch) {
                 finalSize = baseFinalSize * HIGHLIGHT_SIZE_MULTIPLIER;
                 finalOpacity = HIGHLIGHT_OPACITY;
-                // highlightReason = 'Exact Match'; // Removed
                 if (shouldLogPoint) console.log(`${styleLogPrefix} Point ${index}: EXACT MATCH found! Setting size=${finalSize}, opacity=${finalOpacity}`);
               } else {
                 finalOpacity = HIDDEN_OPACITY;
-                // highlightReason = 'Exact Hide'; // Removed
                 if (shouldLogPoint) console.log(`${styleLogPrefix} Point ${index}: No exact match. Hiding.`);
               }
             } else if (highlightMode === HighlightMode.CLUSTER) {
@@ -299,20 +269,16 @@ export function calculateOverlayStyles(
               if (isExactMatch) {
                 finalSize = baseFinalSize * 1.2;
                 finalOpacity = VISIBLE_OPACITY;
-                // highlightReason = 'Cluster Exact'; // Removed
               } else if (isInHighlightCluster) {
                 finalSize = Math.max(1, baseFinalSize * 0.8);
                 finalOpacity = DIM_OPACITY;
-                // highlightReason = 'Cluster Neighbor'; // Removed
               } else {
                 finalOpacity = HIDDEN_OPACITY;
-                // highlightReason = 'Cluster Hide'; // Removed
               }
             }
           }
         }
 
-        // pointsOutput++; // Removed
         const styledPoint: UmapAnalysisDataPoint = {
           ...basePoint,
           UMAP_1: refDataItem.UMAP_1,

@@ -14,7 +14,7 @@ interface StylingSelectorsProps {
     colorOptions: SelectorOption[];
     shapeOptions: SelectorOption[];
     sizeOptions: SelectorOption[];
-    disabled: boolean; // e.g., disable if no analysis selected
+    disabled: boolean; // disable if no analysis selected
 }
 
 const StylingSelectors: React.FC<StylingSelectorsProps> = React.memo(({
@@ -36,4 +36,5 @@ const StylingSelectors: React.FC<StylingSelectorsProps> = React.memo(({
     );
 });
 
+StylingSelectors.displayName = 'Styling Selection';
 export default StylingSelectors;

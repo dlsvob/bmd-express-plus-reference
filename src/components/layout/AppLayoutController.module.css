@@ -12,59 +12,99 @@
     /* height is set inline */
 }
 
-/* ----------------------------------------- */
-
-/* --- REMOVED .contentLayout styles as it's no longer needed for positioning --- */
-
-
 /* --- Fixed Analysis Container --- */
 .analysisUnitContainer {
     position: fixed;
-    /* Position relative to viewport */
     /* top, left, right, bottom are set inline */
     border: 2px solid #1677ff;
+    /* Default border - ALWAYS VISIBLE */
     border-radius: 8px;
     background-color: #ffffff;
+    /* Default background */
     display: flex;
-    /* Use flexbox for Spin */
+    /* Use flexbox */
     flex-direction: column;
     overflow: hidden;
-    /* CRITICAL: This container must not scroll */
+    /* Important */
     z-index: 1;
-    /* Below header but above default content */
+    position: relative;
+    /* Keep for potential absolute children if needed */
 }
 
-/* ----------------------------------------- */
-
-/* Spin wrappers - Ensure they fill the fixed container */
+/* --- Spin wrapper - Used for layout --- */
+/* This class is applied to the Spin component's wrapper */
 .spinWrapperFullHeight {
     flex-grow: 1;
+    /* Fill the analysisUnitContainer */
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    /* Important for nested scrolling */
     min-height: 0;
+    /* Allow shrinking */
     height: 100%;
+    position: relative;
+    /* Needed for spinner icon positioning */
+    border-radius: 6px;
+    /* Match inner radius of parent */
 }
 
-.spinWrapperFullHeight> :global(.ant-spin-container) {
-    flex-grow: 1;
+/* Apply background to the Spin's content container WHEN spinning */
+/* This targets the container *inside* our specific Spin instance */
+.spinWrapperFullHeight> :global(.ant-spin-container.ant-spin-blur) {
+    background-color: rgba(22, 119, 255, 0.1);
+    /* Pale blue, low alpha */
+    /* Ensure it covers the full area */
+    width: 100%;
+    height: 100%;
+    /* Ensure flex properties are maintained for content layout */
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    min-height: 0;
-    height: 100%;
+    /* Prevent this container from scrolling */
 }
 
-/* The actual scrollable content area (AntD's <Content>) */
+/* Ensure the actual spinner icon is visible and centered */
+.spinWrapperFullHeight :global(.ant-spin-spinning) {
+    z-index: 10;
+    /* Ensure spinner is visually on top */
+    /* Let AntD handle centering */
+    position: absolute;
+    /* Position relative to spinWrapperFullHeight */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Style the text inside the Spin component */
+.spinWrapperFullHeight :global(.ant-spin-text) {
+    color: #0d47a1;
+    /* Darker blue text */
+    margin-top: 8px;
+    /* Adjust spacing */
+    text-shadow: 1px 1px 1px rgba(255, 255, 255, 0.7);
+    /* Light shadow */
+    /* Position text below spinner */
+    position: absolute;
+    top: calc(50% + 20px);
+    /* Adjust as needed */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    /* Prevent text from being too wide */
+    text-align: center;
+}
+
+/* --- The actual scrollable content area (AntD's <Content>) --- */
+/* This is now inside the .ant-spin-container */
 .scrollableContent {
     flex-grow: 1;
-    /* Fill the space within .ant-spin-container */
     overflow-y: auto !important;
-    /* Add vertical scrollbar ONLY when needed */
+    /* Allow scrolling */
     overflow-x: hidden !important;
     padding: 24px;
-    /* Internal padding */
-    background-color: #ffffff;
+    /* Background is handled by analysisUnitContainer or spin container */
+    background-color: transparent;
     min-height: 0;
     /* Allow shrinking */
 }

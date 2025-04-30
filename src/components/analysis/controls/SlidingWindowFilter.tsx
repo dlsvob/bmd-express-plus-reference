@@ -1,9 +1,8 @@
 // src/components/SlidingWindowFilter.tsx
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Typography, InputNumber, Space } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import './SlidingWindow.css'; // Make sure this CSS file exists
+import './SlidingWindow.css';
 
 const { Text } = Typography;
 
@@ -34,7 +33,6 @@ const SlidingWindowFilter: React.FC<SlidingWindowFilterProps> = React.memo(
         // Internal state for the width input field (string to allow intermediate typing)
         const [widthInput, setWidthInput] = useState<string>('1');
 
-        // --- REVISED useEffect (v6) for Initialization and Syncing ---
         useEffect(() => {
             console.log(
                 `${logPrefix} useEffect Sync Check. Props: min=${min}, max=${max}, value=[${value?.join(
@@ -84,7 +82,6 @@ const SlidingWindowFilter: React.FC<SlidingWindowFilterProps> = React.memo(
                         ', '
                     )}]`
                 );
-                // -------------------------
             } else {
                 // The incoming min/max props are invalid (e.g., loading, no data max=0, min >= max)
                 // Default to a safe placeholder state [1, 1] and width 1.
@@ -107,9 +104,7 @@ const SlidingWindowFilter: React.FC<SlidingWindowFilterProps> = React.memo(
                     setWidthInput(String(newWidth));
                 }
             }
-            // This effect depends on the external props that define the range and the committed value.
-        }, [value, min, max]); // Dependencies remain the same
-        // --- END REVISED useEffect ---
+        }, [value, min, max]); // This effect depends on the external props that define the range and the committed value.
 
         // --- Width Input Handling ---
         const finalizeWidthInput = useCallback(() => {
@@ -176,7 +171,7 @@ const SlidingWindowFilter: React.FC<SlidingWindowFilterProps> = React.memo(
                 );
 
                 // Calculate desired end based on the clamped start and width
-                let desiredEnd = Math.min(currentSafeMax, desiredStart + currentWidth - 1);
+                const desiredEnd = Math.min(currentSafeMax, desiredStart + currentWidth - 1);
 
                 const finalRange: [number, number] = [desiredStart, desiredEnd];
 
@@ -191,7 +186,6 @@ const SlidingWindowFilter: React.FC<SlidingWindowFilterProps> = React.memo(
                     setDisplayValue(finalRange);
                     setWidthInput(String(finalRange[1] - finalRange[0] + 1)); // Update width input
 
-                    // Trigger the callback to update Redux state
                     if (onAfterChange) {
                         onAfterChange(finalRange);
                     }
@@ -205,7 +199,7 @@ const SlidingWindowFilter: React.FC<SlidingWindowFilterProps> = React.memo(
         // --- Reset Handler ---
         const handleReset = useCallback(() => {
             if (disabled) return;
-            const currentSafeMax = Math.max(1, max); // Use max from props
+            const currentSafeMax = Math.max(1, max);
             // Reset to the full valid range defined by props
             const fullRange: [number, number] = [min, currentSafeMax];
 
@@ -219,7 +213,6 @@ const SlidingWindowFilter: React.FC<SlidingWindowFilterProps> = React.memo(
             setDisplayValue(fullRange);
             setWidthInput(String(fullRange[1] - fullRange[0] + 1)); // Update width input
 
-            // Trigger the callback to update Redux state
             if (onAfterChange) {
                 onAfterChange(fullRange);
             }
@@ -232,7 +225,6 @@ const SlidingWindowFilter: React.FC<SlidingWindowFilterProps> = React.memo(
 
         const shiftAmounts = [-100, -10, -1, +1, +10, +100];
 
-        // --- JSX Rendering ---
         return (
             <div
                 style={{
@@ -272,7 +264,7 @@ const SlidingWindowFilter: React.FC<SlidingWindowFilterProps> = React.memo(
                         <Text style={{ marginLeft: '10px' }}>Width:</Text>
                         <InputNumber
                             aria-label="Range Width"
-                            className="sliding-window-width-input" // Keep custom class if needed
+                            className="sliding-window-width-input"
                             size="small"
                             min={1}
                             // Max width is the total number of points in the valid range
@@ -306,4 +298,5 @@ const SlidingWindowFilter: React.FC<SlidingWindowFilterProps> = React.memo(
     }
 );
 
+SlidingWindowFilter.displayName = 'Range Filter';
 export default SlidingWindowFilter;

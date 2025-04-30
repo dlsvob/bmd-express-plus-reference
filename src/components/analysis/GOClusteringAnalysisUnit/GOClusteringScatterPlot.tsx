@@ -1,11 +1,10 @@
 // src/components/analysis/GOClusteringAnalysisUnit/GOClusteringScatterPlot.tsx
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import Plot from 'react-plotly.js';
-import type { Data, Layout, Datum } from 'plotly.js'; // Import Datum type
+import type { Data, Layout, Datum } from 'plotly.js';
 import { Alert } from 'antd';
-// import { DEFAULT_MARKER_COLOR, UNCLUSTERED_COLOR } from '../../../utils/legendUtils'; // Removed - Unused
-import { SummaryRow } from '../../../utils/clusteringUtils'; // Adjusted path
-// --- Define and Export Interface Here ---
+import { SummaryRow } from '../../../utils/clusteringUtils';
+
 export interface ClusteringScatterPoint {
     goId: string;
     goTerm: string;
@@ -16,7 +15,6 @@ export interface ClusteringScatterPoint {
     jitteredRank: number | null;
     color: string;
 }
-// ------------------------------------------
 
 // --- Define Styling Constants ---
 const BASE_ALPHA = 0.2;
@@ -73,17 +71,15 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             `${logPrefix} plotlyData useMemo running. Highlighted IDs count: ${highlightedRefClusterIds.size}`
         );
 
-        // --- FIX: Update hovertemplate to use array indices ---
         const hovertemplate =
-            `<b>%{customdata[0]}</b><br>` + // goTerm
-            `GO ID: %{customdata[1]}<br>` + // goId
-            `Pyodide Cluster: %{customdata[2]}<br>` + // pyodideCluster
-            `Ref Cluster: %{customdata[3]}<br>` + // referenceClusterId
-            `BMD (X): %{customdata[4]:.2e}<br>` + // bmd
-            `Rank (Y): %{customdata[5]}<extra></extra>`; // rank
-        // ------------------------------------------------------
+            `<b>%{customdata[0]}</b><br>` +
+            `GO ID: %{customdata[1]}<br>` +
+            `Pyodide Cluster: %{customdata[2]}<br>` +
+            `Ref Cluster: %{customdata[3]}<br>` +
+            `BMD (X): %{customdata[4]:.2e}<br>` +
+            `Rank (Y): %{customdata[5]}<extra></extra>`;
 
-        // --- FIX: Change customdata type to Datum[][] ---
+        // --- Customdata type needs to be Datum[][] ---
         const basePoints: { x: number[]; y: (number | null)[]; color: string[]; customdata: Datum[][] } = { x: [], y: [], color: [], customdata: [] };
         const highlightPoints: { x: number[]; y: (number | null)[]; color: string[]; customdata: Datum[][] } = { x: [], y: [], color: [], customdata: [] };
         // -------------------------------------------------
@@ -94,7 +90,7 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             const isHighlighted =
                 refClusterIdStr !== null && highlightedRefClusterIds.has(refClusterIdStr);
 
-            // --- FIX: Create an *array* of primitives for customdata ---
+            // --- Create an *array* of primitives for customdata ---
             const customPtDataArray: ScatterCustomDataItem = [
                 p.goTerm,
                 p.goId,
@@ -111,16 +107,16 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
                 highlightPoints.x.push(p.bmdValue);
                 highlightPoints.y.push(yValue);
                 highlightPoints.color.push(p.color);
-                highlightPoints.customdata.push(customPtDataArray); // Push the array
+                highlightPoints.customdata.push(customPtDataArray);
             } else {
                 basePoints.x.push(p.bmdValue);
                 basePoints.y.push(yValue);
                 basePoints.color.push(p.color);
-                basePoints.customdata.push(customPtDataArray); // Push the array
+                basePoints.customdata.push(customPtDataArray);
             }
         });
 
-        // --- FIX: Update type annotation for customdata in traces ---
+        // --- Type annotation for customdata in traces ---
         const baseTrace: Data = {
             x: basePoints.x,
             y: basePoints.y,
@@ -152,7 +148,6 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             hoverlabel: { bgcolor: '#FFF' },
             name: 'Highlighted Clusters',
         };
-        // ---------------------------------------------------------
 
         const traces = [];
         if (basePoints.x.length > 0) traces.push(baseTrace);
@@ -203,7 +198,6 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
     }, [summaryTableData]);
 
     // --- Render Logic ---
-
     if (renderError) {
         return (
             <div style={{ padding: '20px', height: '500px' }}>

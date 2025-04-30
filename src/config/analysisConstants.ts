@@ -1,5 +1,4 @@
 // src/config/analysisConstants.ts
-// src/config/analysisConstants.ts
 
 /** Options for the 'Color By' selector in the analysis view. */
 export const COLOR_BY_OPTIONS = [
@@ -27,7 +26,6 @@ export const DEFAULT_PLOT_COLORS = [
   '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
 ] as const;
 
-// --- ADDED SHAPE_PALETTE ---
 /** Palette of shapes used for plotting when shapeBy is 'bmdResultName'. */
 export const SHAPE_PALETTE = [
   'circle', 'square', 'diamond', 'cross', 'x',

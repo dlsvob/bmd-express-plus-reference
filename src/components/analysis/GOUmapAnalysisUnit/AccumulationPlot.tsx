@@ -1,26 +1,16 @@
 // src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx
 import React, { useMemo, useCallback } from 'react';
-import type {
-    Data,
-    Layout,
-    PlotMouseEvent,
-    PlotSelectionEvent,
-    Config, // Added Config type
-} from 'plotly.js';
+import type { Data, Layout, PlotMouseEvent, PlotSelectionEvent, Config } from 'plotly.js';
 import { Spin } from 'antd';
-// --- Import the CORRECT data type ---
-import { UmapAnalysisDataPoint } from '../../../models/applicationModel'; // Adjusted path & type name
-// --- Component for Plotly ---
-import Plot from 'react-plotly.js'; // Assuming direct use or a thin wrapper
-// --- Redux imports ---
-import { useAppDispatch } from '../../../store/hooks'; // Adjust path
-import { setAccumulationPlotSelection } from '../../../store/slices/analysisUISlice'; // Adjust path
+import { UmapAnalysisDataPoint } from '../../../models/applicationModel';
+import Plot from 'react-plotly.js';
+import { useAppDispatch } from '../../../store/hooks';
+import { setAccumulationPlotSelection } from '../../../store/slices/analysisUISlice';
 
-// Props interface - Cleaned up
 export interface AccumulationPlotProps {
     analysisName: string;
     // Expects pre-styled, rank-filtered points for this specific analysis
-    styledPointsForPlot: UmapAnalysisDataPoint[] | null; // Use correct type
+    styledPointsForPlot: UmapAnalysisDataPoint[] | null;
     bmdResultRef: number; // Identifier for this specific plot
 }
 
@@ -110,9 +100,7 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             const lineTrace: Data = {
                 x: linePlotData.points.map((p) => p.bmdFifthPercentileTotalGenes ?? null),
                 y: linePlotData.cumulativeCounts,
-                // *** CHANGED HERE ***
-                type: 'scatter', // Use SVG-based scatter
-                // ******************
+                type: 'scatter', // Use SVG-based scatter to avoid running out of webgl instances.
                 mode: 'lines',
                 name: 'Cumulative Count',
                 line: { color: LINE_COLOR, width: 2 },
@@ -168,9 +156,7 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
                                     2
                                 )}<br>Source: ${p.bmdResultName}`
                         ),
-                        // *** CHANGED HERE ***
-                        type: 'scatter', // Use SVG-based scatter
-                        // ******************
+                        type: 'scatter', // Use SVG-based scatter to avoid running out of webgl instances.
                         mode: 'markers',
                         name: 'Points',
                         marker: {
@@ -278,14 +264,10 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             console.log(`${logPrefix} FINAL plotData length:`, plotData.length);
         }
 
-        // --- Spin Tip Fix ---
+        // --- Spin Tip ---
         const spinTip = styledPointsForPlot === null ? <>Processing plot data...</> : undefined;
-        // --------------------
-
         if (styledPointsForPlot === null) {
-            // --- Use spinTip variable ---
             return <Spin tip={spinTip} />;
-            // -------------------------
         }
         if (!plotData || !plotLayout) {
             return (

@@ -1,5 +1,4 @@
-// src/components/GoIdFilterUI.tsx (Corrected)
-
+// src/components/GoIdFilterUI.tsx
 import React from 'react';
 import { Typography, Input, Radio } from 'antd';
 import type { RadioChangeEvent } from 'antd';
@@ -41,11 +40,8 @@ const GoIdFilterUI: React.FC<GoIdFilterUIProps> = React.memo(
                     </Paragraph>
                     {/* Ensure the value passed to Radio.Group matches the state */}
                     <Radio.Group onChange={onHighlightModeChange} value={highlightMode}>
-                        {/* Use HighlightMode enum values for consistency */}
                         <Radio value={HighlightMode.NONE}>Off</Radio>
-                        {/* *** FIX HERE: Change value from "exact" to HighlightMode.SELECTED *** */}
                         <Radio value={HighlightMode.SELECTED}>Exact Match</Radio>
-                        {/* ******************************************************************** */}
                         <Radio value={HighlightMode.CLUSTER}>Cluster Match</Radio>
                     </Radio.Group>
                     <Paragraph type="secondary" style={{ marginTop: '0.5rem' }}>
@@ -59,4 +55,5 @@ const GoIdFilterUI: React.FC<GoIdFilterUIProps> = React.memo(
     }
 );
 
+GoIdFilterUI.displayName = 'GO ID Filter';
 export default GoIdFilterUI;

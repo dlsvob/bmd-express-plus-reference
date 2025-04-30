@@ -18,16 +18,15 @@ export const filterPlotItems = (
     const hasGoIdFilter = goIdFilterList && goIdFilterList.length > 0;
     const goIdSet = hasGoIdFilter ? new Set(goIdFilterList.map(id => id?.toUpperCase())) : null;
 
-    // --- ADD CHECK for rankRange validity ---
+    // --- Check for rankRange validity ---
     const hasRankFilter =
         rankRange &&
         Array.isArray(rankRange) &&
         rankRange.length === 2 &&
         typeof rankRange[0] === 'number' &&
         typeof rankRange[1] === 'number';
-    // -----------------------------------------
 
-    // If no filters are active, return original items
+    // --- If no filters are active, return original items ---
     if (!hasGoIdFilter && !hasRankFilter) {
         return items;
     }
@@ -44,9 +43,8 @@ export const filterPlotItems = (
         // Check GO ID filter
         const goIdMatch = !hasGoIdFilter || (item.go_id && goIdSet!.has(item.go_id.toUpperCase()));
 
-        // Check Rank filter
-        // Ensure rankValue exists and is a number before comparing
-        const rankValue = item.rankValue; // rankValue is now directly on BaseCategoryAnalysisDataPoint
+        // --- Ensure rankValue exists and is a number before comparing ---
+        const rankValue = item.rankValue;
         const rankMatch = !hasRankFilter || (
             rankValue != null &&
             typeof rankValue === 'number' &&

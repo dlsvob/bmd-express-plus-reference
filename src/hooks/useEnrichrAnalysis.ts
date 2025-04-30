@@ -1,14 +1,8 @@
 // src/hooks/useEnrichrAnalysis.ts
 import { useState, useEffect, useRef } from 'react';
-// --- FIX: Import RTK Query error types ---
 import { FetchBaseQueryError } from '@reduxjs/toolkit/query';
 import { SerializedError } from '@reduxjs/toolkit';
-// ---------------------------------------
-import {
-    useAddListMutation,
-    useLazyGetEnrichmentResultsQuery,
-    EnrichrResultsResponse,
-} from '../store/apis/enrichrApi'; // Adjust path as needed
+import { useAddListMutation, useLazyGetEnrichmentResultsQuery, EnrichrResultsResponse } from '../store/apis/enrichrApi';
 
 interface UseEnrichrAnalysisArgs {
     geneList: string[] | null;
@@ -26,14 +20,13 @@ interface UseEnrichrAnalysisReturn {
 
 let hookInstanceCounter = 0;
 
-// --- FIX: Add Type Guards ---
+// --- Type Guards ---
 function isFetchBaseQueryError(error: unknown): error is FetchBaseQueryError {
     return typeof error === 'object' && error != null && 'status' in error
 }
 function isSerializedError(error: unknown): error is SerializedError {
     return typeof error === 'object' && error != null && 'message' in error
 }
-// ---------------------------
 
 export const useEnrichrAnalysis = ({
     geneList,
@@ -42,10 +35,8 @@ export const useEnrichrAnalysis = ({
     shouldRun,
 }: UseEnrichrAnalysisArgs): UseEnrichrAnalysisReturn => {
     const hookInstanceId = useRef(++hookInstanceCounter).current;
-    // --- FIX: Replace 'any[]' with 'unknown[]' ---
     const log = (...args: unknown[]) =>
         console.log(`[EnrichrHook #${hookInstanceId}]`, ...args);
-    // -------------------------------------------
 
     log('Hook rendering/re-rendering. Props:', {
         shouldRun,
@@ -241,7 +232,7 @@ export const useEnrichrAnalysis = ({
         let errorMessage = '';
         let isCriticalError = false;
 
-        // --- FIX: Use Type Guards for Error Handling ---
+        // --- Use Type Guards for Error Handling ---
         const processError = (error: unknown): { message: string; status: string | number | undefined; isCritical: boolean } => {
             let msg = 'Unknown error';
             let stat: string | number | undefined = undefined;
@@ -282,7 +273,6 @@ export const useEnrichrAnalysis = ({
                 log(`Effect 4: resultsError is critical (status ${processed.status}).`);
             }
         }
-        // ------------------------------------------------
 
         if (errorFound) {
             setCombinedError(errorMessage);

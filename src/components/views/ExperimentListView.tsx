@@ -1,14 +1,11 @@
 // src/components/views/ExperimentListView.tsx
 import React, { useMemo, useCallback } from 'react';
-import { Typography, Button, Checkbox, Space, Spin, Alert } from 'antd'; // Added Spin, Alert
+import { Typography, Button, Checkbox, Space, Spin, Alert } from 'antd';
 import { useGetSelectableAnalysesQuery } from '../../store/apis/experimentsApi';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setActiveView } from '../../store/slices/navigationSlice';
-import {
-    setSelectedAnalysisRefs,
-    selectSelectedAnalysisRefs
-} from '../../store/slices/selectedAnalysisSlice';
-import styles from './ExperimentListView.module.css'; // Import CSS module
+import { setSelectedAnalysisRefs, selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice';
+import styles from './ExperimentListView.module.css';
 
 type CheckboxValueType = string | number;
 
@@ -51,7 +48,7 @@ const ExperimentListView: React.FC<ExperimentListViewProps> = ({ projectName }) 
 
     const handleRunAnalysis = useCallback(() => {
         if (!selectedValues || selectedValues.length === 0) return;
-        // Navigate to the default analysis view (e.g., UMAP)
+        // Navigate to the default analysis view
         dispatch(setActiveView('categoryAnalysis'));
     }, [dispatch, selectedValues]);
 

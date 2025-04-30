@@ -4,10 +4,7 @@ import { CategoryRow, SummaryRow } from '../utils/clusteringUtils';
 import { ReferenceUmapItem } from '../data/referenceUmapData';
 import type { ClusteringScatterPoint } from '../components/analysis/GOClusteringAnalysisUnit/GOClusteringScatterPlot';
 import { generateHaltonColors } from '../utils/colorUtils';
-import {
-    UNCLUSTERED_COLOR,
-    DEFAULT_MARKER_COLOR,
-} from '../utils/legendUtils';
+import { UNCLUSTERED_COLOR, DEFAULT_MARKER_COLOR } from '../utils/legendUtils';
 
 const JITTER_AMOUNT = 0.3;
 

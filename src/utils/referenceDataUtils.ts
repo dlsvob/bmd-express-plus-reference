@@ -1,7 +1,5 @@
 // src/utils/referenceDataUtils.ts
-
-import { ReferenceUmapItem, hardcodedReferenceData } from '../data/referenceUmapData'; // Ensure path is correct
-// Define the specific Map type alias if not already done globally
+import { ReferenceUmapItem, hardcodedReferenceData } from '../data/referenceUmapData';
 export type ReferenceDataMap = Map<string, ReferenceUmapItem>;
 
 let referenceMapCache: ReferenceDataMap | null = null;
@@ -16,7 +14,7 @@ let referenceMapCache: ReferenceDataMap | null = null;
 export function createReferenceDataMap(
     referenceData: ReferenceUmapItem[] = hardcodedReferenceData // Use default parameter
 ): ReferenceDataMap {
-    // Return cache if already built
+    // --- Return cache if already built ---
     if (referenceMapCache) {
         // console.log("[createReferenceDataMap] Returning cached map.");
         return referenceMapCache;
@@ -47,7 +45,6 @@ export function createReferenceDataMap(
         } else {
             // console.warn(`[createReferenceDataMap] Skipping item with missing or non-string GO ID:`, item);
         }
-        // ---------------------------------------------------------
     });
 
     console.log(`[createReferenceDataMap] Finished creating map. Size: ${map.size}`);
@@ -55,7 +52,7 @@ export function createReferenceDataMap(
     return map;
 }
 
-// Optional: Function to get the map (ensures creation logic runs if not cached)
+// Function to get the map (ensures creation logic runs if not cached)
 export function getReferenceDataMap(): ReferenceDataMap {
     // console.log("[getReferenceDataMap] Accessing reference map...");
     return createReferenceDataMap(); // This will either create or return cache

@@ -1,5 +1,5 @@
 // src/components/analysis/shared/CustomLegends.tsx
-import React from 'react'; // Import React itself
+import React from 'react';
 import { Card, Typography, Tooltip } from 'antd';
 import styles from './CustomLegends.module.css';
 
@@ -23,8 +23,8 @@ interface CustomLegendsProps {
     highlightedLabelsSet?: Set<string>;
 }
 
-// 1. Define the core component function WITH A NAME
-//    Do NOT wrap this definition in React.memo()
+// Define the core component function WITH A NAME
+// Do NOT wrap this definition in React.memo()
 const CustomLegendsComponent: React.FC<CustomLegendsProps> = ({
     colorItems = [],
     shapeItems = [],
@@ -41,10 +41,9 @@ const CustomLegendsComponent: React.FC<CustomLegendsProps> = ({
     showSize = false,
     highlightedLabelsSet,
 }) => {
-    const logPrefix = '[CustomLegends v11 - Named Component]'; // Version Bump
+    const logPrefix = '[CustomLegends]';
     console.log(`${logPrefix} Rendering. Received hiddenColorLabelsSet:`, hiddenColorLabelsSet);
 
-    // --- Render functions remain the same ---
     const renderColorItems = () => {
         if (!showColor || colorItems.length === 0) return null;
         return (
@@ -158,12 +157,7 @@ const CustomLegendsComponent: React.FC<CustomLegendsProps> = ({
     );
 };
 
-// 2. Wrap the NAMED component in React.memo() for the main export
+// --- Wrap the NAMED component in React.memo() for the main export ---
 export const CustomLegends = React.memo(CustomLegendsComponent);
 
-// 3. Optional: Set displayName on the MEMOIZED component if you still want explicit control
-//    (but it might not be needed by the linter now)
-// CustomLegends.displayName = 'CustomLegends';
-
-// 4. Default export remains the same
 export default CustomLegends;

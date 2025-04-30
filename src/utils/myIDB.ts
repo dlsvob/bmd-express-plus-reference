@@ -1,14 +1,6 @@
 // src/utils/myIDB.ts
-// --- FIX: Remove unused IDBPTransaction ---
-import { openDB, IDBPDatabase, DBSchema /*, IDBPTransaction */ } from 'idb';
-// -----------------------------------------
-import {
-    DoseResponseExperiment,
-    CategoryAnalysisResult,
-    BMDResult,
-    WilliamsTrendResult,
-} from '../models/BMDxExported'; // Adjust path
-
+import { openDB, IDBPDatabase, DBSchema } from 'idb';
+import { DoseResponseExperiment, CategoryAnalysisResult, BMDResult, WilliamsTrendResult } from '../models/BMDxExported';
 // --- Constants for Project DB Store Names ---
 export const EXP_STORE = 'doseResponseExperiments' as const;
 export const CAT_ANALYSIS_STORE = 'categoryAnalysisResults' as const;
@@ -64,8 +56,7 @@ export async function openAndPrepareProjectDB(projectName: string): Promise<IDBP
     console.log(`[myIDB] Opening/Preparing Project DB ${projectName} at version ${latestVersion} for initial setup (NO INDEXES).`);
 
     return openDB<ProjectDB>(projectName, latestVersion, {
-        // --- FIX: Remove unused 'tx' parameter ---
-        upgrade(dbInstance, oldVersion, newVersion /*, tx */) {
+        upgrade(dbInstance, oldVersion, newVersion) {
             // ---------------------------------------
             console.log(`[myIDB] Running upgrade for ${projectName} from ${oldVersion} to ${newVersion ?? latestVersion}`);
             if (oldVersion < 1) {
@@ -99,7 +90,6 @@ export async function openAndPrepareProjectDB(projectName: string): Promise<IDBP
         terminated() { console.error(`[myIDB] openAndPrepareProjectDB ${projectName}: DB terminated`); },
     });
 }
-
 
 // --- Function to List Project DB Names (Using indexedDB.databases) ---
 /**

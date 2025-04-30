@@ -2,9 +2,8 @@
 import React, { useMemo } from 'react';
 import { Table, Empty } from 'antd';
 import type { TableColumnType } from 'antd';
-import { CategoryRow } from '../../../utils/clusteringUtils'; // Adjust path if needed
+import { CategoryRow } from '../../../utils/clusteringUtils';
 
-// Define Props interface
 interface GOClusteringDetailsTableProps {
     dataSource: CategoryRow[] | null;
     loading?: boolean;
@@ -109,8 +108,5 @@ const GOClusteringDetailsTable: React.FC<GOClusteringDetailsTableProps> = React.
     }
 );
 
-// --- FIX: Add display name ---
 GOClusteringDetailsTable.displayName = 'GOClusteringDetailsTable';
-// -----------------------------
-
 export default GOClusteringDetailsTable;

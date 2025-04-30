@@ -1,9 +1,9 @@
 // src/hooks/usePyodideClustering.ts
 import { useState, useEffect, useMemo } from 'react';
-import { usePyodide } from '../contexts/PyodideProvider'; // Adjust path if needed
-import { ApiClusteringInputItem } from '../utils/clusteringUtils'; // Adjust path if needed
+import { usePyodide } from '../contexts/PyodideProvider';
+import { ApiClusteringInputItem } from '../utils/clusteringUtils';
 
-// Define the expected structure of the successful result from Python
+// Expected structure of the successful result from Python
 export interface PyodideClusteringResult {
     clusterAssignments: number[];
     leavesOrder: number[];
@@ -104,12 +104,11 @@ export function usePyodideClustering(
             } catch (err: unknown) { // Keep type as unknown
                 console.error(`${logPrefix} !!! EXECUTION FAILED !!!`, err);
                 if (isMounted) {
-                    // --- FIX: Check if err is an Error before accessing .message ---
+                    // --- Check if err is an Error before accessing .message ---
                     const errorMessage = err instanceof Error
                         ? err.message
                         : 'Clustering execution failed.';
                     setError(errorMessage);
-                    // -------------------------------------------------------------
                     setResult(null);
                 }
             } finally {

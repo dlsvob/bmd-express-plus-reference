@@ -1,17 +1,11 @@
 // src/store/api/pyodideBaseQuery.ts
 import { BaseQueryFn } from '@reduxjs/toolkit/query/react';
 
-// --- FIX: Replace any with unknown/Error ---
 const pyodideBaseQuery: BaseQueryFn<{ code: string }, unknown, string> = async (
-    // -----------------------------------------
     { code },
-    // --- FIX: Remove unused parameters ---
-    /* _api, */
-    /* _extraOptions */
-    // -----------------------------------
 ) => {
     try {
-        // Load Pyodide if it isn't loaded yet.
+        // --- Load Pyodide if it isn't loaded yet ---
         if (!window.pyodide) {
             console.log("Pyodide not found, loading from CDN...");
             // Ensure loadPyodide exists before calling
@@ -24,8 +18,7 @@ const pyodideBaseQuery: BaseQueryFn<{ code: string }, unknown, string> = async (
             console.log("Pyodide loaded successfully.");
         }
 
-        // Load necessary packages if not already loaded.
-        // Assumes global.d.ts declares __packages_loaded
+        // --- Assumes global.d.ts declares __packages_loaded ---
         if (!window.__packages_loaded) {
             console.log("Loading required packages: numpy, pandas, scipy...");
             await window.pyodide.loadPackage(["numpy", "pandas", "scipy"]);
@@ -33,8 +26,7 @@ const pyodideBaseQuery: BaseQueryFn<{ code: string }, unknown, string> = async (
             console.log("Required packages loaded.");
         }
 
-        // Load the clustering module if it hasn't been loaded yet.
-        // Assumes global.d.ts declares __clustering_module_loaded and __clustering_script
+        // --- Assumes global.d.ts declares __clustering_module_loaded and __clustering_script ---
         if (!window.__clustering_module_loaded) {
             if (window.__clustering_script) {
                 console.log("Loading clustering module...");
@@ -42,22 +34,19 @@ const pyodideBaseQuery: BaseQueryFn<{ code: string }, unknown, string> = async (
                 window.__clustering_module_loaded = true;
                 console.log("Clustering module loaded.");
             } else {
-                // Consider just warning instead of throwing if script might be optional
+                // Warning. Maybe throwing if necessary later.
                 console.warn("Clustering script not available on window.");
                 // throw new Error("Clustering script not available.");
             }
         }
 
-        // Finally, run the provided Python code.
+        // Run the provided Python code.
         const result = await window.pyodide.runPythonAsync(code);
         return { data: result };
-        // --- FIX: Replace any with unknown ---
     } catch (error: unknown) {
-        // -----------------------------------
-        // --- FIX: Use instanceof Error ---
+        // --- Use instanceof Error ---
         const message = error instanceof Error ? error.message : String(error);
         return { error: message || 'An error occurred running Python code' };
-        // ---------------------------------
     }
 };
 

@@ -1,8 +1,6 @@
 // src/utils/pyodideContextInitializer.ts
-
 import { PyodideInterface } from 'pyodide';
 import categoryClusteringCode from '../py/categoryClustering.py?raw';
-// ---------------------------------
 
 console.log('[pyodideContextInitializer.ts] File loaded, starting execution...');
 
@@ -123,10 +121,9 @@ export async function initializePyodideContext(): Promise<void> {
     throw new Error("[PyodideInit] Initialization loop exited unexpectedly.");
 }
 
-
 // --- Global declarations ---
-// Make sure window.pyodide and window.pyContext are declared globally
-// (e.g., in a *.d.ts file or using declare global)
+// --- Make sure window.pyodide and window.pyContext are declared globally ---
+// --- (e.g., in a *.d.ts file or using declare global) ---
 declare global {
     interface Window {
         loadPyodide: (options?: { indexURL: string }) => Promise<PyodideInterface>;

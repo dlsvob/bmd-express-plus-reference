@@ -1,12 +1,5 @@
 // src/utils/projectDBUtils.ts
 
-// Assuming Project type might be defined elsewhere, e.g., in types/index.ts
-// export interface Project {
-//   id: string;
-//   name: string;
-//   // ... other project properties
-// }
-
 /**
  * Placeholder function to validate project names.
  * In a real scenario, this might check against existing names in IndexedDB
@@ -16,7 +9,7 @@
  * @returns An array of valid project names.
  */
 export const getValidProjectNames = (projects: { name: string }[] | string[]): string[] => {
-    // Example validation: filter out empty names and trim whitespace
+    // Filter out empty names and trim whitespace
     console.log("Validating project names:", projects);
 
     if (!Array.isArray(projects)) {

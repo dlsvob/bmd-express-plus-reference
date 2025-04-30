@@ -1,31 +1,9 @@
-/**
- * src/hooks/usePreparedPlotData.ts
- * Central hook to fetch raw data, process it, calculate ranks,
- * apply styling and filtering, and derive legend items for the UMAP analysis view.
- */
+// src/hooks/usePreparedPlotData.ts
 import { useMemo } from 'react';
 import { useAppSelector } from '../store/hooks';
 import { useGetRawAnalysisDataQuery } from '../store/apis/experimentsApi';
-import {
-  UmapAnalysisDataPoint,
-  BaseCategoryAnalysisDataPoint, // Keep this type
-  PreparedPlotHookData,
-} from '../models/applicationModel';
-// --- FIX: Remove unused HighlightMode import ---
-import {
-  // HighlightMode, // Removed
-  selectColorBy,
-  selectShapeBy,
-  selectSizeBy,
-  selectHiddenColorLabelsSet,
-  selectHiddenShapeLabelsSet,
-  selectHiddenSizeLabelsSet,
-  selectGoIdFilterList,
-  selectHighlightMode,
-  selectAccumulationPlotSelectedGoIdsSet,
-  selectCommittedSlidingWindowValue,
-} from '../store/slices/analysisUISlice';
-// -------------------------------------------
+import { UmapAnalysisDataPoint, BaseCategoryAnalysisDataPoint, PreparedPlotHookData } from '../models/applicationModel';
+import { selectColorBy, selectShapeBy, selectSizeBy, selectHiddenColorLabelsSet, selectHiddenShapeLabelsSet, selectHiddenSizeLabelsSet, selectGoIdFilterList, selectHighlightMode, selectAccumulationPlotSelectedGoIdsSet, selectCommittedSlidingWindowValue } from '../store/slices/analysisUISlice';
 import {
   calculateOverlayStyles,
   HIDDEN_OPACITY,
@@ -33,21 +11,8 @@ import {
 import { generateHaltonColors } from '../utils/colorUtils';
 import { BMDResult, CategoryAnalysisItem } from '../models/BMDxExported';
 import { ReferenceUmapItem } from '../data/referenceUmapData';
-import {
-  SHAPE_PALETTE,
-  DEFAULT_PLOT_COLORS,
-} from '../config/analysisConstants';
-// --- FIX: Remove unused legend utils imports ---
-import {
-  DEFAULT_SHAPE_LABEL,
-  DEFAULT_SIZE_LABEL,
-  // SIZE_BIN_LABELS, // Removed
-  // getDirectionLegendName, // Removed
-  DEFAULT_MARKER_COLOR,
-  DEFAULT_MARKER_SHAPE,
-  DEFAULT_MARKER_SIZE,
-  // UNCLUSTERED_COLOR, // Removed
-} from '../utils/legendUtils';
+import { SHAPE_PALETTE, DEFAULT_PLOT_COLORS } from '../config/analysisConstants';
+import { DEFAULT_SHAPE_LABEL, DEFAULT_SIZE_LABEL, DEFAULT_MARKER_COLOR, DEFAULT_MARKER_SHAPE, DEFAULT_MARKER_SIZE } from '../utils/legendUtils';
 // --------------------------------------------
 import { prepareGroupedOverlayData } from '../utils/analysisUtils';
 import { selectSelectedProjectName } from '../store/selectors/projectSelectors';
@@ -64,10 +29,9 @@ interface LegendItems {
   sizeItems: [string, number][];
 }
 
-// --- FIX: Remove unused 'colorBy' parameter ---
 function deriveLegendItemsInternal(
   allStyledPoints: UmapAnalysisDataPoint[] | null | undefined,
-  // colorBy: string, // Removed
+  // colorBy: string,
   shapeBy: string,
   sizeBy: string
 ): LegendItems {
@@ -111,6 +75,8 @@ function deriveLegendItemsInternal(
   return { colorItems: sortedColorItems, shapeItems: sortedShapeItems, sizeItems: sortedSizeItems };
 }
 
+ // --- Central hook to fetch raw data, process it, calculate ranks,
+ // --- apply styling and filtering, and derive legend items for the UMAP analysis view.
 export const usePreparedPlotData = ({
   selectedBmdResultRefs,
   referenceDataMap,
@@ -144,9 +110,7 @@ export const usePreparedPlotData = ({
     return !isLoadingRaw && !rawError && rawSuccess && !!rawData && !!referenceDataMap && selectedBmdResultRefs && selectedBmdResultRefs.length > 0;
   }, [isLoadingRaw, rawError, rawSuccess, rawData, referenceDataMap, selectedBmdResultRefs]);
 
-  // --- FIX: Remove unused bmdResultMap ---
   const { baseGroupedData, /* bmdResultMap, */ bmdRefToExperimentNameMap } = useMemo(() => {
-    // --------------------------------------
     const logPrefix = `${hookLogPrefix} [Memo Base Data]`;
     if (!canProcess || !rawData?.rawBmdResults || !rawData?.rawCategoryAnalysisItems) {
       return { baseGroupedData: new Map(), bmdResultMap: new Map(), bmdRefToExperimentNameMap: new Map() };
@@ -180,9 +144,8 @@ export const usePreparedPlotData = ({
     }
     const allPointsWithRankValue: BaseCategoryAnalysisDataPoint[] = [];
     baseGroupedData.forEach(points => {
-      // --- FIX: Add type annotation for point ---
+      // --- Type annotation for point ---
       points.forEach((point: BaseCategoryAnalysisDataPoint) => {
-        // ----------------------------------------
         if (point.rankValue != null && isFinite(point.rankValue)) {
           allPointsWithRankValue.push(point);
         }
@@ -201,9 +164,8 @@ export const usePreparedPlotData = ({
     console.log(`${logPrefix} Assigned ranks 1 to ${N}.`);
     const newRankedGroupedData = new Map<string, BaseCategoryAnalysisDataPoint[]>();
     baseGroupedData.forEach((originalPoints, refKey) => {
-      // --- FIX: Add type annotation for point ---
+      // --- Type annotation for point ---
       const newPoints = originalPoints.map((point: BaseCategoryAnalysisDataPoint) => {
-        // ----------------------------------------
         const uniqueKey = `${point.bmdResultRef}-${point.go_id}`;
         return { ...point, rank: rankMap.get(uniqueKey) ?? null };
       });
@@ -292,11 +254,10 @@ export const usePreparedPlotData = ({
     const flattenedStyledPoints: UmapAnalysisDataPoint[] = [];
     allStyledGroupedData.forEach(pointsArray => flattenedStyledPoints.push(...pointsArray));
     console.log(`${logPrefix} Total styled points before final filter: ${flattenedStyledPoints.length}`);
-    // --- FIX: Pass correct parameters to helper ---
+    // --- Pass parameters to helper ---
     const { colorItems, shapeItems, sizeItems } = deriveLegendItemsInternal(
-      flattenedStyledPoints, /* colorByOption, */ shapeByOption, sizeByOption // Remove colorByOption
+      flattenedStyledPoints, /* colorByOption, */ shapeByOption, sizeByOption
     );
-    // --------------------------------------------
     const analysisPointsForPlot = flattenedStyledPoints.filter(
       point => point.finalOpacity !== HIDDEN_OPACITY
     );
@@ -311,7 +272,7 @@ export const usePreparedPlotData = ({
       minRank: minRank,
       maxRank: maxRank,
     };
-  }, [allStyledGroupedData, /* colorByOption, */ shapeByOption, sizeByOption, minRank, maxRank]); // Remove colorByOption dependency
+  }, [allStyledGroupedData, /* colorByOption, */ shapeByOption, sizeByOption, minRank, maxRank]);
 
   return finalPlotDataAndLegends;
 };

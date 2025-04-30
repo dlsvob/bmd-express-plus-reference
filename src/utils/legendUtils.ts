@@ -1,32 +1,29 @@
 // src/utils/legendUtils.ts
 
-// --- Defaults/Labels needed for Legend Derivation ---
+// --- Defaults/Labels for Legend Derivation ---
 
 export const DEFAULT_MARKER_SHAPE = 'circle';
 export const DEFAULT_MARKER_SIZE = 8;
 export const DEFAULT_MARKER_COLOR = '#7f7f7f'; // General default/fallback
 
-// --- ADD Constant for Unclustered Points ---
+// --- Constant for Unclustered Points ---
 export const UNCLUSTERED_COLOR = '#cccccc'; // Specific light gray for cluster -1
-// -----------------------------------------
 
-// *** COLOR MAP DEFINITION ***
+// --- COLOR MAP DEFINITION ---
 export const DIRECTION_COLOR_MAP: Record<string, string> = {
   'up': '#d62728',
   'down': '#1f77b4',
   'conflict': '#ff7f0e',
   'none': DEFAULT_MARKER_COLOR,
 };
-// ***************************
 
-// *** SHAPE MAP DEFINITION ***
+// --- SHAPE MAP DEFINITION ---
 export const DIRECTION_SHAPE_MAP: Record<string, string> = {
   'up': 'triangle-up',
   'down': 'triangle-down',
   'conflict': 'square',
   'none': DEFAULT_MARKER_SHAPE,
 };
-// ***************************
 
 // --- Constants for Percentage Binning ---
 export const PERCENTAGE_BINS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
@@ -52,7 +49,3 @@ export const DEFAULT_SHAPE_LABEL = "Circle";
 
 export const getDirectionLegendName = (shapeSymbol: string): string => DIRECTION_LABELS[shapeSymbol] || shapeSymbol;
 
-// --- Opacity Constant (Moved to styleUtils, remove if still here) ---
-// export const HIDDEN_OPACITY = 0.0; // Should be in styleUtils.ts
-
-// --- End Exports ---

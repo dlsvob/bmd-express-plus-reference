@@ -1,16 +1,12 @@
 // src/store/apis/experimentsApi.ts
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { idbBaseQuery, IdbQueryData, IdbRawDataQueryArgs } from './idbBaseQuery';
-// import { ProjectDB, BMD_RESULT_STORE, CAT_ANALYSIS_STORE } from '../../utils/myIDB'; // Unused
-import {
-    BMDResult,
-    CategoryAnalysisItem,
-} from '../../models/BMDxExported';
-import { SelectableAnalysisInfo } from '../../models/applicationModel'; // Expects number ref now
+import { BMDResult,CategoryAnalysisItem } from '../../models/BMDxExported';
+import { SelectableAnalysisInfo } from '../../models/applicationModel'; // Expects number ref
 
 export interface RawDataQueryArgs {
     projectName: string | null;
-    selectedBmdResultRefs?: string[]; // Keep receiving strings from UI/state
+    selectedBmdResultRefs?: string[];
 }
 
 type SelectableAnalysesQueryResult = SelectableAnalysisInfo[];
@@ -33,9 +29,7 @@ export const experimentsApi = createApi({
                 stores: ['bMDResult'],
                 selectedBmdResultRefs: [],
             } as IdbRawDataQueryArgs),
-            // --- FIX: Prefix unused 'meta' parameter ---
             transformResponse: (response: IdbQueryData | undefined, _meta, arg: RawDataQueryArgs | undefined): SelectableAnalysisInfo[] => {
-                // ------------------------------------------
                 const logPrefix = '[experimentsApi getSelectableAnalyses transform v8 Final Fix]';
                 const currentProjectName = arg?.projectName ?? 'Unknown Project';
                 if (!arg?.projectName) {
@@ -66,9 +60,7 @@ export const experimentsApi = createApi({
                 return selectable;
             },
             keepUnusedDataFor: 60 * 60 * 24 * 7,
-            // --- FIX: Prefix unused 'result', 'error' parameters ---
             providesTags: (_result, _error, args: RawDataQueryArgs | undefined) =>
-                // ----------------------------------------------------
                 args?.projectName
                     ? [{ type: 'SelectableList', id: args.projectName }]
                     : [],
@@ -80,9 +72,8 @@ export const experimentsApi = createApi({
                 stores: ['bMDResult', 'categoryAnalysisResults'],
                 selectedBmdResultRefs: selectedBmdResultRefs
             } as IdbRawDataQueryArgs),
-            // --- FIX: Prefix unused 'meta' parameter ---
             transformResponse: (response: IdbQueryData | undefined, _meta, arg: RawDataQueryArgs | undefined): RawDataQueryResult => {
-                // ------------------------------------------
+
                 const logPrefix = '[experimentsApi getRawAnalysisData transform v31 Final Fix]'; // Version Bump
                 const currentProjectName = arg?.projectName ?? 'Unknown Project';
                 const currentSelectedRefs = (arg && Array.isArray(arg.selectedBmdResultRefs)) ? arg.selectedBmdResultRefs : [];
@@ -109,9 +100,7 @@ export const experimentsApi = createApi({
                 return rawData;
             },
             keepUnusedDataFor: 60 * 60 * 24 * 7,
-            // --- FIX: Prefix unused 'result', 'error' parameters ---
             providesTags: (_result, _error, args: RawDataQueryArgs | undefined) =>
-                // ----------------------------------------------------
                 args?.projectName
                     ? [{ type: 'RawData', id: args.projectName }]
                     : [],

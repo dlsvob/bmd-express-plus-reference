@@ -1,25 +1,14 @@
 // src/store/apis/idbBaseQuery.ts
 import { BaseQueryFn } from '@reduxjs/toolkit/query/react';
-import { IDBPDatabase, StoreNames } from 'idb'; // Import StoreNames
-import {
-    ProjectDB,
-    openProjectDB,
-    CAT_ANALYSIS_STORE,
-    BMD_RESULT_STORE,
-    EXP_STORE,
-    WILLIAMS_STORE,
-    ANOVA_STORE,
-    CURVE_FIT_STORE,
-    ORIOGEN_STORE
-} from '../../utils/myIDB'; // Adjust path if needed
-import { CategoryAnalysisItem, BMDResult } from '../../models/BMDxExported'; // Adjust path/type names if needed
+import { IDBPDatabase, StoreNames } from 'idb';
+import { ProjectDB, openProjectDB, CAT_ANALYSIS_STORE, BMD_RESULT_STORE, EXP_STORE, WILLIAMS_STORE, ANOVA_STORE, CURVE_FIT_STORE, ORIOGEN_STORE } from '../../utils/myIDB';d
+import { CategoryAnalysisItem, BMDResult } from '../../models/BMDxExported';
 
 // --- Filter Constants ---
 const MIN_PERCENTAGE = 5;
 const MIN_GENES_PASSED_ALL_FILTERS = 3;
 const MIN_GENE_ALL_COUNT = 40;
 const MAX_GENE_ALL_COUNT = 500;
-// ------------------------
 
 interface StoredCategoryAnalysisCollection {
     bmdResult: number | string;
@@ -45,10 +34,7 @@ export interface IdbQueryError {
     details?: unknown;
 }
 
-// --- FIX: Remove unused constant and derive type directly ---
-// const VALID_PROJECT_DB_STORES = [ /* ... */ ] as const;
 type ProjectStoreName = StoreNames<ProjectDB>; // Use StoreNames<ProjectDB> for type safety
-// ---------------------------------------------------------
 
 const mapArgStoreToDbStore = (storeName: string): ProjectStoreName | null => {
     switch (storeName) {
@@ -106,15 +92,13 @@ export const idbBaseQuery: BaseQueryFn<
         tx.onabort = (event) => console.error(`${logPrefix} Transaction ABORTED!`, event, tx?.error);
         tx.onerror = (event) => console.error(`${logPrefix} Transaction ERROR!`, event);
 
-        // --- FIX: Use unknown for Promise type ---
+        // --- Use unknown for Promise type ---
         const promisesMap = new Map<ProjectStoreName, Promise<unknown>>();
-        // ---------------------------------------
 
         uniqueDbStores.forEach(dbStoreName => {
             const store = tx.objectStore(dbStoreName as ProjectStoreName);
-            // --- FIX: Use unknown for Promise type ---
+            // --- Use unknown for Promise type ---
             let promise: Promise<unknown>;
-            // ---------------------------------------
 
             if (dbStoreName === BMD_RESULT_STORE && selectedBmdResultRefs.length > 0) {
                 const getPromises = selectedBmdResultRefs.map(refStr => {
@@ -139,9 +123,8 @@ export const idbBaseQuery: BaseQueryFn<
         console.log(`${logPrefix} Awaiting all store promises (${promisesMap.size})...`);
         await Promise.all(promisesMap.values());
 
-        // --- FIX: Use unknown for Map value type ---
+        // --- Use unknown for Map value type ---
         const dbResultsMap = new Map<ProjectStoreName, unknown>();
-        // -----------------------------------------
         for (const [dbStoreName, promise] of promisesMap.entries()) {
             try {
                 const resultData = await promise;
