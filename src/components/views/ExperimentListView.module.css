@@ -1,30 +1,28 @@
 /* src/components/views/ExperimentListView.module.css */
 
 .viewContainer {
-    /* max-width: 800px; */
-    /* margin: 0 auto; */
-    height: 100%;
-    /* Fill parent (AntD Content inside Spin) */
     display: flex;
     flex-direction: column;
-    padding: 24px;
-    /* Inner padding for the view */
+    /* padding: 24px; */
+    /* Padding is now on the scroll parent (.spinWrapperScrollable) */
     box-sizing: border-box;
-    overflow: hidden;
-    /* Prevent this outer view container from scrolling */
     background-color: #fff;
+    flex-grow: 1;
+    /* <<< Ensure it fills the vertical space given by parent */
+    min-height: 0;
+    /* Allow shrinking */
+    /* REMOVED height: 100%; */
+    /* REMOVED overflow: hidden */
 }
 
 .flexContainer {
     display: flex;
     flex-direction: column;
     flex-grow: 1;
-    /* Grow to fill viewContainer */
     width: 100%;
     overflow: hidden;
-    /* Prevent this intermediate container from scrolling */
+    /* Still needed to contain listArea */
     min-height: 0;
-    /* Allow shrinking */
 }
 
 .headerArea {
@@ -33,7 +31,9 @@
     justify-content: space-between;
     align-items: center;
     padding-bottom: 16px;
+    /* Keep padding for spacing */
     margin-bottom: 16px;
+    /* Keep margin for spacing */
     border-bottom: 1px solid #f0f0f0;
     flex-shrink: 0;
 }
@@ -42,7 +42,7 @@
     flex-grow: 1;
     /* Take remaining space */
     overflow-y: auto;
-    /* <<< SCROLLING HANDLED HERE >>> */
+    /* Still scrolls if content exceeds space AFTER header */
     overflow-x: hidden;
     min-height: 0;
     /* Crucial for flex scrolling */

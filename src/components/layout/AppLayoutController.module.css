@@ -16,10 +16,38 @@
 }
 
 /* --- Main Content Area (AntD <Content>) --- */
-/* Styles are primarily handled inline in the TSX file */
+/* This container just defines the space below the header */
 .mainContentArea {
     box-sizing: border-box;
-    /* Add other base styles here if needed */
+    overflow: hidden;
+    /* <<< IMPORTANT: No scroll here */
+    /* Flex properties are set inline */
+    /* Padding is set inline (likely 0) */
 }
+
+/* --- NEW: Class for the Spin wrapper to handle scrolling --- */
+.spinWrapperScrollable {
+    /* Ensure it behaves correctly as a flex child */
+    flex-grow: 1;
+    min-height: 0;
+    /* Make THIS the scroll container */
+    overflow: auto !important;
+    /* Use !important if necessary to override AntD */
+    /* Add padding inside the scrollable area */
+    padding: 16px;
+    box-sizing: border-box;
+    /* Ensure its direct child (Spin container) fills height */
+}
+
+/* Target the direct child of the wrapper, which is the actual spin container */
+.spinWrapperScrollable> :global(.ant-spin-container) {
+    height: 100%;
+    display: flex;
+    /* Make the container flex too */
+    flex-direction: column;
+    min-height: 0;
+    /* Allow spin container to shrink */
+}
+
 
 /* --- REMOVE any styles for intermediate wrappers from previous attempts --- */

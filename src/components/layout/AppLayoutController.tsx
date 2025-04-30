@@ -1,4 +1,3 @@
-// src/components/layout/AppLayoutController.tsx
 import React, { useState, useCallback } from 'react';
 import { Layout, Drawer, Menu, Spin, Alert, Typography } from 'antd';
 import {
@@ -28,7 +27,7 @@ import styles from './AppLayoutController.module.css'; // Keep using the CSS mod
 // --- Use Layout components ---
 const { Content, Header } = Layout;
 
-// --- Menu Items Configuration (Keep as is) ---
+// --- Menu Items Configuration ---
 const menuItems: MenuProps['items'] = [
     { key: 'experiments', icon: <ExperimentOutlined />, label: 'Experiments' },
     {
@@ -43,7 +42,8 @@ const menuItems: MenuProps['items'] = [
     { key: 'settings', icon: <SettingOutlined />, label: 'Project Settings' },
 ];
 
-// --- Internal Component for Main Content Area (Keep as is) ---
+// --- Internal Component for Main Content Area ---
+// --- REMOVED the extra wrapper div ---
 const AppContentInternal: React.FC = () => {
     const { error: pyodideError } = usePyodide();
     const selectedProjectName = useAppSelector(selectSelectedProjectName);
@@ -110,24 +110,11 @@ const AppContentInternal: React.FC = () => {
         );
     }
 
-    // --- Render the specific view component directly ---
-    // --- It needs to fill the parent Content area ---
-    // --- Ensure the container fills the available space ---
-    return (
-        <div
-            style={{
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden', // Prevent this div from scrolling
-            }}
-        >
-            {mainContent}
-        </div>
-    );
+    // --- Render the view component directly ---
+    return <>{mainContent}</>;
 };
 
-// --- Navigation Menu Component (Keep as is) ---
+// --- Navigation Menu Component ---
 const NavigationMenu: React.FC<{
     currentViewKey: string | null;
     onClick: MenuProps['onClick'];
@@ -154,7 +141,9 @@ const NavigationMenu: React.FC<{
 
 // --- Main Layout Controller Component ---
 const AppLayoutController: React.FC = () => {
-    console.log('[AppLayoutController] Rendering with dynamic height...'); // Updated log
+    console.log(
+        '[AppLayoutController] Rendering with scroll on Spin container...'
+    );
     const dispatch = useAppDispatch();
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -220,42 +209,41 @@ const AppLayoutController: React.FC = () => {
                 />
             </Header>
 
-            {/* --- AntD Content: Fills remaining space, handles its OWN scroll --- */}
+            {/* --- Content defines the space, does NOT scroll --- */}
             <Content
-                className={styles.mainContentArea} // Apply styles from CSS module
+                className={styles.mainContentArea}
                 style={{
-                    // --- Use margin-top for offset ---
                     marginTop: `${HEADER_HEIGHT}px`,
-                    // --- Let flexbox handle height ---
-                    flexGrow: 1, // <<< Allow content to grow
-                    overflow: 'auto', // <<< Allow THIS container to scroll if needed
-                    minHeight: 0, // <<< Crucial for flexbox scrolling containers
-                    // --- Keep flex properties for internal layout ---
-                    //display: 'flex',
-                    //flexDirection: 'column',
-                    padding: '16px', // Padding inside the scrollable area
+                    flexGrow: 1,
+                    overflow: 'hidden', // <<< NO SCROLL HERE >>>
+                    minHeight: 0,
+                    display: 'flex', // Keep as flex container for Spin
+                    flexDirection: 'column',
+                    padding: '0', // No padding here
                     boxSizing: 'border-box',
                 }}
             >
-                {/* --- Spin wrapper needs to fill Content --- */}
+                {/* --- Spin fills Content AND handles scrolling --- */}
                 <Spin
                     spinning={pyodideLoading}
                     tip={pyodideSpinTip}
                     size="large"
+                    // Apply styles directly to the Spin wrapper via CSS class
+                    wrapperClassName={styles.spinWrapperScrollable}
                     style={{
-                        flexGrow: 1,
-                        display: 'flex',
+                        flexGrow: 1, // Fill Content
+                        display: 'flex', // Keep flex for AppContentInternal
                         flexDirection: 'column',
-                        minHeight: 0, // Allow Spin to shrink
-                        overflow: 'hidden', // Prevent Spin itself from scrolling
+                        minHeight: 0,
+                        // overflow: 'auto', // <<< SCROLL HANDLED BY CLASS >>>
                     }}
                 >
-                    {/* --- AppContentInternal needs to fill Spin --- */}
+                    {/* --- AppContentInternal renders view directly --- */}
                     <AppContentInternal />
                 </Spin>
             </Content>
 
-            {/* --- Drawer (Keep as is) --- */}
+            {/* --- Drawer --- */}
             <Drawer
                 title="Navigation"
                 placement="left"
