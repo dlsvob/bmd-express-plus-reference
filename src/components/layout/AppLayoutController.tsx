@@ -122,7 +122,7 @@ const NavigationMenu: React.FC<{
 
 // --- Main Layout Controller Component ---
 const AppLayoutController: React.FC = () => {
-    console.log('[AppLayoutController] Rendering with CSS Mask approach...'); // Updated log
+    console.log('[AppLayoutController] Rendering with Nested Scroll/Mask...'); // Updated log
     const dispatch = useAppDispatch();
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -172,7 +172,7 @@ const AppLayoutController: React.FC = () => {
         boxSizing: 'border-box',
         minHeight: 0,
         flexGrow: 1,
-        padding: '24px', // Inner padding
+        padding: '24px', // Inner padding remains on Spin
     };
 
     const centeringStyle: React.CSSProperties = showCentering
@@ -212,17 +212,20 @@ const AppLayoutController: React.FC = () => {
             </Header>
 
             <Content className={styles.outerContentArea}>
-                {/* --- Inner Bordered Scrollable Div --- */}
-                <div className={styles.innerBorderedScrollable}>
-                    {/* Spin is now the direct child */}
-                    <Spin
-                        spinning={pyodideLoading}
-                        tip={pyodideSpinTip}
-                        size="large"
-                        style={spinStyle}
-                    >
-                        <AppContentInternal />
-                    </Spin>
+                {/* --- Outer container: Holds border, clips content --- */}
+                <div className={styles.innerBorderedContainer}>
+                    {/* --- NEW Inner container: Handles scrolling and mask --- */}
+                    <div className={styles.scrollMaskContainer}>
+                        {/* Spin component now lives inside the scroll/mask container */}
+                        <Spin
+                            spinning={pyodideLoading}
+                            tip={pyodideSpinTip}
+                            size="large"
+                            style={spinStyle} // Style applied to Spin
+                        >
+                            <AppContentInternal />
+                        </Spin>
+                    </div>
                 </div>
             </Content>
 

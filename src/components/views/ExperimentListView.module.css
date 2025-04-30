@@ -49,12 +49,17 @@
     border-color: #0958d9;
 }
 
-/* --- Scrollbar Styling (Unchanged) --- */
-/* ... */
 
 
-/* --- FIX for Visual Check State (Unchanged) --- */
-/* ... */
+
+/* --- FIX for Visual Check State --- */
+/* Add .listArea context for specificity */
+.listArea :global(.ant-checkbox-checked) :global(.ant-checkbox-inner) {
+    /* <<< ADDED .listArea here */
+    background-color: #1677ff;
+    /* AntD primary blue */
+    border-color: #1677ff;
+}
 
 /* --- ADDED: Ellipsis for long labels --- */
 /* Target the span containing the label text within the checkbox wrapper */

@@ -29,41 +29,79 @@
     flex-direction: column;
 }
 
-/* --- Inner Bordered Scrollable Div --- */
-.innerBorderedScrollable {
+/* --- UPDATED: Outer container for Border & Clipping --- */
+.innerBorderedContainer {
+    /* <<< RENAMED */
     flex-grow: 1;
     min-height: 0;
-    overflow: auto !important;
-    /* SCROLL THIS INNER DIV */
+    overflow: hidden !important;
+    /* <<< CHANGED: Clip content, don't scroll */
     border: 1.5px solid #1677ff;
     /* BORDER */
     border-radius: 8px;
     background-color: #ffffff;
     box-sizing: border-box;
-    /* No padding here - applied inside Spin */
     display: flex;
+    /* To contain the inner scroll container */
     flex-direction: column;
+    /* To contain the inner scroll container */
+    /* mask-image: REMOVED */
+    /* -webkit-mask-image: REMOVED */
+}
 
-    /* --- UPDATED MASKING (Top and Bottom Fade) --- */
-    /* Define the mask: fade at top and bottom */
+/* --- NEW: Inner container for Scrolling & Masking --- */
+.scrollMaskContainer {
+    height: 100%;
+    /* Fill the bordered container */
+    overflow: auto !important;
+    /* <<< ADDED: This div scrolls */
+    display: flex;
+    /* Needed to make Spin fill height correctly */
+    flex-direction: column;
+    /* Needed to make Spin fill height correctly */
+    flex-grow: 1;
+    /* Needed to make Spin fill height correctly */
+
+    /* --- ADD MASKING HERE --- */
     mask-image: linear-gradient(to bottom,
-            /* Direction */
             transparent 0%,
-            /* Start transparent at the top */
             black 30px,
-            /* Fade to opaque over 30px */
+            /* Adjust fade height */
             black calc(100% - 30px),
-            /* Stay opaque until 30px from bottom */
-            transparent 100%
-            /* Fade to transparent at the bottom */
-        );
-    /* Add vendor prefix */
+            /* Adjust fade height */
+            transparent 100%);
     -webkit-mask-image: linear-gradient(to bottom,
             transparent 0%,
             black 30px,
             black calc(100% - 30px),
             transparent 100%);
-    /* --- END UPDATED MASKING --- */
+    /* --- END MASKING --- */
 }
 
-/* Spin styles are now primarily handled by the inline 'spinStyle' object */
+/* --- ADD SCROLLBAR STYLING FOR THE MAIN SCROLL CONTAINER --- */
+.scrollMaskContainer::-webkit-scrollbar {
+    /* <<< TARGET CORRECT ELEMENT */
+    width: 8px;
+    height: 8px;
+}
+
+.scrollMaskContainer::-webkit-scrollbar-track {
+    background: #e6f7ff;
+    /* Ant Design Blue-1 */
+    border-radius: 4px;
+    /* Add margin to prevent overlap with border if needed, though usually not required */
+    /* margin: 2px; */
+}
+
+.scrollMaskContainer::-webkit-scrollbar-thumb {
+    background: #adc6ff;
+    /* Ant Design Blue-3 */
+    border-radius: 4px;
+}
+
+.scrollMaskContainer::-webkit-scrollbar-thumb:hover {
+    background: #bae0ff;
+    /* Ant Design Blue-4 */
+}
+
+/* --- END SCROLLBAR STYLING --- */
