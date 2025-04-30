@@ -26,8 +26,21 @@ import styles from './AppLayoutController.module.css';
 
 const { Content, Header } = Layout;
 
-// --- Menu Items Configuration (Unchanged) ---
-const menuItems: MenuProps['items'] = [ /* ... */];
+// --- Menu Items Configuration ---
+// Define this at the top level so it's accessible by NavigationMenu
+const menuItems: MenuProps['items'] = [
+    { key: 'experiments', icon: <ExperimentOutlined />, label: 'Experiments' },
+    {
+        key: 'analysis',
+        label: 'Analysis',
+        icon: <BarChartOutlined />,
+        children: [
+            { key: 'categoryAnalysis', label: 'Category Analysis (UMAP)' },
+            { key: 'goClustering', label: 'GO Clustering' },
+        ],
+    },
+    { key: 'settings', icon: <SettingOutlined />, label: 'Project Settings' },
+];
 
 // --- Internal Component for Main Content Area (Unchanged) ---
 const AppContentInternal: React.FC = () => {
@@ -86,11 +99,35 @@ const AppContentInternal: React.FC = () => {
     return <>{mainContent}</>;
 };
 
+// --- Navigation Menu Component (Full Implementation) ---
+const NavigationMenu: React.FC<{
+    currentViewKey: string | null;
+    onClick: MenuProps['onClick'];
+    disabled: boolean;
+}> = ({ currentViewKey, onClick, disabled }) => {
+    // No need for usePyodide here, disabled state is passed via props
 
-// --- Navigation Menu Component (Unchanged) ---
-const NavigationMenu: React.FC<{ /* ... */ }> = ({ /* ... */ }) => { /* ... */ };
+    return (
+        <Menu
+            mode="inline"
+            // Determine default open keys based on the current view belonging to a submenu
+            defaultOpenKeys={
+                currentViewKey &&
+                    ['categoryAnalysis', 'goClustering'].includes(currentViewKey)
+                    ? ['analysis'] // Keep the 'Analysis' submenu open if its child is active
+                    : []
+            }
+            // Highlight the currently selected view key
+            selectedKeys={currentViewKey ? [currentViewKey] : []}
+            style={{ height: '100%', borderRight: 0 }}
+            items={menuItems} // Use the top-level menuItems constant
+            onClick={onClick} // Pass the click handler from props
+            disabled={disabled} // Pass the disabled state from props
+        />
+    );
+};
 
-// --- Main Layout Controller Component (Updated) ---
+// --- Main Layout Controller Component ---
 const AppLayoutController: React.FC = () => {
     console.log('[AppLayoutController] Rendering with Outer Padding v9 - Centering Spin STYLE...'); // Updated log
     const dispatch = useAppDispatch();
@@ -223,12 +260,13 @@ const AppLayoutController: React.FC = () => {
                 placement="left"
                 onClose={closeDrawer}
                 open={isDrawerOpen}
-                styles={{ body: { padding: 0 } }}
+                styles={{ body: { padding: 0 } }} // Removes default body padding
             >
+                {/* Render the fully defined NavigationMenu component */}
                 <NavigationMenu
                     currentViewKey={currentViewKey}
                     onClick={handleMenuClick}
-                    disabled={!isProjectSelected}
+                    disabled={!isProjectSelected} // Disable menu if no project selected
                 />
             </Drawer>
             <PyodideErrorNotifier />
