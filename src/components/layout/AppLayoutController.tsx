@@ -158,6 +158,10 @@ const AppLayoutController: React.FC = () => {
     const currentViewKey = useAppSelector(selectCurrentView);
     const isProjectSelected = !!selectedProjectName;
 
+    // --- ADD THIS LOG ---
+    console.log(`[AppLayoutController] Rendering. Active view: ${currentViewKey}, Selected Project: ${selectedProjectName}`);
+    // --------------------
+
     const {
         data: projectsData,
         isLoading: isLoadingProjects,

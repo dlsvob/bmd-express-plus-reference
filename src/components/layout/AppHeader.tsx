@@ -1,28 +1,31 @@
 // src/components/layout/AppHeader.tsx
 import React from 'react';
 import { Layout, Select, Button, Space, Typography, Tooltip } from 'antd';
-import { PlusOutlined, MenuOutlined } from '@ant-design/icons'; // Import MenuOutlined
+import { PlusOutlined, MenuOutlined } from '@ant-design/icons';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setActiveProject } from '../../store/slices/projectSlice';
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
+import { setActiveView } from '../../store/slices/navigationSlice';
+import { clearSelectedAnalyses } from '../../store/slices/selectedAnalysisSlice';
+import {
+    setActiveClusteringRef,
+    setGoIdInputString,
+    // Import other reset actions from analysisUISlice if needed
+} from '../../store/slices/analysisUISlice';
 
 const { Header } = Layout;
 const { Option } = Select;
 const { Text } = Typography;
 
-// Keep interface for project list items
-interface ProjectListItem {
-    name: string;
-}
+interface ProjectListItem { name: string; }
 
-// Update props interface
 interface AppHeaderProps {
     projectList: ProjectListItem[] | undefined;
     isLoading: boolean;
     error: string | null;
-    disabled?: boolean; // General disabled state (e.g., Pyodide error)
-    projectSelected: boolean; // Is a project currently selected?
-    onMenuClick: () => void; // Callback to open the navigation drawer
+    disabled?: boolean;
+    projectSelected: boolean;
+    onMenuClick: () => void;
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({
@@ -30,59 +33,67 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     isLoading,
     error,
     disabled = false,
-    projectSelected, // Receive new prop
-    onMenuClick,     // Receive new prop
+    projectSelected,
+    onMenuClick,
 }) => {
     const dispatch = useAppDispatch();
     const activeProjectName = useAppSelector(selectSelectedProjectName);
 
+    console.log(`[AppHeader] Rendering. activeProjectName from selector: ${activeProjectName}`);
+
     const handleProjectChange = (value: string | null) => {
-        dispatch(setActiveProject(value));
-        // Optionally dispatch action to clear analysis state if needed
-        // dispatch(clearSelectedAnalyses());
+        if (value !== activeProjectName) {
+            console.log(`[AppHeader] handleProjectChange called with new value: ${value}`);
+
+            // --- ADD LOG HERE ---
+            console.log(`[AppHeader] Dispatching actions to switch project TO: ${value || 'None'}`);
+            // --------------------
+
+            // 1. Set the new active project
+            dispatch(setActiveProject(value));
+
+            // 2. Navigate back to the Experiment List view
+            dispatch(setActiveView('experiments'));
+
+            // 3. Clear selections from the previous project
+            dispatch(clearSelectedAnalyses());
+
+            // 4. Reset relevant Analysis UI state
+            dispatch(setActiveClusteringRef(null));
+            dispatch(setGoIdInputString(''));
+            // Add other resets if necessary
+
+        } else {
+            console.log(`[AppHeader] handleProjectChange called with SAME value: ${value}. No state change needed.`);
+        }
     };
 
     const handleAddNewProject = () => {
-        console.log('Add New Project clicked - Implement me!');
-        // Example: dispatch(uiSlice.actions.showAddProjectModal());
+        console.log('Add New Project button clicked - Implement me!');
     };
 
-    // Determine placeholder text based on state (same logic as before)
     let placeholderText = 'Select Project...';
-    if (isLoading) {
-        placeholderText = 'Loading...';
-    } else if (error) {
-        placeholderText = 'Error';
-    } else if (!projectList || projectList.length === 0) {
-        placeholderText = 'No projects';
-    }
+    if (isLoading) { placeholderText = 'Loading Projects...'; }
+    else if (error) { placeholderText = 'Error Loading Projects'; }
+    else if (!projectList || projectList.length === 0) { placeholderText = 'No Projects Found'; }
 
     return (
         <Header
             style={{
                 display: 'flex',
                 alignItems: 'center',
-                padding: '0 16px', // Adjust padding as needed
+                padding: '0 16px',
                 background: '#fff',
                 borderBottom: '1px solid #f0f0f0',
             }}
         >
-            {/* Left Section: Hamburger Menu & App Title */}
+            {/* Left Section */}
             <Space align="center">
-                <Button
-                    type="text" // Use text button for icon-only
-                    icon={<MenuOutlined />}
-                    onClick={onMenuClick}
-                    // Disable hamburger if no project is selected OR header is generally disabled
-                    disabled={!projectSelected || disabled}
-                    aria-label="Open navigation menu"
-                />
-                <Text strong style={{ fontSize: '1.2em', marginLeft: '8px' }}>
-                    BMDx Plus
-                </Text>
+                <Button type="text" icon={<MenuOutlined />} onClick={onMenuClick} disabled={!projectSelected || disabled} aria-label="Open navigation menu" />
+                <Text strong style={{ fontSize: '1.2em', marginLeft: '8px' }}> BMDx Plus </Text>
             </Space>
 
-            {/* Right Section: Controls (Pushed to the right) */}
+            {/* Right Section */}
             <Space style={{ marginLeft: 'auto' }}>
                 <Select
                     style={{ width: 200 }}
@@ -90,15 +101,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                     onChange={handleProjectChange}
                     value={activeProjectName}
                     loading={isLoading}
-                    disabled={
-                        disabled || // General disabled state
-                        isLoading ||
-                        !!error ||
-                        !projectList ||
-                        projectList.length === 0
-                    }
-                    allowClear
-                    onClear={() => handleProjectChange(null)}
+                    disabled={disabled || isLoading || !!error || !projectList || projectList.length === 0}
+                // allowClear removed for now
                 >
                     {projectList?.map((project) => (
                         <Option key={project.name} value={project.name}>
@@ -108,14 +112,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 </Select>
 
                 <Tooltip title="Add New Project">
-                    <Button
-                        type="primary"
-                        icon={<PlusOutlined />}
-                        onClick={handleAddNewProject}
-                        disabled={disabled || isLoading || !!error} // General disabled state
-                    >
-                        New
-                    </Button>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={handleAddNewProject} disabled={disabled || isLoading || !!error} > New </Button>
                 </Tooltip>
             </Space>
         </Header>

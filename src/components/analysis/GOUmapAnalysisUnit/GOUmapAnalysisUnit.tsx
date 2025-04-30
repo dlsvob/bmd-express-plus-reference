@@ -1,43 +1,38 @@
 // src/components/analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit.tsx
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-    Row,
-    Col,
-    Spin,
-    Alert,
-    Space,
-    Switch,
-    Typography,
-    Card, // Keep Card import
-    RadioChangeEvent,
+    Row, Col, Spin, Alert, Space, Switch, Typography, Card, RadioChangeEvent, Empty // Added Empty
 } from 'antd';
-import UmapPlotComponent from './UmapPlotComponent';
-import { useAppSelector, useAppDispatch } from '../../../store/hooks';
-import { usePreparedPlotData } from '../../../hooks/usePreparedPlotData';
+import UmapPlotComponent from './UmapPlotComponent'; // Relative path
+import { useAppSelector, useAppDispatch } from '../../../store/hooks'; // Adjusted path
+import {
+    usePreparedPlotData,
+} from '../../../hooks/usePreparedPlotData'; // Adjusted path
 import type {
     AnalysisTableRow,
     PreparedPlotHookData,
-} from '../../../models/applicationModel';
-import type { BMDResult } from '../../../models/BMDxExported';
-import { selectSelectedAnalysisRefs } from '../../../store/slices/selectedAnalysisSlice';
+} from '../../../models/applicationModel'; // Adjusted path
+import type { BMDResult } from '../../../models/BMDxExported'; // ADDED Import
+import { selectSelectedAnalysisRefs } from '../../../store/slices/selectedAnalysisSlice'; // Adjusted path
 import {
     selectReferenceDataMap,
     selectReferenceData,
-} from '../../../store/selectors/referenceDataSelector';
+} from '../../../store/selectors/referenceDataSelector'; // Adjusted path
 import {
     HighlightMode,
     selectColorBy,
     selectShapeBy,
     selectSizeBy,
-    selectHiddenColorLabelsSet,
-    selectHiddenShapeLabelsSet,
-    selectHiddenSizeLabelsSet,
+    selectHiddenColorLabelsSet, // Use Set selector
+    selectHiddenShapeLabelsSet, // Use Set selector
+    selectHiddenSizeLabelsSet, // Use Set selector
     selectHighlightMode,
     selectCommittedSlidingWindowValue,
     selectGoIdInputString,
     selectGoIdFilterList,
     selectAccumulationPlotSelectedGoIdsSet,
     selectTableSelectedGoId,
+    // Actions
     setCommittedRankSliderValue,
     setColorBy,
     setShapeBy,
@@ -48,28 +43,28 @@ import {
     setGoIdInputString,
     setHighlightMode as setHighlightModeAction,
     setTableSelectedGoId,
-} from '../../../store/slices/analysisUISlice';
-import { selectSelectedProjectName } from '../../../store/selectors/projectSelectors';
-import { useGetRawAnalysisDataQuery } from '../../../store/apis/experimentsApi';
-import { GOUmapAnalysisTable } from './GOUmapAnalysisTable';
-import { DEFAULT_GOUMAP_TABLE_COLUMNS } from '../../../config/tableColumnDefinitions';
+} from '../../../store/slices/analysisUISlice'; // Adjusted path
+import { selectSelectedProjectName } from '../../../store/selectors/projectSelectors'; // Adjusted path
+import { useGetRawAnalysisDataQuery } from '../../../store/apis/experimentsApi'; // Adjusted path
+import { GOUmapAnalysisTable } from './GOUmapAnalysisTable'; // Relative path
+import { DEFAULT_GOUMAP_TABLE_COLUMNS } from '../../../config/tableColumnDefinitions'; // Adjusted path
 import type {
     TablePaginationConfig,
     SorterResult,
     FilterValue,
 } from 'antd/es/table/interface';
-import type { ColumnType } from 'antd/es/table';
-import CustomLegends from '../shared/CustomLegends';
-import StylingSelectors from '../controls/StylingSelectors';
-import SlidingWindowFilter from '../controls/SlidingWindowFilter';
-import AccumulationPlot from './AccumulationPlot';
-import GoIdFilterUI from '../controls/GoUIdFilterUI';
+import type { ColumnType } from 'antd/es/table'; // ADDED Correct import for ColumnType
+import CustomLegends from '../shared/CustomLegends'; // Adjusted path
+import StylingSelectors from '../controls/StylingSelectors'; // Adjusted path
+import SlidingWindowFilter from '../controls/SlidingWindowFilter'; // Adjusted path
+import AccumulationPlot from './AccumulationPlot'; // Relative path
+import GoIdFilterUI from '../controls/GoUIdFilterUI'; // Adjusted path
 import {
     COLOR_BY_OPTIONS,
     SHAPE_BY_OPTIONS,
     SIZE_BY_OPTIONS,
-} from '../../../config/analysisConstants';
-// Removed CSS Module import if it only contained .innerSectionCard border
+} from '../../../config/analysisConstants'; // Adjusted path
+// Removed CSS Module import if not needed
 // import styles from './GOUmapAnalysisUnit.module.css';
 
 const { Text } = Typography;
@@ -116,7 +111,8 @@ const GOUmapAnalysisUnit: React.FC = () => {
     // --- Data Fetching ---
     const {
         data: rawData,
-        isLoading: isLoadingRaw,
+        isLoading: isLoadingRaw, // Initial load state
+        isFetching, // Background refetch state
         error: rawError,
         isSuccess: rawSuccess,
     } = useGetRawAnalysisDataQuery(
@@ -129,7 +125,8 @@ const GOUmapAnalysisUnit: React.FC = () => {
         }
     );
 
-    const isLoading = isLoadingRaw;
+    // Use isFetching for UI loading state to cover initial load AND background updates
+    const isLoading = isLoadingRaw || isFetching;
     const queryError = rawError;
     const hasSelection = selectedBmdResultRefs && selectedBmdResultRefs.length > 0;
 
@@ -235,19 +232,27 @@ const GOUmapAnalysisUnit: React.FC = () => {
     const handleTableRowClick = useCallback((record: AnalysisTableRow) => { const clickedGoId = record?.go_id; console.log('[GOUmapAnalysisUnit] Row clicked:', clickedGoId); if (clickedGoId && clickedGoId === currentTableSelectedGoId) { dispatch(setTableSelectedGoId(null)); } else { dispatch(setTableSelectedGoId(clickedGoId || null)); } }, [dispatch, currentTableSelectedGoId]);
     const handleViewModeChange = useCallback((checked: boolean) => { setUmapViewMode(checked ? 'multiple' : 'single'); }, []);
 
-    // === Render Logic Checks ===
-    const spinTip = isLoading ? <>Loading UMAP data...</> : undefined;
-    if (isLoading) { return <Spin spinning={isLoading} tip={spinTip} />; }
-    if (queryError) { const errorMessage = typeof queryError === 'object' && queryError !== null && 'message' in queryError ? String(queryError.message) : String(queryError); return (<Alert message="Error Loading Data" description={errorMessage} type="error" showIcon />); }
+    // === Render Logic ===
 
+    // Handle error state first
+    if (queryError) {
+        const errorMessage = typeof queryError === 'object' && queryError !== null && 'message' in queryError ? String(queryError.message) : String(queryError);
+        return (<Alert message="Error Loading Data" description={errorMessage} type="error" showIcon style={{ margin: '24px' }} />);
+    }
+
+    // Show Empty state if no project/analyses are selected
+    if (!hasSelection) {
+        return <Empty description="No analyses selected." style={{ marginTop: '50px' }} />;
+    }
+
+    // Render the main structure, passing loading state down
     return (
-        // Remove className={styles.analysisUnitContainer} from this root div
+        // Root div - no border class here
         <div>
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
 
-                {/* Filters Row - Wrapped in a Card */}
-                {/* --- MODIFICATION: Removed bordered={false} --- */}
-                <Card size="small" /* className={styles.innerSectionCard} - Optional */ >
+                {/* Filters Row - Card border removed */}
+                <Card size="small" bordered={false} /* className={styles.innerSectionCard} - Optional */ >
                     <Row gutter={[16, 16]} align="middle">
                         <Col span={24}>
                             <GoIdFilterUI
@@ -299,6 +304,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
                         {/* Color Legend */}
                         <Col flex="200px">
                             <CustomLegends
+                                // No cardTitle prop passed here
                                 colorItems={colorItems}
                                 hiddenColorLabelsSet={hiddenColorLabelsSet}
                                 onToggleColorVisibility={handleToggleColorVisibility}
@@ -312,64 +318,68 @@ const GOUmapAnalysisUnit: React.FC = () => {
 
                         {/* Main Content Area (Plots + Accumulation) */}
                         <Col flex="auto">
-                            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                                {/* Accumulation Plots Section */}
-                                {/* --- MODIFICATION: Removed bordered={false} --- */}
-                                <Card size="small" title="Accumulation Plots" /* className={styles.innerSectionCard} - Optional */ >
-                                    <Row gutter={[16, 16]}>
-                                        {selectedBmdResultRefs?.map((refStr) => {
-                                            const numericRef = Number(refStr);
-                                            if (isNaN(numericRef)) return null;
-                                            const bmdInfo = bmdResultMap.get(numericRef);
-                                            const analysisNameForPlot = bmdInfo?.name || `Analysis ${numericRef}`;
-                                            const pointsForThisAccumPlot = allStyledPoints?.filter(p => p.bmdResultRef === numericRef) || null;
-                                            return (
-                                                <Col key={`accum-${refStr}`} xs={24} sm={12} md={8} lg={6}>
-                                                    <AccumulationPlot
-                                                        analysisName={analysisNameForPlot}
-                                                        styledPointsForPlot={pointsForThisAccumPlot}
-                                                        bmdResultRef={numericRef}
-                                                    />
-                                                </Col>
-                                            );
-                                        })}
-                                    </Row>
-                                </Card>
-
-                                {/* UMAP Plot Section */}
-                                {/* --- MODIFICATION: Removed bordered={false} --- */}
-                                <Card size="small" title="UMAP Visualization" /* className={styles.innerSectionCard} - Optional */ >
-                                    {umapViewMode === 'single' ? (
-                                        <UmapPlotComponent
-                                            data={analysisPoints}
-                                            referenceData={referenceData}
-                                        />
-                                    ) : (
+                            <Spin spinning={isLoading} tip="Loading analysis data...">
+                                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                                    {/* Accumulation Plots Section - Card border removed */}
+                                    <Card size="small" title="Accumulation Plots" bordered={false} /* className={styles.innerSectionCard} - Optional */ >
                                         <Row gutter={[16, 16]}>
                                             {selectedBmdResultRefs?.map((refStr) => {
                                                 const numericRef = Number(refStr);
                                                 if (isNaN(numericRef)) return null;
-                                                const pointsForThisPlot = styledGroupedData?.get(refStr) || null;
-                                                const plotTitle = bmdRefToExperimentNameMap.get(numericRef) || `Analysis ${refStr}`;
+                                                const bmdInfo = bmdResultMap.get(numericRef);
+                                                const analysisNameForPlot = bmdInfo?.name || `Analysis ${numericRef}`;
+                                                // Pass potentially null data if loading
+                                                const pointsForThisAccumPlot = isLoading ? null : (allStyledPoints?.filter(p => p.bmdResultRef === numericRef) || null);
                                                 return (
-                                                    <Col key={`umap-${refStr}`} xs={24} sm={12} md={8} lg={6}>
-                                                        <UmapPlotComponent
-                                                            data={pointsForThisPlot}
-                                                            referenceData={referenceData}
+                                                    <Col key={`accum-${refStr}`} xs={24} sm={12} md={8} lg={6}>
+                                                        <AccumulationPlot
+                                                            analysisName={analysisNameForPlot}
+                                                            styledPointsForPlot={pointsForThisAccumPlot}
+                                                            bmdResultRef={numericRef}
                                                         />
-                                                        <Text style={{ display: 'block', textAlign: 'center', marginTop: '-10px', fontSize: '0.8em' }}>{plotTitle}</Text>
                                                     </Col>
                                                 );
                                             })}
                                         </Row>
-                                    )}
-                                </Card>
-                            </Space>
+                                    </Card>
+
+                                    {/* UMAP Plot Section - Card border removed */}
+                                    <Card size="small" title="UMAP Visualization" bordered={false} /* className={styles.innerSectionCard} - Optional */ >
+                                        {umapViewMode === 'single' ? (
+                                            <UmapPlotComponent
+                                                // Pass potentially null data if loading
+                                                data={isLoading ? null : analysisPoints}
+                                                referenceData={referenceData}
+                                            />
+                                        ) : (
+                                            <Row gutter={[16, 16]}>
+                                                {selectedBmdResultRefs?.map((refStr) => {
+                                                    const numericRef = Number(refStr);
+                                                    if (isNaN(numericRef)) return null;
+                                                    // Pass potentially null data if loading
+                                                    const pointsForThisPlot = isLoading ? null : (styledGroupedData?.get(refStr) || null);
+                                                    const plotTitle = bmdRefToExperimentNameMap.get(numericRef) || `Analysis ${refStr}`;
+                                                    return (
+                                                        <Col key={`umap-${refStr}`} xs={24} sm={12} md={8} lg={6}>
+                                                            <UmapPlotComponent
+                                                                data={pointsForThisPlot}
+                                                                referenceData={referenceData}
+                                                            />
+                                                            <Text style={{ display: 'block', textAlign: 'center', marginTop: '-10px', fontSize: '0.8em' }}>{plotTitle}</Text>
+                                                        </Col>
+                                                    );
+                                                })}
+                                            </Row>
+                                        )}
+                                    </Card>
+                                </Space>
+                            </Spin>
                         </Col>
 
                         {/* Shape/Size Legend */}
                         <Col flex="200px">
                             <CustomLegends
+                                // No cardTitle prop passed here
                                 shapeItems={shapeItems}
                                 sizeItems={sizeItems}
                                 hiddenShapeLabelsSet={hiddenShapeLabelsSet}
@@ -385,15 +395,14 @@ const GOUmapAnalysisUnit: React.FC = () => {
                     </Row>
                 </div>
 
-                {/* Table Row */}
-                {/* --- MODIFICATION: Removed bordered={false} --- */}
-                <Card size="small" title="Analysis Data Table" /* className={styles.innerSectionCard} - Optional */ >
+                {/* Table Row - Card border removed */}
+                <Card size="small" title="Analysis Data Table" bordered={false} /* className={styles.innerSectionCard} - Optional */ >
                     <Row>
                         <Col span={24}>
                             <GOUmapAnalysisTable
                                 dataSource={tableDataSource || []}
                                 columns={tableColumns}
-                                loading={isLoading}
+                                loading={isLoading} // Pass loading state to table
                                 highlightMode={highlightMode}
                                 highlightGoIdsSet={highlightGoIdsSet}
                                 selectedAccumGoIdsSet={selectedAccumGoIdsSet}

@@ -52,11 +52,16 @@ const projectSlice = createSlice({
             }
         },
         setActiveProject(state, action: PayloadAction<string | null>) {
-            console.log('[projectSlice] Setting active project:', action.payload);
-            // Directly assign to the optional property defined in ProjectState
-            state.activeProjectId = action.payload;
+            const newProjectName = action.payload;
+            console.log('[projectSlice] Reducer: setActiveProject - Payload:', newProjectName);
+            // Update BOTH selectedProjectName and activeProjectId
+            if (state.selectedProjectName !== newProjectName) {
+                state.selectedProjectName = newProjectName;
             }
-        
+            if (state.activeProjectId !== newProjectName) {
+                state.activeProjectId = newProjectName;
+            }
+        },
     },
     extraReducers: (builder) => {
         builder
