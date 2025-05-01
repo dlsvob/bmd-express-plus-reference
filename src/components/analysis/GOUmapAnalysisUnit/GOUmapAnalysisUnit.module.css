@@ -1,14 +1,23 @@
 /* src/components/analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit.module.css */
 
+/* --- Styles for the Filter Header (Sticky) --- */
 .filterHeader {
     position: sticky;
     top: 0;
     z-index: 20;
-    /* Above plots/legends */
+    /* Above plots/legends if they weren't sticky */
     background-color: #f0f2f5;
-    /* Background for the whole sticky area */
-    margin-bottom: 16px;
+    /* margin-bottom: 24px; Handled by inline style */
+    border-bottom: 1px solid transparent;
+    /* Add transition for border */
+    transition: border-color 0.3s ease-in-out;
 }
+
+/* Add border only when expanded */
+.filterHeader.expanded {
+    border-bottom-color: #d9d9d9;
+}
+
 
 .filterHeaderToolbar {
     display: flex;
@@ -16,13 +25,11 @@
     align-items: center;
     padding: 8px 16px;
     border-bottom: 1px solid #d9d9d9;
-    /* Always show bottom border on toolbar */
+    /* Always show border on toolbar */
     position: relative;
-    /* Needed for z-index stacking */
     z-index: 21;
-    /* Ensure toolbar is above potential overlay */
+    /* Above controls */
     background-color: inherit;
-    /* Inherit header background */
 }
 
 .filterHeaderControls {
@@ -34,54 +41,23 @@
     transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
     padding: 16px;
     /* Padding when expanded */
-    background-color: #f0f2f5;
-    /* Ensure background for content area */
-    /* No absolute positioning by default */
+    background-color: inherit;
 }
 
-/* Collapsed State (Triggered by .collapsed class on .filterHeader) */
+/* Collapsed State */
 .filterHeader.collapsed .filterHeaderControls {
     max-height: 0;
     opacity: 0;
     padding-top: 0;
     padding-bottom: 0;
     overflow: hidden;
-    /* Ensure content is clipped */
     transition: max-height 0.3s ease-in, opacity 0.2s ease-in, padding 0.3s ease-in;
     pointer-events: none;
-    /* Prevent interaction when fully collapsed */
 }
 
-/* Hover State (ONLY when collapsed) */
-.filterHeader.collapsed:hover .filterHeaderControls,
-.filterHeader.collapsed:focus-within .filterHeaderControls {
-    max-height: 600px;
-    /* Expand */
-    opacity: 1;
-    padding: 16px;
-    /* Restore padding */
-    position: absolute;
-    /* Take out of flow */
-    top: 100%;
-    /* Position below toolbar (relative to .filterHeader) */
-    /* Adjust if toolbar height isn't exactly covered by padding: */
-    /* top: 45px; */
-    left: 0;
-    width: 100%;
-    background-color: #f0f2f5;
-    /* Explicit background for overlay */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-    /* Shadow for overlay */
-    border: 1px solid #d9d9d9;
-    border-top: none;
-    /* Avoid double border */
-    border-radius: 0 0 4px 4px;
-    z-index: 19;
-    /* Below toolbar (21), above content below */
-    pointer-events: auto;
-    /* Allow interaction when hovered */
-    /* Override collapse transition for smoother hover expand */
-    transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
-}
+/* Remove hover-expand rules */
 
-/* --- REMOVED DEBUG CLASSES --- */
+/* Keep root style if needed */
+.goumapRoot {
+    /* Add any specific root styles if necessary */
+}

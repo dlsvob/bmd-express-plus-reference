@@ -2,8 +2,8 @@ import React, {
     useCallback,
     useMemo,
     useState,
-    useRef, // Import useRef
-    useEffect, // Import useEffect
+    useRef,
+    useEffect,
 } from 'react';
 import {
     Row,
@@ -20,7 +20,7 @@ import {
 } from 'antd';
 import { UpOutlined, DownOutlined } from '@ant-design/icons';
 import UmapPlotComponent from './UmapPlotComponent';
-import AccumulationPlot from './AccumulationPlot'; // Use the reverted/simplified version
+import AccumulationPlot from './AccumulationPlot';
 import { useAppSelector, useAppDispatch } from '../../../store/hooks';
 import { usePreparedPlotData } from '../../../hooks/usePreparedPlotData';
 import type {
@@ -78,23 +78,34 @@ import {
     SHAPE_BY_OPTIONS,
     SIZE_BY_OPTIONS,
 } from '../../../config/analysisConstants';
-import styles from './GOUmapAnalysisUnit.module.css'; // Ensure this contains styles for filter header
+import styles from './GOUmapAnalysisUnit.module.css';
 
 const { Text, Title } = Typography;
 type UmapViewMode = 'single' | 'multiple';
 
-// Style for the horizontally scrolling row
+// Style for the horizontally scrolling row (for plots)
 const horizontalScrollRowStyle: React.CSSProperties = {
     width: '100%',
-    overflowX: 'auto', // Enable horizontal scroll
-    overflowY: 'hidden', // Hide vertical scrollbar on the row itself
-    flexWrap: 'nowrap', // Prevent wrapping
-    paddingBottom: '10px', // Add some space for scrollbar if it appears
+    overflowX: 'auto',
+    overflowY: 'hidden',
+    flexWrap: 'nowrap',
+    paddingBottom: '10px',
 };
 
 // Define margin style for spacing elements vertically
 const verticalSpacingStyle: React.CSSProperties = {
-    marginBottom: '24px', // Corresponds to Ant Design's 'large' space size
+    marginBottom: '24px',
+};
+
+// --- Style for Sticky Legends ---
+// We need to calculate the actual height of the sticky filter header
+// Let's use state for this offset. Default to a reasonable guess.
+const stickyLegendBaseStyle: React.CSSProperties = {
+    position: 'sticky',
+    // height: 'calc(100vh - <offset>px - 64px - 8px - 24px)', // Re-evaluate height later if needed
+    // maxHeight: 'calc(100vh - <offset>px - 64px - 8px - 24px)',
+    // overflowY: 'auto', // Add later if legend content overflows
+    paddingBottom: '20px',
 };
 
 const GOUmapAnalysisUnit: React.FC = () => {
@@ -102,16 +113,16 @@ const GOUmapAnalysisUnit: React.FC = () => {
     const [umapViewMode, setUmapViewMode] = useState<UmapViewMode>('single');
     const [isFilterHeaderCollapsed, setIsFilterHeaderCollapsed] =
         useState(false);
-
-    // --- STATE FOR DYNAMIC PLOT HEIGHT ---
-    // Store height as string (e.g., "250px") or null initially
     const [accumulationPlotHeight, setAccumulationPlotHeight] = useState<
         string | null
     >(null);
-    // Ref for the UMAP plot's container column
     const umapContainerRef = useRef<HTMLDivElement>(null);
 
-    // --- Selectors (Unchanged) ---
+    // --- State and Ref for Sticky Offset Calculation ---
+    const filterHeaderRef = useRef<HTMLDivElement>(null);
+    const [legendTopOffset, setLegendTopOffset] = useState<number>(70); // Initial guess
+
+    // --- Selectors ---
     const projectName = useAppSelector(selectSelectedProjectName);
     const selectedBmdResultRefs = useAppSelector(selectSelectedAnalysisRefs);
     const colorByOption = useAppSelector(selectColorBy);
@@ -131,7 +142,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
     );
     const currentTableSelectedGoId = useAppSelector(selectTableSelectedGoId);
 
-    // --- State for Table (Unchanged) ---
+    // --- State for Table ---
     const [tableSorter, setTableSorter] = useState<
         SorterResult<AnalysisTableRow> | SorterResult<AnalysisTableRow>[]
     >({});
@@ -145,7 +156,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
         }
     );
 
-    // --- Data Fetching (Unchanged) ---
+    // --- Data Fetching ---
     const {
         data: rawData,
         isLoading: isLoadingRaw,
@@ -166,7 +177,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
     const queryError = rawError;
     const hasSelection = selectedBmdResultRefs && selectedBmdResultRefs.length > 0;
 
-    // --- Memoized Maps (Unchanged) ---
+    // --- Memoized Maps ---
     const { bmdResultMap, bmdRefToExperimentNameMap } = useMemo<{
         bmdResultMap: Map<number, BMDResult>;
         bmdRefToExperimentNameMap: Map<number, string>;
@@ -193,7 +204,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
         };
     }, [rawSuccess, rawData]);
 
-    // --- Prepare Plot Data Hook (Unchanged) ---
+    // --- Prepare Plot Data Hook ---
     const {
         analysisPoints,
         allStyledPoints,
@@ -217,13 +228,13 @@ const GOUmapAnalysisUnit: React.FC = () => {
         tableSelectedGoId: currentTableSelectedGoId,
     });
 
-    // --- Highlight GO ID Set (Unchanged) ---
+    // --- Highlight GO ID Set ---
     const highlightGoIdsSet = useMemo(
         () => new Set(goIdFilterList),
         [goIdFilterList]
     );
 
-    // --- Prepare Table Data Source (Unchanged) ---
+    // --- Prepare Table Data Source ---
     const tableDataSource = useMemo(() => {
         const points = allStyledPoints || [];
         if (!tableSorter || !('field' in tableSorter) || !tableSorter.order)
@@ -240,7 +251,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
         return sortedPoints;
     }, [allStyledPoints, tableSorter]);
 
-    // --- Prepare Table Columns (Unchanged) ---
+    // --- Prepare Table Columns ---
     const tableColumns = useMemo(() => {
         return DEFAULT_GOUMAP_TABLE_COLUMNS.map(
             (col: ColumnType<AnalysisTableRow>) => {
@@ -260,64 +271,65 @@ const GOUmapAnalysisUnit: React.FC = () => {
 
     // --- EFFECT TO MEASURE UMAP PLOT CONTAINER HEIGHT ---
     useEffect(() => {
-        // Only run this effect in single view mode
         if (umapViewMode !== 'single') {
-            // Optional: Reset height if switching away from single view?
-            // setAccumulationPlotHeight(null);
             return;
         }
-
         const targetElement = umapContainerRef.current;
-
-        // Ensure the target element exists before observing
         if (!targetElement) {
-            console.log('[HeightEffect] Target element not found yet.');
             return;
         }
-
-        console.log('[HeightEffect] Setting up ResizeObserver for:', targetElement);
-
         const resizeObserver = new ResizeObserver((entries) => {
             for (let entry of entries) {
-                // Use contentRect for dimensions
                 const { height } = entry.contentRect;
                 if (height > 0) {
-                    // Calculate half height and round
                     const newHeight = Math.round(height / 2);
                     const newHeightPx = `${newHeight}px`;
-
-                    // Update state only if the value actually changes
                     setAccumulationPlotHeight((prevHeight) => {
                         if (prevHeight !== newHeightPx) {
-                            console.log(
-                                `[ResizeObserver] UMAP container height: ${height.toFixed(
-                                    1
-                                )}px -> Accumulation plot height: ${newHeightPx}`
-                            );
                             return newHeightPx;
                         }
-                        return prevHeight; // No change needed
+                        return prevHeight;
                     });
-                } else {
-                    console.log(
-                        '[ResizeObserver] Observed height is 0 or less.'
-                    );
                 }
             }
         });
-
-        // Start observing the target element
         resizeObserver.observe(targetElement);
-
-        // --- Cleanup function ---
         return () => {
-            console.log(
-                '[HeightEffect] Cleaning up ResizeObserver for:',
-                targetElement
-            );
             resizeObserver.disconnect();
         };
-    }, [umapViewMode]); // Dependency: Re-run if view mode changes
+    }, [umapViewMode]);
+
+    // --- EFFECT TO MEASURE FILTER HEADER HEIGHT for Legend Offset ---
+    useEffect(() => {
+        const headerElement = filterHeaderRef.current;
+        if (headerElement) {
+            // Use ResizeObserver for accurate height even with transitions/content changes
+            const resizeObserver = new ResizeObserver(entries => {
+                for (let entry of entries) {
+                    const height = entry.target.getBoundingClientRect().height;
+                    if (height > 0) {
+                        // Add a small buffer (e.g., 2px) if needed
+                        const newOffset = Math.round(height);
+                        setLegendTopOffset(prevOffset => {
+                            if (prevOffset !== newOffset) {
+                                console.log(`[Sticky Offset] Filter header height: ${height.toFixed(1)}px -> Legend top: ${newOffset}px`);
+                                return newOffset;
+                            }
+                            return prevOffset;
+                        });
+                    }
+                }
+            });
+            resizeObserver.observe(headerElement);
+            // Initial measurement
+            const initialHeight = headerElement.getBoundingClientRect().height;
+            if (initialHeight > 0) {
+                setLegendTopOffset(Math.round(initialHeight));
+            }
+
+            return () => resizeObserver.disconnect();
+        }
+    }, [isFilterHeaderCollapsed]); // Re-measure if collapsed state changes
 
     // --- Callbacks ---
     const handleToggleColorVisibility = useCallback(
@@ -374,7 +386,6 @@ const GOUmapAnalysisUnit: React.FC = () => {
             if (Object.values(HighlightMode).includes(mode)) {
                 dispatch(setHighlightModeAction(mode));
             } else {
-                console.warn('Invalid highlight mode selected:', mode);
                 dispatch(setHighlightModeAction(HighlightMode.NONE));
             }
         },
@@ -389,12 +400,6 @@ const GOUmapAnalysisUnit: React.FC = () => {
                 | SorterResult<AnalysisTableRow>[],
             extra: { currentDataSource: AnalysisTableRow[]; action: string }
         ) => {
-            console.log('[GOUmapAnalysisUnit] handleTableChange:', {
-                pagination,
-                filters,
-                sorter,
-                action: extra.action,
-            });
             setTablePagination(pagination);
             const currentSorter = Array.isArray(sorter) ? sorter[0] : sorter;
             setTableSorter(currentSorter || {});
@@ -404,7 +409,6 @@ const GOUmapAnalysisUnit: React.FC = () => {
     const handleTableRowClick = useCallback(
         (record: AnalysisTableRow) => {
             const clickedGoId = record?.go_id;
-            console.log('[GOUmapAnalysisUnit] Row clicked:', clickedGoId);
             if (clickedGoId && clickedGoId === currentTableSelectedGoId) {
                 dispatch(setTableSelectedGoId(null));
             } else {
@@ -415,8 +419,6 @@ const GOUmapAnalysisUnit: React.FC = () => {
     );
     const handleViewModeChange = useCallback((checked: boolean) => {
         setUmapViewMode(checked ? 'multiple' : 'single');
-        // Optional: Reset height immediately when switching modes
-        // setAccumulationPlotHeight(null);
     }, []);
     const toggleFilterHeaderCollapse = useCallback(() => {
         setIsFilterHeaderCollapsed((prev) => !prev);
@@ -451,26 +453,31 @@ const GOUmapAnalysisUnit: React.FC = () => {
         );
     }
 
-    // Add a root class for potential styling/targeting
-    // Also add flex properties to ensure it fills parent height
     const rootStyle: React.CSSProperties = {
         display: 'flex',
         flexDirection: 'column',
         flexGrow: 1,
-        minHeight: 0, // Important for flex children height calculation
-        width: '100%', // Ensure it takes full width
+        minHeight: 0,
+        width: '100%',
     };
 
-    // --- Define a default/fallback height for initial render ---
-    const defaultAccumPlotHeight = '250px'; // Adjust if needed
+    const defaultAccumPlotHeight = '250px';
+
+    // Combine base sticky style with dynamic top offset
+    const stickyLegendStyle: React.CSSProperties = {
+        ...stickyLegendBaseStyle,
+        top: `${legendTopOffset}px`,
+    };
 
     return (
         <div style={rootStyle} className={styles.goumapRoot}>
-            {/* --- Filter Header Section (Simplified - No hover expand) --- */}
+            {/* --- Filter Header Section (Sticky, needs ref) --- */}
+            {/* Add ref={filterHeaderRef} here */}
             <div
+                ref={filterHeaderRef}
                 className={`${styles.filterHeader} ${isFilterHeaderCollapsed ? styles.collapsed : styles.expanded
                     }`}
-                style={verticalSpacingStyle} // Add bottom margin
+                style={verticalSpacingStyle} // Keep margin below header
             >
                 <div className={styles.filterHeaderToolbar}>
                     <Title level={5} style={{ margin: 0, flexGrow: 1 }}>
@@ -550,25 +557,38 @@ const GOUmapAnalysisUnit: React.FC = () => {
             </div>
             {/* --- END Filter Header Section --- */}
 
-            {/* --- Plots/Legends Row --- */}
-            <div style={verticalSpacingStyle}>
-                <Row gutter={[16, 16]} wrap={false}>
-                    {/* Color Legend (Fixed Width) */}
-                    <Col flex="0 0 200px">
+            {/* --- Main Content Row (Legends + Plots/Table Area) --- */}
+            {/* This Row is NOT sticky itself */}
+            <Row gutter={[16, 16]} wrap={false} align="top" style={{ flexGrow: 1, minHeight: 0 }}>
+                {/* Color Legend Column (Fixed Width) */}
+                <Col flex="0 0 200px" style={{ alignSelf: 'stretch' }}> {/* Stretch column height */}
+                    {/* Sticky Wrapper Div INSIDE the column */}
+                    <div style={stickyLegendStyle}>
                         <CustomLegends
                             colorItems={colorItems}
                             hiddenColorLabelsSet={hiddenColorLabelsSet}
-                            onToggleColorVisibility={handleToggleColorVisibility}
-                            onToggleShapeVisibility={handleToggleShapeVisibility}
-                            onToggleSizeVisibility={handleToggleSizeVisibility}
+                            onToggleColorVisibility={
+                                handleToggleColorVisibility
+                            }
+                            onToggleShapeVisibility={
+                                handleToggleShapeVisibility
+                            }
+                            onToggleSizeVisibility={
+                                handleToggleSizeVisibility
+                            }
                             showColor={true}
                             showShape={false}
                             showSize={false}
                         />
-                    </Col>
+                    </div>
+                </Col>
 
-                    {/* Main Content Area (Plots) - Conditionally Rendered */}
-                    <Col flex="auto">
+                {/* Center Content Column (Plots and Table) */}
+                {/* This column should implicitly scroll if its content overflows */}
+                {/* because the main scroll container is `.scrollMaskContainer` */}
+                <Col flex="auto" style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                    {/* Plots Area */}
+                    <div style={{ marginBottom: '24px' }}> {/* Use margin instead of verticalSpacingStyle here */}
                         <Spin spinning={isLoading} tip="Loading analysis data...">
                             {/* == MULTIPLE VIEW MODE RENDERING == */}
                             {umapViewMode === 'multiple' &&
@@ -576,9 +596,8 @@ const GOUmapAnalysisUnit: React.FC = () => {
                                     const numericRef = Number(refStr);
                                     if (isNaN(numericRef)) return null;
                                     const analysisNameForPlot =
-                                        bmdRefToExperimentNameMap.get(
-                                            numericRef
-                                        ) || `Analysis ${numericRef}`;
+                                        bmdRefToExperimentNameMap.get(numericRef) ||
+                                        `Analysis ${numericRef}`;
                                     const pointsForAccumPlot = isLoading
                                         ? null
                                         : allStyledPoints?.filter(
@@ -592,7 +611,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
                                             key={`exp-row-${refStr}`}
                                             size="small"
                                             title={analysisNameForPlot}
-                                            bordered={false} // Ensure no border
+                                            bordered={false}
                                             style={{
                                                 width: '100%',
                                                 marginBottom: '16px',
@@ -600,41 +619,18 @@ const GOUmapAnalysisUnit: React.FC = () => {
                                         >
                                             <Row gutter={[16, 16]} align="top">
                                                 <Col xs={24} lg={12}>
-                                                    <Title
-                                                        level={5}
-                                                        style={{
-                                                            textAlign: 'center',
-                                                            marginBottom: '8px',
-                                                        }}
-                                                    >
-                                                        Accumulation
-                                                    </Title>
+                                                    <Title level={5} style={{ textAlign: 'center', marginBottom: '8px' }}>Accumulation</Title>
                                                     <AccumulationPlot
-                                                        analysisName={
-                                                            analysisNameForPlot
-                                                        }
-                                                        styledPointsForPlot={
-                                                            pointsForAccumPlot
-                                                        }
+                                                        analysisName={analysisNameForPlot}
+                                                        styledPointsForPlot={pointsForAccumPlot}
                                                         bmdResultRef={numericRef}
-                                                    // plotHeight="300px" // Optional: Fixed height for multi-view
                                                     />
                                                 </Col>
                                                 <Col xs={24} lg={12}>
-                                                    <Title
-                                                        level={5}
-                                                        style={{
-                                                            textAlign: 'center',
-                                                            marginBottom: '8px',
-                                                        }}
-                                                    >
-                                                        UMAP
-                                                    </Title>
+                                                    <Title level={5} style={{ textAlign: 'center', marginBottom: '8px' }}>UMAP</Title>
                                                     <UmapPlotComponent
                                                         data={pointsForUmapPlot}
-                                                        referenceData={
-                                                            referenceData
-                                                        }
+                                                        referenceData={referenceData}
                                                     />
                                                 </Col>
                                             </Row>
@@ -642,14 +638,13 @@ const GOUmapAnalysisUnit: React.FC = () => {
                                     );
                                 })}
 
-                            {/* == SINGLE VIEW MODE RENDERING (MODIFIED) == */}
+                            {/* == SINGLE VIEW MODE RENDERING == */}
                             {umapViewMode === 'single' && (
                                 <>
-                                    {/* Card containing the row of individual Accumulation plots */}
                                     <Card
                                         size="small"
                                         title="Individual Accumulation Plots"
-                                        bordered={false} // Ensure no border
+                                        bordered={false}
                                         style={{
                                             width: '100%',
                                             marginBottom: '16px',
@@ -660,113 +655,58 @@ const GOUmapAnalysisUnit: React.FC = () => {
                                             style={horizontalScrollRowStyle}
                                             align="top"
                                         >
-                                            {selectedBmdResultRefs?.map(
-                                                (refStr) => {
-                                                    const numericRef =
-                                                        Number(refStr);
-                                                    if (isNaN(numericRef))
-                                                        return null;
-                                                    const analysisNameForPlot =
-                                                        bmdRefToExperimentNameMap.get(
-                                                            numericRef
-                                                        ) ||
-                                                        `Analysis ${numericRef}`;
-                                                    const pointsForThisAccumPlot =
-                                                        isLoading
-                                                            ? null
-                                                            : allStyledPoints?.filter(
-                                                                (p) =>
-                                                                    p.bmdResultRef ===
-                                                                    numericRef
-                                                            ) || null;
-                                                    return (
-                                                        <Col
-                                                            key={`single-accum-${refStr}`}
-                                                            style={{
-                                                                // Set a fixed width for consistency
-                                                                width: '350px',
-                                                                flexShrink: 0,
-                                                                paddingBottom: '16px', // Optional spacing
-                                                            }}
-                                                        >
-                                                            <Title
-                                                                level={5}
-                                                                style={{
-                                                                    textAlign:
-                                                                        'center',
-                                                                    marginBottom:
-                                                                        '8px',
-                                                                    fontSize:
-                                                                        '0.9em',
-                                                                    whiteSpace:
-                                                                        'nowrap',
-                                                                    overflow:
-                                                                        'hidden',
-                                                                    textOverflow:
-                                                                        'ellipsis',
-                                                                }}
-                                                                title={
-                                                                    analysisNameForPlot
-                                                                }
-                                                            >
-                                                                {
-                                                                    analysisNameForPlot
-                                                                }
-                                                            </Title>
-                                                            <AccumulationPlot
-                                                                analysisName={
-                                                                    analysisNameForPlot
-                                                                }
-                                                                styledPointsForPlot={
-                                                                    pointsForThisAccumPlot
-                                                                }
-                                                                bmdResultRef={
-                                                                    numericRef
-                                                                }
-                                                                // *** PASS THE DYNAMIC HEIGHT ***
-                                                                // Use state value or fallback default
-                                                                plotHeight={
-                                                                    accumulationPlotHeight ??
-                                                                    defaultAccumPlotHeight
-                                                                }
-                                                            />
-                                                        </Col>
-                                                    );
-                                                }
-                                            )}
+                                            {selectedBmdResultRefs?.map((refStr) => {
+                                                const numericRef = Number(refStr);
+                                                if (isNaN(numericRef)) return null;
+                                                const analysisNameForPlot =
+                                                    bmdRefToExperimentNameMap.get(numericRef) ||
+                                                    `Analysis ${numericRef}`;
+                                                const pointsForThisAccumPlot =
+                                                    isLoading
+                                                        ? null
+                                                        : allStyledPoints?.filter(
+                                                            (p) => p.bmdResultRef === numericRef
+                                                        ) || null;
+                                                return (
+                                                    <Col
+                                                        key={`single-accum-${refStr}`}
+                                                        style={{
+                                                            width: '350px',
+                                                            flexShrink: 0,
+                                                            paddingBottom: '16px',
+                                                        }}
+                                                    >
+                                                        <Title level={5} style={{ textAlign: 'center', marginBottom: '8px', fontSize: '0.9em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={analysisNameForPlot}>
+                                                            {analysisNameForPlot}
+                                                        </Title>
+                                                        <AccumulationPlot
+                                                            analysisName={analysisNameForPlot}
+                                                            styledPointsForPlot={pointsForThisAccumPlot}
+                                                            bmdResultRef={numericRef}
+                                                            plotHeight={accumulationPlotHeight ?? defaultAccumPlotHeight}
+                                                        />
+                                                    </Col>
+                                                );
+                                            })}
                                         </Row>
                                     </Card>
 
-                                    {/* Card containing the single combined UMAP plot */}
                                     <Card
                                         size="small"
                                         title="Combined UMAP Plot"
-                                        bordered={false} // Ensure no border
+                                        bordered={false}
                                         style={{ width: '100%' }}
                                     >
                                         <Row justify="center">
-                                            {/* *** ATTACH THE REF HERE *** */}
                                             <Col
                                                 xs={24}
                                                 lg={16}
                                                 xl={12}
                                                 ref={umapContainerRef}
                                             >
-                                                <Title
-                                                    level={5}
-                                                    style={{
-                                                        textAlign: 'center',
-                                                        marginBottom: '8px',
-                                                    }}
-                                                >
-                                                    UMAP
-                                                </Title>
+                                                <Title level={5} style={{ textAlign: 'center', marginBottom: '8px' }}>UMAP</Title>
                                                 <UmapPlotComponent
-                                                    data={
-                                                        isLoading
-                                                            ? null
-                                                            : analysisPoints
-                                                    }
+                                                    data={isLoading ? null : analysisPoints}
                                                     referenceData={referenceData}
                                                 />
                                             </Col>
@@ -775,56 +715,67 @@ const GOUmapAnalysisUnit: React.FC = () => {
                                 </>
                             )}
                         </Spin>
-                    </Col>
-                    {/* END Main Content Area */}
+                    </div>
+                    {/* END Plots Area */}
 
-                    {/* Shape/Size Legend (Fixed Width) */}
-                    <Col flex="0 0 200px">
+                    {/* Table Area */}
+                    {/* This Card should be the last element in the center column */}
+                    <Card
+                        size="small"
+                        title="Analysis Data Table"
+                        bordered={false}
+                        style={{ flexShrink: 0 }} // Prevent table card from shrinking weirdly
+                    >
+                        <Row>
+                            <Col span={24}>
+                                <GOUmapAnalysisTable
+                                    dataSource={tableDataSource || []}
+                                    columns={tableColumns}
+                                    loading={isLoading}
+                                    highlightMode={highlightMode}
+                                    highlightGoIdsSet={highlightGoIdsSet}
+                                    selectedAccumGoIdsSet={selectedAccumGoIdsSet}
+                                    size="small"
+                                    scroll={{ y: 400, x: 'max-content' }}
+                                    pagination={tablePagination}
+                                    onChange={handleTableChange}
+                                    onRowClick={handleTableRowClick}
+                                    selectedGoId={currentTableSelectedGoId}
+                                />
+                            </Col>
+                        </Row>
+                    </Card>
+                    {/* END Table Area */}
+                </Col>
+                {/* END Center Content Column */}
+
+                {/* Right Legend Column (Fixed Width) */}
+                <Col flex="0 0 200px" style={{ alignSelf: 'stretch' }}> {/* Stretch column height */}
+                    {/* Sticky Wrapper Div INSIDE the column */}
+                    <div style={stickyLegendStyle}>
                         <CustomLegends
                             shapeItems={shapeItems}
                             sizeItems={sizeItems}
                             hiddenShapeLabelsSet={hiddenShapeLabelsSet}
                             hiddenSizeLabelsSet={hiddenSizeLabelsSet}
-                            onToggleColorVisibility={handleToggleColorVisibility}
-                            onToggleShapeVisibility={handleToggleShapeVisibility}
-                            onToggleSizeVisibility={handleToggleSizeVisibility}
+                            onToggleColorVisibility={
+                                handleToggleColorVisibility
+                            }
+                            onToggleShapeVisibility={
+                                handleToggleShapeVisibility
+                            }
+                            onToggleSizeVisibility={
+                                handleToggleSizeVisibility
+                            }
                             showColor={false}
                             showShape={true}
                             showSize={true}
                         />
-                    </Col>
-                </Row>
-            </div>
-            {/* --- END Plots/Legends Row --- */}
+                    </div>
+                </Col>
+            </Row>
+            {/* --- END Main Content Row --- */}
 
-            {/* --- Table Row --- */}
-            {/* Add spacing below the table card */}
-            <Card
-                size="small"
-                title="Analysis Data Table"
-                bordered={false} // Ensure no border
-                style={verticalSpacingStyle} // Add bottom margin
-            >
-                <Row>
-                    <Col span={24}>
-                        <GOUmapAnalysisTable
-                            dataSource={tableDataSource || []}
-                            columns={tableColumns}
-                            loading={isLoading}
-                            highlightMode={highlightMode}
-                            highlightGoIdsSet={highlightGoIdsSet}
-                            selectedAccumGoIdsSet={selectedAccumGoIdsSet}
-                            size="small"
-                            scroll={{ y: 400, x: 'max-content' }}
-                            pagination={tablePagination}
-                            onChange={handleTableChange}
-                            onRowClick={handleTableRowClick}
-                            selectedGoId={currentTableSelectedGoId}
-                        />
-                    </Col>
-                </Row>
-            </Card>
-            {/* --- END Table Row --- */}
         </div> // End of root div
     );
 };
