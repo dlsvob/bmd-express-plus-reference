@@ -2,15 +2,11 @@
 
 .plotContainer {
     position: relative;
-    /* Needed for absolute positioning of the plot inside */
     width: 100%;
-    /* Take up available width */
     aspect-ratio: 1 / 1;
-    /* Force square aspect ratio */
-    /* border: 1px dashed lightcoral; */
-    /* Keep commented out unless debugging */
+    /* <<< ADDED: Force square container */
     overflow: hidden;
-    /* Hide anything overflowing the square */
+    /* height: 400px; <<< REMOVED: Height controlled by aspect ratio */
 }
 
 /* Target Plotly's generated div within our container */
@@ -19,46 +15,34 @@
     top: 0;
     left: 0;
     width: 100% !important;
-    /* Override Plotly's inline styles */
     height: 100% !important;
-    /* Override Plotly's inline styles */
 }
 
-/* Target Plotly elements *only* within this component's container */
-
+/* --- Modebar Styles --- */
 /* Ensure horizontal layout for the modebar */
 .plotContainer :global(.modebar) {
     display: flex !important;
     flex-direction: row !important;
     justify-content: flex-end !important;
-    /* Align buttons to the right */
     background-color: transparent !important;
-    /* No background */
     border: none !important;
-    /* No border */
     box-shadow: none !important;
-    /* No shadow */
     padding: 2px !important;
-    /* Minimal padding */
 }
 
 /* Target the groups of buttons */
 .plotContainer :global(.modebar-group) {
     display: inline-flex !important;
-    /* Keep groups inline */
     background-color: transparent !important;
-    /* No group background */
     margin-left: 5px !important;
-    /* Space between groups */
     padding: 0 !important;
     border: none !important;
     box-shadow: none !important;
 }
 
-/* Style individual buttons - Increase padding for larger click area */
+/* Style individual buttons */
 .plotContainer :global(.modebar-btn) {
     padding: 6px !important;
-    /* <<< Increased padding */
     background: none !important;
     border: none !important;
     cursor: pointer;
@@ -66,20 +50,16 @@
     vertical-align: middle;
 }
 
-/* Style the icons (SVGs) - Make ~50% larger */
+/* Style the icons (SVGs) */
 .plotContainer :global(.modebar-btn svg) {
     color: rgba(0, 0, 0, 0.65) !important;
-    /* Default icon color */
     width: 24px !important;
-    /* <<< Increased width (~50% > 16px) */
     height: 24px !important;
-    /* <<< Increased height */
     display: block !important;
 }
 
 .plotContainer :global(.modebar-btn svg path) {
     fill: currentColor !important;
-    /* Inherit color */
 }
 
 /* Hover state */

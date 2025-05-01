@@ -46,7 +46,7 @@ import CustomLegends from '../shared/CustomLegends';
 import StylingSelectors from '../controls/StylingSelectors';
 import SlidingWindowFilter from '../controls/SlidingWindowFilter';
 import AccumulationPlot from './AccumulationPlot';
-import GoIdFilterUI from '../controls/GoUIdFilterUI'; // Corrected path
+import GoIdFilterUI from '../controls/GoUIdFilterUI';
 import {
     COLOR_BY_OPTIONS,
     SHAPE_BY_OPTIONS,
@@ -250,7 +250,6 @@ const GOUmapAnalysisUnit: React.FC = () => {
                             aria-label={isFilterHeaderCollapsed ? 'Expand Filters' : 'Collapse Filters'}
                         />
                     </div>
-                    {/* Controls div is ALWAYS rendered, visibility controlled by CSS */}
                     <div className={styles.filterHeaderControls}>
                         <GoIdFilterUI
                             goIdInputString={goIdInputString}
@@ -311,62 +310,66 @@ const GOUmapAnalysisUnit: React.FC = () => {
                             />
                         </Col>
 
-                        {/* Main Content Area (Plots + Accumulation) */}
+                        {/* Main Content Area (Plots by Experiment) */}
                         <Col flex="auto">
                             <Spin spinning={isLoading} tip="Loading analysis data...">
-                                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                                    {/* Accumulation Plots Section */}
-                                    <Card size="small" title="Accumulation Plots" variant={'borderless'}>
-                                        <Row gutter={[16, 16]}>
-                                            {selectedBmdResultRefs?.map((refStr) => {
-                                                const numericRef = Number(refStr);
-                                                if (isNaN(numericRef)) return null;
-                                                const bmdInfo = bmdResultMap.get(numericRef);
-                                                const analysisNameForPlot = bmdInfo?.name || `Analysis ${numericRef}`;
-                                                const pointsForThisAccumPlot = isLoading ? null : (allStyledPoints?.filter(p => p.bmdResultRef === numericRef) || null);
-                                                return (
-                                                    <Col key={`accum-${refStr}`} xs={24} sm={12} md={8} lg={6}>
+                                <Space direction="vertical" size="large" style={{ width: '100%' }}>
+
+                                    {/* Map over selected refs to create rows */}
+                                    {selectedBmdResultRefs?.map((refStr) => {
+                                        const numericRef = Number(refStr);
+                                        if (isNaN(numericRef)) return null;
+
+                                        const bmdInfo = bmdResultMap.get(numericRef);
+                                        const analysisNameForPlot = bmdInfo?.name || `Analysis ${numericRef}`;
+
+                                        // Get data specific to this ref
+                                        const pointsForAccumPlot = isLoading ? null : (allStyledPoints?.filter(p => p.bmdResultRef === numericRef) || null);
+                                        const pointsForUmapPlot = isLoading ? null : (styledGroupedData?.get(refStr) || null);
+
+                                        return (
+                                            <Card key={`exp-row-${refStr}`} size="small" title={analysisNameForPlot} bordered={false} style={{ width: '100%' }}>
+                                                <Row gutter={[16, 16]} align="middle">
+                                                    {/* Column 1: Accumulation Plot */}
+                                                    <Col xs={24} lg={umapViewMode === 'multiple' ? 12 : 24}>
+                                                        <Title level={5} style={{ textAlign: 'center', marginBottom: '8px' }}>Accumulation</Title>
                                                         <AccumulationPlot
                                                             analysisName={analysisNameForPlot}
-                                                            styledPointsForPlot={pointsForThisAccumPlot}
+                                                            styledPointsForPlot={pointsForAccumPlot}
                                                             bmdResultRef={numericRef}
                                                         />
                                                     </Col>
-                                                );
-                                            })}
-                                        </Row>
-                                    </Card>
 
-                                    {/* UMAP Plot Section */}
-                                    <Card size="small" title="UMAP Visualization" bordered={false}>
-                                        {umapViewMode === 'single' ? (
-                                            <UmapPlotComponent
-                                                data={isLoading ? null : analysisPoints}
-                                                referenceData={referenceData}
-                                            />
-                                        ) : (
-                                            <Row gutter={[16, 16]}>
-                                                {selectedBmdResultRefs?.map((refStr) => {
-                                                    const numericRef = Number(refStr);
-                                                    if (isNaN(numericRef)) return null;
-                                                    const pointsForThisPlot = isLoading ? null : (styledGroupedData?.get(refStr) || null);
-                                                    const plotTitle = bmdRefToExperimentNameMap.get(numericRef) || `Analysis ${refStr}`;
-                                                    return (
-                                                        <Col key={`umap-${refStr}`} xs={24} sm={12} md={8} lg={6}>
+                                                    {/* Column 2: UMAP Plot (Only in multiple view mode) */}
+                                                    {umapViewMode === 'multiple' && (
+                                                        <Col xs={24} lg={12}>
+                                                            <Title level={5} style={{ textAlign: 'center', marginBottom: '8px' }}>UMAP</Title>
                                                             <UmapPlotComponent
-                                                                data={pointsForThisPlot}
+                                                                data={pointsForUmapPlot}
                                                                 referenceData={referenceData}
                                                             />
-                                                            <Text style={{ display: 'block', textAlign: 'center', marginTop: '-10px', fontSize: '0.8em' }}>{plotTitle}</Text>
                                                         </Col>
-                                                    );
-                                                })}
-                                            </Row>
-                                        )}
-                                    </Card>
+                                                    )}
+                                                </Row>
+                                            </Card>
+                                        );
+                                    })}
+
+                                    {/* Render the single combined UMAP plot if in single view mode */}
+                                    {umapViewMode === 'single' && (
+                                        <Card size="small" title="Combined UMAP Visualization" bordered={false}>
+                                            <UmapPlotComponent
+                                                data={isLoading ? null : analysisPoints} // Use combined points
+                                                referenceData={referenceData}
+                                            />
+                                        </Card>
+                                    )}
+
                                 </Space>
                             </Spin>
                         </Col>
+                        {/* END Main Content Area */}
+
 
                         {/* Shape/Size Legend */}
                         <Col flex="200px">
