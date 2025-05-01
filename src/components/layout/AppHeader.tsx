@@ -1,20 +1,16 @@
-import React, { useCallback } from 'react';
+import React from 'react'; // Removed useCallback
 import { Select, Button, Space, Typography, Tooltip } from 'antd';
-import {
-    PlusOutlined,
-    MenuOutlined,
-    BarChartOutlined,
-} from '@ant-design/icons';
+import { PlusOutlined, MenuOutlined } from '@ant-design/icons'; // Removed BarChartOutlined
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setActiveProject } from '../../store/slices/projectSlice';
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
 import {
     setActiveView,
-    selectCurrentView,
+    // selectCurrentView // No longer needed here
 } from '../../store/slices/navigationSlice';
 import {
     clearSelectedAnalyses,
-    selectSelectedAnalysisRefs,
+    // selectSelectedAnalysisRefs // No longer needed here
 } from '../../store/slices/selectedAnalysisSlice';
 import {
     setActiveClusteringRef,
@@ -48,20 +44,18 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 }) => {
     const dispatch = useAppDispatch();
     const activeProjectName = useAppSelector(selectSelectedProjectName);
-    const currentViewKey = useAppSelector(selectCurrentView);
-    const selectedRefs = useAppSelector(selectSelectedAnalysisRefs);
+    // const currentViewKey = useAppSelector(selectCurrentView); // Removed
+    // const selectedRefs = useAppSelector(selectSelectedAnalysisRefs); // Removed
 
-    console.log(
-        `[AppHeader] Rendering. activeProjectName: ${activeProjectName}, currentView: ${currentViewKey}, selectedRefs: ${selectedRefs.length}`
-    );
+    console.log(`[AppHeader] Rendering. activeProjectName: ${activeProjectName}`); // Simplified log
 
     const handleProjectChange = (value: string | null) => {
         if (value !== activeProjectName) {
             console.log(
-                `[AppHeader] Project CHANGED. Dispatching actions to switch project TO: ${value || 'None'
-                }`
+                `[AppHeader] Project CHANGED. Dispatching actions to switch project TO: ${value || 'None'}`
             );
             dispatch(setActiveProject(value));
+            // Always go to experiments view on project change
             dispatch(setActiveView('experiments'));
             dispatch(clearSelectedAnalyses());
             dispatch(setActiveClusteringRef(null));
@@ -78,11 +72,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         // TODO: Implement project import functionality
     };
 
-    const handleRunAnalysis = useCallback(() => {
-        if (!selectedRefs || selectedRefs.length === 0) return;
-        console.log('[AppHeader] Run Analysis clicked, dispatching setActiveView.');
-        dispatch(setActiveView('categoryAnalysis'));
-    }, [dispatch, selectedRefs]);
+    // handleRunAnalysis removed
 
     let placeholderText = 'Select Project...';
     if (isLoading) {
@@ -93,11 +83,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         placeholderText = 'No Projects Found';
     }
 
-    const isRunAnalysisDisabled = selectedRefs.length === 0;
-    const showRunAnalysisButton = currentViewKey === 'experiments';
-
-    // Define the fixed width for the button container
-    const buttonContainerWidth = '450px'; // <<< UPDATED WIDTH
+    // isRunAnalysisDisabled removed
+    // showRunAnalysisButton removed
 
     return (
         <div
@@ -164,27 +151,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 </Tooltip>
             </Space>
 
-            {/* --- Center Section (UPDATED) --- */}
-            <div style={{ flexGrow: 1, display: 'flex', justifyContent: 'center', padding: '0 16px' }}>
-                {showRunAnalysisButton && (
-                    /* Wrapper Div with FIXED width and centering */
-                    <div style={{ width: buttonContainerWidth, marginLeft: 'auto', marginRight: 'auto' }}> {/* <<< Use width instead of maxWidth */}
-                        <Button
-                            type="primary"
-                            icon={<BarChartOutlined />}
-                            onClick={handleRunAnalysis}
-                            disabled={isRunAnalysisDisabled}
-                            style={{ width: '100%' }} // Button fills wrapper
-                        >
-                            Run Category Analysis{' '}
-                            {selectedRefs.length > 0 ? `(${selectedRefs.length})` : ''}
-                        </Button>
-                    </div>
-                )}
-            </div>
+            {/* --- Center Section (REMOVED Run Analysis Button) --- */}
+            <div style={{ flexGrow: 1 }}>{/* Empty or add other header items here */}</div>
+
 
             {/* --- Right Section (Placeholder - Unchanged) --- */}
+            {/* This was likely just for layout balancing, keep it hidden */}
             <Space align="center" style={{ visibility: 'hidden', flexShrink: 0 }}>
+                {/* Content here mirrors left side for spacing */}
                 <Button type="text" icon={<MenuOutlined />} style={{ fontSize: '20px' }} />
                 <Text strong style={{ fontSize: '1.4em', marginLeft: '8px', marginRight: '24px', whiteSpace: 'nowrap' }}>
                     BMD Express...Plus!

@@ -1,11 +1,13 @@
 import React, { useMemo, useCallback } from 'react';
-import { Checkbox, Spin, Alert, Empty } from 'antd'; // Removed Space
+// Removed Button, BarChartOutlined
+import { Checkbox, Spin, Alert, Empty, Tooltip } from 'antd';
 import { useGetSelectableAnalysesQuery } from '../../store/apis/experimentsApi';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import {
     setSelectedAnalysisRefs,
     selectSelectedAnalysisRefs,
 } from '../../store/slices/selectedAnalysisSlice';
+// Removed setActiveView
 import styles from './ExperimentListView.module.css';
 
 type CheckboxValueType = string | number;
@@ -14,6 +16,7 @@ interface ExperimentListViewProps {
     projectName: string;
 }
 
+// This component now ONLY renders the list part
 const ExperimentListView: React.FC<ExperimentListViewProps> = ({
     projectName,
 }) => {
@@ -26,18 +29,29 @@ const ExperimentListView: React.FC<ExperimentListViewProps> = ({
         isSuccess,
     } = useGetSelectableAnalysesQuery({ projectName }, { skip: !projectName });
 
+    // Keep selector for checkbox values
     const selectedValues = useAppSelector(selectSelectedAnalysisRefs);
 
+    // Checkbox options generation (with Tooltip for ellipsis)
     const checkboxOptions = useMemo(() => {
         const currentList = selectableAnalyses ?? [];
         const sortedData = [...currentList].sort((a, b) =>
             (a.bmdResultName ?? '').localeCompare(b.bmdResultName ?? '')
         );
-        return sortedData.map((item) => ({
-            label: item.bmdResultName,
-            value: String(item.bmdResultRef),
-        }));
+        return sortedData.map((item) => {
+            const labelText = item.bmdResultName || `Analysis ${item.bmdResultRef}`;
+            return {
+                label: (
+                    <Tooltip title={labelText} placement="top">
+                        {/* This span will be targeted by CSS for ellipsis */}
+                        <span>{labelText}</span>
+                    </Tooltip>
+                ),
+                value: String(item.bmdResultRef),
+            };
+        });
     }, [selectableAnalyses]);
+
 
     const handleSelectionChange = useCallback(
         (checkedValues: CheckboxValueType[]) => {
@@ -47,10 +61,22 @@ const ExperimentListView: React.FC<ExperimentListViewProps> = ({
         [dispatch]
     );
 
+    // handleRunAnalysis removed
+
+    // --- Loading State ---
     if (isLoadingList) {
-        return null;
+        return (
+            <div className={styles.viewContainer}>
+                <div className={styles.flexContainer}>
+                    <div className={styles.listArea} style={{ textAlign: 'center', paddingTop: '20px' }}>
+                        <Spin />
+                    </div>
+                </div>
+            </div>
+        );
     }
 
+    // --- Error State ---
     if (listError) {
         const errorMessage =
             typeof listError === 'object' &&
@@ -59,27 +85,30 @@ const ExperimentListView: React.FC<ExperimentListViewProps> = ({
                 ? String(listError.message)
                 : String(listError);
         return (
-            <Alert
-                message="Error Loading Experiments"
-                description={errorMessage}
-                type="error"
-                showIcon
-            />
+            <div className={styles.viewContainer}>
+                <div className={styles.flexContainer}>
+                    <Alert
+                        message="Error Loading Experiments"
+                        description={errorMessage}
+                        type="error"
+                        showIcon
+                        style={{ maxWidth: '450px', margin: '16px auto 0' }}
+                    />
+                </div>
+            </div>
         );
     }
 
+    // --- Determine Empty State ---
     const noDataAvailable =
         isSuccess && (!selectableAnalyses || selectableAnalyses.length === 0);
+    // isRunAnalysisDisabled removed
 
-    console.log('[ExperimentListView] Rendering Checkbox.Group with:', {
-        optionsCount: checkboxOptions.length,
-        valueProp: selectedValues,
-    });
-
-
+    // --- Render View (No Button, just list container) ---
     return (
         <div className={styles.viewContainer}>
             <div className={styles.flexContainer}>
+                {/* listArea no longer scrolls or has max-height */}
                 <div className={styles.listArea}>
                     {noDataAvailable ? (
                         <Empty
@@ -87,12 +116,16 @@ const ExperimentListView: React.FC<ExperimentListViewProps> = ({
                             image={Empty.PRESENTED_IMAGE_SIMPLE}
                         />
                     ) : (
-                        // <<< REVERT TO USING options PROP >>>
+                        // Render Checkbox.Group directly
                         <Checkbox.Group
-                            // Apply style to ensure vertical layout if needed with options prop
-                            style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}
-                            options={checkboxOptions} // Pass the generated options array
-                            value={selectedValues} // Pass the selected values from Redux
+                            style={{
+                                width: '100%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '8px',
+                            }}
+                            options={checkboxOptions}
+                            value={selectedValues}
                             onChange={handleSelectionChange}
                         />
                     )}

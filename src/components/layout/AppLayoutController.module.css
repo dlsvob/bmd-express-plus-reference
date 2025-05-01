@@ -16,95 +16,118 @@
 /* --- Outer Content Area (Provides Padding/Margin) --- */
 .outerContentArea {
     margin-top: 64px;
-    /* Fixed header height */
     flex-grow: 1;
     min-height: 0;
     overflow: hidden !important;
-    /* Outer area does NOT scroll */
     box-sizing: border-box;
     padding: 4px;
-    /* <<< OUTER PADDING */
     background-color: transparent;
     display: flex;
     flex-direction: column;
 }
 
-/* --- UPDATED: Outer container for Border & Clipping --- */
+/* --- Outer container for Border & Clipping --- */
 .innerBorderedContainer {
-    /* <<< RENAMED */
     flex-grow: 1;
     min-height: 0;
     overflow: hidden !important;
-    /* <<< CHANGED: Clip content, don't scroll */
     border: 1.5px solid #1677ff;
-    /* BORDER */
     border-radius: 8px;
     background-color: #ffffff;
     box-sizing: border-box;
     display: flex;
-    /* To contain the inner scroll container */
     flex-direction: column;
-    /* To contain the inner scroll container */
-    /* mask-image: REMOVED */
-    /* -webkit-mask-image: REMOVED */
 }
 
-/* --- NEW: Inner container for Scrolling & Masking --- */
+/* --- Inner container for Scrolling & Masking --- */
 .scrollMaskContainer {
-    /* height: 100%; */
-    /* <<< REMOVE this line */
     overflow-y: auto;
-    /* Use -y specifically, remove !important for now */
+    /* <<< Keep this to enable scrolling */
     overflow-x: hidden;
-    /* Hide horizontal scroll */
     display: flex;
     flex-direction: column;
     flex-grow: 1;
-    /* This should make it fill the parent */
+    min-height: 0;
+    /* Masking Removed */
+    box-sizing: border-box;
 
-    /* --- MASKING --- */
-    mask-image: linear-gradient(to bottom, transparent 0%, black 30px, black calc(100% - 30px), transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30px, black calc(100% - 30px), transparent 100%);
-    /* --- END MASKING --- */
+    /* === HIDE SCROLLBAR VISUALLY === */
+    /* For Firefox */
+    scrollbar-width: none;
+    /* For IE/Edge Legacy */
+    -ms-overflow-style: none;
 }
 
+/* Target the direct child of Spin */
 .scrollMaskContainer :global(.ant-spin-container) {
     display: flex;
-    /* Make the container flex */
     flex-direction: column;
-    /* Stack content vertically */
     flex-grow: 1;
-    /* Allow it to grow */
     height: 100%;
-    /* Ensure it tries to fill height */
     min-height: 0;
-    /* Important for flex children height calculation */
+    box-sizing: border-box;
+    /* overflow: visible !important; */
+    /* Reverted this */
 }
 
-/* --- ADD SCROLLBAR STYLING FOR THE MAIN SCROLL CONTAINER --- */
+
+/* --- Styles for the Sticky Experiment Button Container --- */
+.stickyExperimentButtonContainer {
+    position: sticky;
+    /* Keep sticky */
+    top: 0;
+    z-index: 10;
+    background-color: #ffffff;
+    padding: 10px 0;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 2px;
+    /* position: relative; */
+    /* REMOVED */
+}
+
+/* Gradient Overlay Pseudo-Element REMOVED */
+/* .stickyExperimentButtonContainer::after { ... } */
+
+
+/* --- Default Button Style (within container) --- */
+.stickyExperimentButtonContainer :global(.ant-btn) {
+    width: 90%;
+    max-width: 400px;
+}
+
+/* --- Custom Disabled Button Styles --- */
+.stickyExperimentButtonContainer :global(.ant-btn:disabled),
+.stickyExperimentButtonContainer :global(.ant-btn:disabled:hover),
+.stickyExperimentButtonContainer :global(.ant-btn:disabled:active) {
+    background-color: #f5f5f5 !important;
+    border-color: #adc6ff !important;
+    color: #00000073 !important;
+    border-width: 2px !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+    cursor: not-allowed !important;
+}
+
+
+/* --- Scrollbar Styling (Hide for WebKit) --- */
 .scrollMaskContainer::-webkit-scrollbar {
-    /* <<< TARGET CORRECT ELEMENT */
-    width: 8px;
-    height: 8px;
+    /* Make scrollbar invisible */
+    width: 0px;
+    height: 0px;
+    background: transparent;
+    /* Optional: just in case */
+    display: none;
+    /* Alternative way to hide */
 }
 
-.scrollMaskContainer::-webkit-scrollbar-track {
-    background: #e6f7ff;
-    /* Ant Design Blue-1 */
-    border-radius: 4px;
-    /* Add margin to prevent overlap with border if needed, though usually not required */
-    /* margin: 2px; */
-}
-
-.scrollMaskContainer::-webkit-scrollbar-thumb {
-    background: #adc6ff;
-    /* Ant Design Blue-3 */
-    border-radius: 4px;
-}
-
-.scrollMaskContainer::-webkit-scrollbar-thumb:hover {
-    background: #bae0ff;
-    /* Ant Design Blue-4 */
-}
-
+/* Remove specific track/thumb styles as they are hidden */
+/*
+.scrollMaskContainer::-webkit-scrollbar-track { ... }
+.scrollMaskContainer::-webkit-scrollbar-thumb { ... }
+.scrollMaskContainer::-webkit-scrollbar-thumb:hover { ... }
+*/
 /* --- END SCROLLBAR STYLING --- */

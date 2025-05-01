@@ -1,28 +1,31 @@
 import React, { useState, useCallback } from 'react';
-import { Layout, Drawer, Menu, Spin, Alert, Typography } from 'antd';
+// Import Button and Icon
+import { Layout, Drawer, Menu, Spin, Alert, Typography, Button } from 'antd';
 import {
     ExperimentOutlined,
-    BarChartOutlined,
+    BarChartOutlined, // Keep this icon
     SettingOutlined,
 } from '@ant-design/icons';
 
 import type { MenuProps } from 'antd';
 import type { MenuInfo } from 'rc-menu/lib/interface';
 
-import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { useAppSelector, useAppDispatch } from '../../store/hooks'; // Keep hooks
 import { useGetProjectsQuery } from '../../store/apis/projectsApi';
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
 import {
     selectCurrentView,
-    setActiveView,
+    setActiveView, // Keep action
 } from '../../store/slices/navigationSlice';
+// Import selector for button state
+import { selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice';
 import PyodideErrorNotifier from '../shared/PyodideErrorNotifier';
-import ExperimentListView from '../views/ExperimentListView';
+import ExperimentListView from '../views/ExperimentListView'; // Keep view import
 import GOUmapAnalysisUnit from '../analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit';
 import GOClusteringAnalysisUnit from '../analysis/GOClusteringAnalysisUnit/GOClusteringAnalysisUnit';
 import AppHeader from './AppHeader';
 import { usePyodide } from '../../contexts/PyodideProvider';
-import styles from './AppLayoutController.module.css'; // Ensure this path is correct
+import styles from './AppLayoutController.module.css'; // Keep styles import
 
 const { Content, Header } = Layout;
 
@@ -41,17 +44,48 @@ const menuItems: MenuProps['items'] = [
     { key: 'settings', icon: <SettingOutlined />, label: 'Project Settings' },
 ];
 
-// --- Internal Component for Main Content Area ---
+// --- Internal Component for Main Content Area (MODIFIED) ---
 const AppContentInternal: React.FC = () => {
     const { error: pyodideError } = usePyodide();
+    const dispatch = useAppDispatch(); // Get dispatch
     const selectedProjectName = useAppSelector(selectSelectedProjectName);
-    const activeView = useAppSelector(selectCurrentView);
+    const activeView = useAppSelector(selectCurrentView); // Get active view
+    const selectedRefs = useAppSelector(selectSelectedAnalysisRefs); // Get selected refs for button
     const isProjectSelected = !!selectedProjectName;
 
-    let mainContent: React.ReactNode;
+    // --- Define the submission handler HERE ---
+    const handleRunAnalysis = useCallback(() => {
+        if (!selectedRefs || selectedRefs.length === 0) return;
+        console.log('[AppContentInternal] Run Analysis clicked, dispatching setActiveView.');
+        dispatch(setActiveView('categoryAnalysis'));
+    }, [dispatch, selectedRefs]); // Add dependencies
 
-    if (pyodideError) {
-        mainContent = (
+    const isRunAnalysisDisabled = selectedRefs.length === 0;
+    const showRunAnalysisButton = activeView === 'experiments' && isProjectSelected; // Show only in experiments view when project selected
+
+    let viewContent: React.ReactNode;
+
+    // Determine the main view content based on activeView
+    if (isProjectSelected && selectedProjectName) {
+        switch (activeView) {
+            case 'experiments':
+            default:
+                viewContent = <ExperimentListView projectName={selectedProjectName} />;
+                break;
+            case 'categoryAnalysis':
+                viewContent = <GOUmapAnalysisUnit />;
+                break;
+            case 'goClustering':
+                viewContent = <GOClusteringAnalysisUnit />;
+                break;
+            case 'settings':
+                viewContent = (
+                    <Alert message="Project Settings View (Not Implemented)" type="info" />
+                );
+                break;
+        }
+    } else if (pyodideError) {
+        viewContent = (
             <Alert
                 message="Pyodide Initialization Failed"
                 description="Core Python features may be unavailable. Please see the error modal for details or try reloading."
@@ -60,7 +94,7 @@ const AppContentInternal: React.FC = () => {
             />
         );
     } else if (!isProjectSelected) {
-        mainContent = (
+        viewContent = (
             <div style={{ textAlign: 'center', marginTop: '50px' }}>
                 <Typography.Title level={3}>BMD Express...Plus!</Typography.Title>
                 <Typography.Paragraph>
@@ -68,33 +102,38 @@ const AppContentInternal: React.FC = () => {
                 </Typography.Paragraph>
             </div>
         );
-    } else if (isProjectSelected && selectedProjectName) {
-        switch (activeView) {
-            case 'experiments':
-            default:
-                mainContent = <ExperimentListView projectName={selectedProjectName} />;
-                break;
-            case 'categoryAnalysis':
-                mainContent = <GOUmapAnalysisUnit />;
-                break;
-            case 'goClustering':
-                mainContent = <GOClusteringAnalysisUnit />;
-                break;
-            case 'settings':
-                mainContent = (
-                    <Alert message="Project Settings View (Not Implemented)" type="info" />
-                );
-                break;
-        }
     } else {
-        mainContent = (
+        viewContent = (
             <div style={{ textAlign: 'center', marginTop: '50px' }}>
                 <Spin size="large" />
             </div>
         );
     }
-    return <>{mainContent}</>;
+
+    // Render the sticky button container *before* the main view content
+    // ONLY if the conditions are met
+    return (
+        <>
+            {showRunAnalysisButton && (
+                <div className={styles.stickyExperimentButtonContainer}>
+                    <Button
+                        type="primary"
+                        icon={<BarChartOutlined />}
+                        onClick={handleRunAnalysis}
+                        disabled={isRunAnalysisDisabled}
+                        style={{ width: '90%', maxWidth: '400px' }} // Adjust width as needed
+                    >
+                        Run Category Analysis{' '}
+                        {selectedRefs.length > 0 ? `(${selectedRefs.length})` : ''}
+                    </Button>
+                </div>
+            )}
+            {/* Render the selected view content below the button */}
+            {viewContent}
+        </>
+    );
 };
+
 
 // --- Navigation Menu Component ---
 const NavigationMenu: React.FC<{
@@ -122,7 +161,7 @@ const NavigationMenu: React.FC<{
 
 // --- Main Layout Controller Component ---
 const AppLayoutController: React.FC = () => {
-    console.log('[AppLayoutController] Rendering with Nested Scroll/Mask...'); // Updated log
+    console.log('[AppLayoutController] Rendering with Nested Scroll/Mask...');
     const dispatch = useAppDispatch();
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -165,6 +204,7 @@ const AppLayoutController: React.FC = () => {
     const HEADER_HEIGHT = 64;
     const showCentering = !isProjectSelected || pyodideLoading;
 
+    // --- Style for the Spin component itself ---
     const baseSpinStyle: React.CSSProperties = {
         height: '100%',
         display: 'flex',
@@ -172,7 +212,6 @@ const AppLayoutController: React.FC = () => {
         boxSizing: 'border-box',
         minHeight: 0,
         flexGrow: 1,
-        padding: '24px', // Inner padding remains on Spin
     };
 
     const centeringStyle: React.CSSProperties = showCentering
@@ -197,7 +236,7 @@ const AppLayoutController: React.FC = () => {
                 style={{
                     height: `${HEADER_HEIGHT}px`,
                     padding: '0 16px',
-                    backgroundColor: '#e2f2ff',
+                    backgroundColor: '#e2f2ff', // Match layout background
                     flexShrink: 0,
                 }}
             >
@@ -212,17 +251,18 @@ const AppLayoutController: React.FC = () => {
             </Header>
 
             <Content className={styles.outerContentArea}>
-                {/* --- Outer container: Holds border, clips content --- */}
                 <div className={styles.innerBorderedContainer}>
-                    {/* --- NEW Inner container: Handles scrolling and mask --- */}
+                    {/* scrollMaskContainer handles scrolling and padding-top */}
                     <div className={styles.scrollMaskContainer}>
-                        {/* Spin component now lives inside the scroll/mask container */}
+                        {/* Spin component */}
                         <Spin
                             spinning={pyodideLoading}
                             tip={pyodideSpinTip}
                             size="large"
-                            style={spinStyle} // Style applied to Spin
+                            style={spinStyle} // Style applied to Spin wrapper
+                        // No wrapper class needed if padding is on parent
                         >
+                            {/* AppContentInternal renders sticky button + view */}
                             <AppContentInternal />
                         </Spin>
                     </div>
@@ -235,7 +275,7 @@ const AppLayoutController: React.FC = () => {
                 placement="left"
                 onClose={closeDrawer}
                 open={isDrawerOpen}
-                styles={{ body: { padding: 0 } }}
+                styles={{ body: { padding: 0 } }} // Remove body padding for menu
             >
                 <NavigationMenu
                     currentViewKey={currentViewKey}
