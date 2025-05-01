@@ -1,25 +1,87 @@
-/* Common style for analysis unit containers */
-.analysisUnitContainer {
-    border: 2px solid #1677ff;
-    /* Ant Design primary blue */
-    border-radius: 8px;
-    /* Rounded corners */
-    padding: 16px;
-    /* Inner spacing */
-    margin-top: 24px;
-    /* Space above the unit */
-    background-color: #ffffff;
-    /* Ensure white background */
-}
+/* src/components/analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit.module.css */
 
-/* Optional: Style for inner cards if needed */
-.innerSectionCard {
+.filterHeader {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    /* Above plots/legends */
+    background-color: #f0f2f5;
+    /* Background for the whole sticky area */
     margin-bottom: 16px;
-    /* Space between inner cards */
-    border-color: #adc6ff;
-    /* Lighter blue for inner borders */
 }
 
-.innerSectionCard:last-child {
-    margin-bottom: 0;
+.filterHeaderToolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    border-bottom: 1px solid #d9d9d9;
+    /* Always show bottom border on toolbar */
+    position: relative;
+    /* Needed for z-index stacking */
+    z-index: 21;
+    /* Ensure toolbar is above potential overlay */
+    background-color: inherit;
+    /* Inherit header background */
 }
+
+.filterHeaderControls {
+    /* Default (Expanded) State */
+    max-height: 600px;
+    /* Allow content height */
+    opacity: 1;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
+    padding: 16px;
+    /* Padding when expanded */
+    background-color: #f0f2f5;
+    /* Ensure background for content area */
+    /* No absolute positioning by default */
+}
+
+/* Collapsed State (Triggered by .collapsed class on .filterHeader) */
+.filterHeader.collapsed .filterHeaderControls {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+    /* Ensure content is clipped */
+    transition: max-height 0.3s ease-in, opacity 0.2s ease-in, padding 0.3s ease-in;
+    pointer-events: none;
+    /* Prevent interaction when fully collapsed */
+}
+
+/* Hover State (ONLY when collapsed) */
+.filterHeader.collapsed:hover .filterHeaderControls,
+.filterHeader.collapsed:focus-within .filterHeaderControls {
+    max-height: 600px;
+    /* Expand */
+    opacity: 1;
+    padding: 16px;
+    /* Restore padding */
+    position: absolute;
+    /* Take out of flow */
+    top: 100%;
+    /* Position below toolbar (relative to .filterHeader) */
+    /* Adjust if toolbar height isn't exactly covered by padding: */
+    /* top: 45px; */
+    left: 0;
+    width: 100%;
+    background-color: #f0f2f5;
+    /* Explicit background for overlay */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    /* Shadow for overlay */
+    border: 1px solid #d9d9d9;
+    border-top: none;
+    /* Avoid double border */
+    border-radius: 0 0 4px 4px;
+    z-index: 19;
+    /* Below toolbar (21), above content below */
+    pointer-events: auto;
+    /* Allow interaction when hovered */
+    /* Override collapse transition for smoother hover expand */
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
+}
+
+/* --- REMOVED DEBUG CLASSES --- */
