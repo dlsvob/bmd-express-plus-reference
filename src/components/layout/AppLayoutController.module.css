@@ -51,31 +51,34 @@
 
 /* --- NEW: Inner container for Scrolling & Masking --- */
 .scrollMaskContainer {
-    height: 100%;
-    /* Fill the bordered container */
-    overflow: auto !important;
-    /* <<< ADDED: This div scrolls */
+    /* height: 100%; */
+    /* <<< REMOVE this line */
+    overflow-y: auto;
+    /* Use -y specifically, remove !important for now */
+    overflow-x: hidden;
+    /* Hide horizontal scroll */
     display: flex;
-    /* Needed to make Spin fill height correctly */
     flex-direction: column;
-    /* Needed to make Spin fill height correctly */
     flex-grow: 1;
-    /* Needed to make Spin fill height correctly */
+    /* This should make it fill the parent */
 
-    /* --- ADD MASKING HERE --- */
-    mask-image: linear-gradient(to bottom,
-            transparent 0%,
-            black 30px,
-            /* Adjust fade height */
-            black calc(100% - 30px),
-            /* Adjust fade height */
-            transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom,
-            transparent 0%,
-            black 30px,
-            black calc(100% - 30px),
-            transparent 100%);
+    /* --- MASKING --- */
+    mask-image: linear-gradient(to bottom, transparent 0%, black 30px, black calc(100% - 30px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30px, black calc(100% - 30px), transparent 100%);
     /* --- END MASKING --- */
+}
+
+.scrollMaskContainer :global(.ant-spin-container) {
+    display: flex;
+    /* Make the container flex */
+    flex-direction: column;
+    /* Stack content vertically */
+    flex-grow: 1;
+    /* Allow it to grow */
+    height: 100%;
+    /* Ensure it tries to fill height */
+    min-height: 0;
+    /* Important for flex children height calculation */
 }
 
 /* --- ADD SCROLLBAR STYLING FOR THE MAIN SCROLL CONTAINER --- */

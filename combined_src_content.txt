@@ -4839,33 +4839,97 @@ export const GOUmapAnalysisTable: React.FC<GOUmapAnalysisTableProps> = React.mem
     }
 );
 
-GOUmapAnalysisTable.displayName = 'GOUmapAnalysisTable';/* Common style for analysis unit containers */
-.analysisUnitContainer {
-    border: 2px solid #1677ff;
-    /* Ant Design primary blue */
-    border-radius: 8px;
-    /* Rounded corners */
-    padding: 16px;
-    /* Inner spacing */
-    margin-top: 24px;
-    /* Space above the unit */
-    background-color: #ffffff;
-    /* Ensure white background */
-}
+GOUmapAnalysisTable.displayName = 'GOUmapAnalysisTable';/* src/components/analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit.module.css */
 
-/* Optional: Style for inner cards if needed */
-.innerSectionCard {
+.filterHeader {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    /* Above plots/legends */
+    background-color: #f0f2f5;
+    /* Background for the whole sticky area */
     margin-bottom: 16px;
-    /* Space between inner cards */
-    border-color: #adc6ff;
-    /* Lighter blue for inner borders */
 }
 
-.innerSectionCard:last-child {
-    margin-bottom: 0;
-}// src/components/analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit.tsx
-import React, { useCallback, useMemo, useState } from 'react';
-import { Row, Col, Spin, Alert, Space, Switch, Typography, Card, RadioChangeEvent, Empty } from 'antd';
+.filterHeaderToolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    border-bottom: 1px solid #d9d9d9;
+    /* Always show bottom border on toolbar */
+    position: relative;
+    /* Needed for z-index stacking */
+    z-index: 21;
+    /* Ensure toolbar is above potential overlay */
+    background-color: inherit;
+    /* Inherit header background */
+}
+
+.filterHeaderControls {
+    /* Default (Expanded) State */
+    max-height: 600px;
+    /* Allow content height */
+    opacity: 1;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
+    padding: 16px;
+    /* Padding when expanded */
+    background-color: #f0f2f5;
+    /* Ensure background for content area */
+    /* No absolute positioning by default */
+}
+
+/* Collapsed State (Triggered by .collapsed class on .filterHeader) */
+.filterHeader.collapsed .filterHeaderControls {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+    /* Ensure content is clipped */
+    transition: max-height 0.3s ease-in, opacity 0.2s ease-in, padding 0.3s ease-in;
+    pointer-events: none;
+    /* Prevent interaction when fully collapsed */
+}
+
+/* Hover State (ONLY when collapsed) */
+.filterHeader.collapsed:hover .filterHeaderControls,
+.filterHeader.collapsed:focus-within .filterHeaderControls {
+    max-height: 600px;
+    /* Expand */
+    opacity: 1;
+    padding: 16px;
+    /* Restore padding */
+    position: absolute;
+    /* Take out of flow */
+    top: 100%;
+    /* Position below toolbar (relative to .filterHeader) */
+    /* Adjust if toolbar height isn't exactly covered by padding: */
+    /* top: 45px; */
+    left: 0;
+    width: 100%;
+    background-color: #f0f2f5;
+    /* Explicit background for overlay */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    /* Shadow for overlay */
+    border: 1px solid #d9d9d9;
+    border-top: none;
+    /* Avoid double border */
+    border-radius: 0 0 4px 4px;
+    z-index: 19;
+    /* Below toolbar (21), above content below */
+    pointer-events: auto;
+    /* Allow interaction when hovered */
+    /* Override collapse transition for smoother hover expand */
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
+}
+
+/* --- REMOVED DEBUG CLASSES --- */import React, { useCallback, useMemo, useState } from 'react';
+import {
+    Row, Col, Spin, Alert, Space, Switch, Typography, Card, RadioChangeEvent, Empty, Button
+} from 'antd';
+import { UpOutlined, DownOutlined } from '@ant-design/icons';
 import UmapPlotComponent from './UmapPlotComponent';
 import { useAppSelector, useAppDispatch } from '../../../store/hooks';
 import { usePreparedPlotData } from '../../../hooks/usePreparedPlotData';
@@ -4915,15 +4979,18 @@ import {
     SHAPE_BY_OPTIONS,
     SIZE_BY_OPTIONS,
 } from '../../../config/analysisConstants';
+import styles from './GOUmapAnalysisUnit.module.css'; // Import CSS module
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 type UmapViewMode = 'single' | 'multiple';
 
 const GOUmapAnalysisUnit: React.FC = () => {
     const dispatch = useAppDispatch();
     const [umapViewMode, setUmapViewMode] = useState<UmapViewMode>('multiple');
+    // State for Filter Header Collapse
+    const [isFilterHeaderCollapsed, setIsFilterHeaderCollapsed] = useState(false);
 
-    // --- Selectors ---
+    // Selectors
     const projectName = useAppSelector(selectSelectedProjectName);
     const selectedBmdResultRefs = useAppSelector(selectSelectedAnalysisRefs);
     const colorByOption = useAppSelector(selectColorBy);
@@ -4943,7 +5010,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
     );
     const currentTableSelectedGoId = useAppSelector(selectTableSelectedGoId);
 
-    // --- State for Table ---
+    // State for Table
     const [tableSorter, setTableSorter] = useState<
         SorterResult<AnalysisTableRow> | SorterResult<AnalysisTableRow>[]
     >({});
@@ -4957,11 +5024,11 @@ const GOUmapAnalysisUnit: React.FC = () => {
         }
     );
 
-    // --- Data Fetching ---
+    // Data Fetching
     const {
         data: rawData,
-        isLoading: isLoadingRaw, // Initial load state
-        isFetching, // Background refetch state
+        isLoading: isLoadingRaw,
+        isFetching,
         error: rawError,
         isSuccess: rawSuccess,
     } = useGetRawAnalysisDataQuery(
@@ -4974,12 +5041,11 @@ const GOUmapAnalysisUnit: React.FC = () => {
         }
     );
 
-    // Use isFetching for UI loading state to cover initial load AND background updates
     const isLoading = isLoadingRaw || isFetching;
     const queryError = rawError;
     const hasSelection = selectedBmdResultRefs && selectedBmdResultRefs.length > 0;
 
-    // --- Memoized Maps ---
+    // Memoized Maps
     const { bmdResultMap, bmdRefToExperimentNameMap } = useMemo<{
         bmdResultMap: Map<number, BMDResult>;
         bmdRefToExperimentNameMap: Map<number, string>;
@@ -5006,7 +5072,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
         };
     }, [rawSuccess, rawData]);
 
-    // --- Prepare Plot Data ---
+    // Prepare Plot Data
     const {
         analysisPoints,
         allStyledPoints,
@@ -5022,13 +5088,13 @@ const GOUmapAnalysisUnit: React.FC = () => {
         referenceData: referenceData,
     });
 
-    // --- Highlight GO ID Set ---
+    // Highlight GO ID Set
     const highlightGoIdsSet = useMemo(
         () => new Set(goIdFilterList),
         [goIdFilterList]
     );
 
-    // --- Prepare Table Data Source ---
+    // Prepare Table Data Source
     const tableDataSource = useMemo(() => {
         const points = allStyledPoints || [];
         if (!tableSorter || !('field' in tableSorter) || !tableSorter.order) {
@@ -5048,7 +5114,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
         return sortedPoints;
     }, [allStyledPoints, tableSorter]);
 
-    // --- Prepare Table Columns ---
+    // Prepare Table Columns
     const tableColumns = useMemo(() => {
         return DEFAULT_GOUMAP_TABLE_COLUMNS.map((col: ColumnType<AnalysisTableRow>) => {
             if (!col.key) return col;
@@ -5067,7 +5133,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
         });
     }, [tableSorter]);
 
-    // --- Callbacks ---
+    // Callbacks
     const handleToggleColorVisibility = useCallback((label: string) => { dispatch(toggleColorLabelVisibility(label)); }, [dispatch]);
     const handleToggleShapeVisibility = useCallback((label: string) => { dispatch(toggleShapeLabelVisibility(label)); }, [dispatch]);
     const handleToggleSizeVisibility = useCallback((label: string) => { dispatch(toggleSizeLabelVisibility(label)); }, [dispatch]);
@@ -5080,79 +5146,86 @@ const GOUmapAnalysisUnit: React.FC = () => {
     const handleTableChange = useCallback((pagination: TablePaginationConfig, filters: Record<string, FilterValue | null>, sorter: SorterResult<AnalysisTableRow> | SorterResult<AnalysisTableRow>[], extra: { currentDataSource: AnalysisTableRow[]; action: string }) => { console.log('[GOUmapAnalysisUnit] handleTableChange:', { pagination, filters, sorter, action: extra.action, }); setTablePagination(pagination); setTableSorter(sorter); }, []);
     const handleTableRowClick = useCallback((record: AnalysisTableRow) => { const clickedGoId = record?.go_id; console.log('[GOUmapAnalysisUnit] Row clicked:', clickedGoId); if (clickedGoId && clickedGoId === currentTableSelectedGoId) { dispatch(setTableSelectedGoId(null)); } else { dispatch(setTableSelectedGoId(clickedGoId || null)); } }, [dispatch, currentTableSelectedGoId]);
     const handleViewModeChange = useCallback((checked: boolean) => { setUmapViewMode(checked ? 'multiple' : 'single'); }, []);
+    // Handler for collapsing the filter header
+    const toggleFilterHeaderCollapse = useCallback(() => {
+        setIsFilterHeaderCollapsed(prev => !prev);
+    }, []);
 
     // === Render Logic ===
 
-    // Handle error state first
     if (queryError) {
         const errorMessage = typeof queryError === 'object' && queryError !== null && 'message' in queryError ? String(queryError.message) : String(queryError);
         return (<Alert message="Error Loading Data" description={errorMessage} type="error" showIcon style={{ margin: '24px' }} />);
     }
 
-    // Show Empty state if no project/analyses are selected
     if (!hasSelection) {
         return <Empty description="No analyses selected." style={{ marginTop: '50px' }} />;
     }
 
-    // Render the main structure, passing loading state down
     return (
-        // Root div - no border class here
         <div>
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                {/* Filters Row - Card border removed */}
-                <Card size="small" variant={'borderless'} /* className={styles.innerSectionCard} - Optional */ >
-                    <Row gutter={[16, 16]} align="middle">
-                        <Col span={24}>
-                            <GoIdFilterUI
-                                goIdInputString={goIdInputString}
-                                highlightMode={highlightMode}
-                                onGoIdInputChange={handleGoIdInputChange}
-                                onHighlightModeChange={handleHighlightModeChange}
-                            />
-                        </Col>
-                        <Col span={24}>
-                            <SlidingWindowFilter
-                                min={minRank}
-                                max={maxRank}
-                                value={committedRankValue}
-                                onAfterChange={handleRankChange}
-                                disabled={isLoading || !hasSelection || maxRank <= 0 || minRank >= maxRank}
-                                label="Filter by Rank"
-                                analysisName="GOUmapRankFilter"
-                            />
-                            <StylingSelectors
-                                colorByOption={colorByOption}
-                                shapeByOption={shapeByOption}
-                                sizeByOption={sizeByOption}
-                                onColorByChange={handleColorByChange}
-                                onShapeByChange={handleShapeByChange}
-                                onSizeByChange={handleSizeByChange}
-                                colorOptions={COLOR_BY_OPTIONS}
-                                shapeOptions={SHAPE_BY_OPTIONS}
-                                sizeOptions={SIZE_BY_OPTIONS}
+
+                {/* --- Filter Header Section --- */}
+                <div className={`${styles.filterHeader} ${isFilterHeaderCollapsed ? styles.collapsed : styles.expanded}`}>
+                    <div className={styles.filterHeaderToolbar}>
+                        <Title level={5} style={{ margin: 0, flexGrow: 1 }}>Filters & Styling</Title>
+                        <Button
+                            type="text"
+                            icon={isFilterHeaderCollapsed ? <DownOutlined /> : <UpOutlined />}
+                            onClick={toggleFilterHeaderCollapse}
+                            aria-label={isFilterHeaderCollapsed ? 'Expand Filters' : 'Collapse Filters'}
+                        />
+                    </div>
+                    <div className={styles.filterHeaderControls}>
+                        <GoIdFilterUI
+                            goIdInputString={goIdInputString}
+                            highlightMode={highlightMode}
+                            onGoIdInputChange={handleGoIdInputChange}
+                            onHighlightModeChange={handleHighlightModeChange}
+                        />
+                        <SlidingWindowFilter
+                            min={minRank}
+                            max={maxRank}
+                            value={committedRankValue}
+                            onAfterChange={handleRankChange}
+                            disabled={isLoading || !hasSelection || maxRank <= 0 || minRank >= maxRank}
+                            label="Filter by Rank"
+                            analysisName="GOUmapRankFilter"
+                        />
+                        <StylingSelectors
+                            colorByOption={colorByOption}
+                            shapeByOption={shapeByOption}
+                            sizeByOption={sizeByOption}
+                            onColorByChange={handleColorByChange}
+                            onShapeByChange={handleShapeByChange}
+                            onSizeByChange={handleSizeByChange}
+                            colorOptions={COLOR_BY_OPTIONS}
+                            shapeOptions={SHAPE_BY_OPTIONS}
+                            sizeOptions={SIZE_BY_OPTIONS}
+                            disabled={isLoading || !hasSelection}
+                        />
+                        <Space style={{ marginTop: '10px', marginLeft: '15px' }}>
+                            <Text strong>UMAP View:</Text>
+                            <Switch
+                                checkedChildren="Multiple"
+                                unCheckedChildren="Single"
+                                checked={umapViewMode === 'multiple'}
+                                onChange={handleViewModeChange}
                                 disabled={isLoading || !hasSelection}
                             />
-                            <Space style={{ marginTop: '10px', marginLeft: '15px' }}>
-                                <Text strong>UMAP View:</Text>
-                                <Switch
-                                    checkedChildren="Multiple"
-                                    unCheckedChildren="Single"
-                                    checked={umapViewMode === 'multiple'}
-                                    onChange={handleViewModeChange}
-                                    disabled={isLoading || !hasSelection}
-                                />
-                            </Space>
-                        </Col>
-                    </Row>
-                </Card>
+                        </Space>
+                    </div>
+                </div>
+                {/* --- END Filter Header Section --- */}
+
 
                 {/* Plots/Legends Row */}
-                <div> {/* Simple div wrapper */}
+                <div>
                     <Row gutter={[16, 16]} wrap={false}>
                         {/* Color Legend */}
                         <Col flex="200px">
                             <CustomLegends
-                                // No cardTitle prop passed here to avoid redundant label
                                 colorItems={colorItems}
                                 hiddenColorLabelsSet={hiddenColorLabelsSet}
                                 onToggleColorVisibility={handleToggleColorVisibility}
@@ -5164,70 +5237,70 @@ const GOUmapAnalysisUnit: React.FC = () => {
                             />
                         </Col>
 
-                        {/* Main Content Area (Plots + Accumulation) */}
+                        {/* Main Content Area (Plots by Experiment) */}
                         <Col flex="auto">
                             <Spin spinning={isLoading} tip="Loading analysis data...">
-                                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                                    {/* Accumulation Plots Section - Card border removed */}
-                                    <Card size="small" title="Accumulation Plots" variant={'borderless'} /* className={styles.innerSectionCard} - Optional */ >
-                                        <Row gutter={[16, 16]}>
-                                            {selectedBmdResultRefs?.map((refStr) => {
-                                                const numericRef = Number(refStr);
-                                                if (isNaN(numericRef)) return null;
-                                                const bmdInfo = bmdResultMap.get(numericRef);
-                                                const analysisNameForPlot = bmdInfo?.name || `Analysis ${numericRef}`;
-                                                // Pass potentially null data if loading
-                                                const pointsForThisAccumPlot = isLoading ? null : (allStyledPoints?.filter(p => p.bmdResultRef === numericRef) || null);
-                                                return (
-                                                    <Col key={`accum-${refStr}`} xs={24} sm={12} md={8} lg={6}>
+                                <Space direction="vertical" size="large" style={{ width: '100%' }}>
+
+                                    {/* Map over selected refs to create rows */}
+                                    {selectedBmdResultRefs?.map((refStr) => {
+                                        const numericRef = Number(refStr);
+                                        if (isNaN(numericRef)) return null;
+
+                                        const bmdInfo = bmdResultMap.get(numericRef);
+                                        const analysisNameForPlot = bmdInfo?.name || `Analysis ${numericRef}`;
+
+                                        // Get data specific to this ref
+                                        const pointsForAccumPlot = isLoading ? null : (allStyledPoints?.filter(p => p.bmdResultRef === numericRef) || null);
+                                        const pointsForUmapPlot = isLoading ? null : (styledGroupedData?.get(refStr) || null);
+
+                                        return (
+                                            <Card key={`exp-row-${refStr}`} size="small" title={analysisNameForPlot} bordered={false} style={{ width: '100%' }}>
+                                                <Row gutter={[16, 16]} align="middle">
+                                                    {/* Column 1: Accumulation Plot */}
+                                                    <Col xs={24} lg={umapViewMode === 'multiple' ? 12 : 24}>
+                                                        <Title level={5} style={{ textAlign: 'center', marginBottom: '8px' }}>Accumulation</Title>
                                                         <AccumulationPlot
                                                             analysisName={analysisNameForPlot}
-                                                            styledPointsForPlot={pointsForThisAccumPlot}
+                                                            styledPointsForPlot={pointsForAccumPlot}
                                                             bmdResultRef={numericRef}
                                                         />
                                                     </Col>
-                                                );
-                                            })}
-                                        </Row>
-                                    </Card>
 
-                                    {/* UMAP Plot Section - Card border removed */}
-                                    <Card size="small" title="UMAP Visualization" bordered={false} /* className={styles.innerSectionCard} - Optional */ >
-                                        {umapViewMode === 'single' ? (
-                                            <UmapPlotComponent
-                                                // Pass potentially null data if loading
-                                                data={isLoading ? null : analysisPoints}
-                                                referenceData={referenceData}
-                                            />
-                                        ) : (
-                                            <Row gutter={[16, 16]}>
-                                                {selectedBmdResultRefs?.map((refStr) => {
-                                                    const numericRef = Number(refStr);
-                                                    if (isNaN(numericRef)) return null;
-                                                    // Pass potentially null data if loading
-                                                    const pointsForThisPlot = isLoading ? null : (styledGroupedData?.get(refStr) || null);
-                                                    const plotTitle = bmdRefToExperimentNameMap.get(numericRef) || `Analysis ${refStr}`;
-                                                    return (
-                                                        <Col key={`umap-${refStr}`} xs={24} sm={12} md={8} lg={6}>
+                                                    {/* Column 2: UMAP Plot (Only in multiple view mode) */}
+                                                    {umapViewMode === 'multiple' && (
+                                                        <Col xs={24} lg={12}>
+                                                            <Title level={5} style={{ textAlign: 'center', marginBottom: '8px' }}>UMAP</Title>
                                                             <UmapPlotComponent
-                                                                data={pointsForThisPlot}
+                                                                data={pointsForUmapPlot}
                                                                 referenceData={referenceData}
                                                             />
-                                                            <Text style={{ display: 'block', textAlign: 'center', marginTop: '-10px', fontSize: '0.8em' }}>{plotTitle}</Text>
                                                         </Col>
-                                                    );
-                                                })}
-                                            </Row>
-                                        )}
-                                    </Card>
+                                                    )}
+                                                </Row>
+                                            </Card>
+                                        );
+                                    })}
+
+                                    {/* Render the single combined UMAP plot if in single view mode */}
+                                    {umapViewMode === 'single' && (
+                                        <Card size="small" title="Combined UMAP Visualization" bordered={false}>
+                                            <UmapPlotComponent
+                                                data={isLoading ? null : analysisPoints} // Use combined points
+                                                referenceData={referenceData}
+                                            />
+                                        </Card>
+                                    )}
+
                                 </Space>
                             </Spin>
                         </Col>
+                        {/* END Main Content Area */}
+
 
                         {/* Shape/Size Legend */}
                         <Col flex="200px">
                             <CustomLegends
-                                // No cardTitle prop passed here to avoid redundant label
                                 shapeItems={shapeItems}
                                 sizeItems={sizeItems}
                                 hiddenShapeLabelsSet={hiddenShapeLabelsSet}
@@ -5243,14 +5316,14 @@ const GOUmapAnalysisUnit: React.FC = () => {
                     </Row>
                 </div>
 
-                {/* Table Row - Card border removed */}
-                <Card size="small" title="Analysis Data Table" bordered={false} /* className={styles.innerSectionCard} - Optional */ >
+                {/* Table Row */}
+                <Card size="small" title="Analysis Data Table" bordered={false}>
                     <Row>
                         <Col span={24}>
                             <GOUmapAnalysisTable
                                 dataSource={tableDataSource || []}
                                 columns={tableColumns}
-                                loading={isLoading} // Pass loading state to table
+                                loading={isLoading}
                                 highlightMode={highlightMode}
                                 highlightGoIdsSet={highlightGoIdsSet}
                                 selectedAccumGoIdsSet={selectedAccumGoIdsSet}
@@ -5270,7 +5343,6 @@ const GOUmapAnalysisUnit: React.FC = () => {
 };
 
 export default GOUmapAnalysisUnit;
-// src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx
 import React, { useMemo, useCallback } from 'react';
 import type { Data, Layout, PlotMouseEvent, PlotSelectionEvent, Config } from 'plotly.js';
 import { Spin } from 'antd';
@@ -5372,7 +5444,7 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             const lineTrace: Data = {
                 x: linePlotData.points.map((p) => p.bmdFifthPercentileTotalGenes ?? null),
                 y: linePlotData.cumulativeCounts,
-                type: 'scatter', // Use SVG-based scatter to avoid running out of webgl instances.
+                type: 'scatter',
                 mode: 'lines',
                 name: 'Cumulative Count',
                 line: { color: LINE_COLOR, width: 2 },
@@ -5428,7 +5500,7 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
                                     2
                                 )}<br>Source: ${p.bmdResultName}`
                         ),
-                        type: 'scatter', // Use SVG-based scatter to avoid running out of webgl instances.
+                        type: 'scatter',
                         mode: 'markers',
                         name: 'Points',
                         marker: {
@@ -5451,7 +5523,7 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             return markerTrace ? [lineTrace, markerTrace] : [lineTrace];
         }, [linePlotData, styledPointsForPlot, logPrefix]);
 
-        // --- Layout Calculation ---
+        // --- Layout Calculation (Corrected - No 1:1 Aspect Ratio) ---
         const plotLayout = useMemo((): Partial<Layout> | null => {
             if (!linePlotData) return null;
             const epsilon = 1e-10;
@@ -5471,9 +5543,11 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
                     title: 'Cumulative Count',
                     autorange: false,
                     range: [minYValue, maxYValueWithPadding],
+                    // scaleanchor: 'x', // <<< REMOVED
+                    // scaleratio: 1,   // <<< REMOVED
                 },
-                height: PLOT_HEIGHT,
-                margin: { l: 60, r: 20, t: 20, b: 50 },
+                height: PLOT_HEIGHT, // Use constant height
+                margin: { l: 60, r: 20, t: 20, b: 50 }, // Standard margins
                 hovermode: 'closest',
                 showlegend: false,
                 autosize: true,
@@ -5490,56 +5564,31 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
                 const selectedGoIds =
                     event?.points?.map((p) => p.customdata as string).filter(Boolean) ||
                     [];
-                console.log(
-                    `${logPrefix} handleSelection - Dispatching selection:`,
-                    selectedGoIds
-                );
                 dispatch(setAccumulationPlotSelection(selectedGoIds));
             },
-            [dispatch, logPrefix]
+            [dispatch] // Removed logPrefix dependency
         );
 
         const handleClick = useCallback(
             (event: Readonly<PlotMouseEvent>) => {
                 const clickedGoId = event.points[0]?.customdata as string;
-                if (clickedGoId) {
-                    console.log(
-                        `${logPrefix} handleClick - Dispatching single selection:`,
-                        [clickedGoId]
-                    );
-                    dispatch(setAccumulationPlotSelection([clickedGoId]));
-                } else {
-                    console.log(
-                        `${logPrefix} handleClick - No GO ID found, dispatching empty selection.`
-                    );
-                    dispatch(setAccumulationPlotSelection([]));
-                }
+                dispatch(setAccumulationPlotSelection(clickedGoId ? [clickedGoId] : []));
             },
-            [dispatch, logPrefix]
+            [dispatch] // Removed logPrefix dependency
         );
 
         const handleDoubleClick = useCallback(() => {
-            console.log(
-                `${logPrefix} handleDoubleClick - Dispatching empty selection.`
-            );
             dispatch(setAccumulationPlotSelection([]));
-        }, [dispatch, logPrefix]);
+        }, [dispatch]); // Removed logPrefix dependency
 
         // --- Render Logic ---
-        console.log(
-            `${logPrefix} FINAL check before Plot. plotData is null?`,
-            plotData === null,
-            'plotLayout is null?',
-            plotLayout === null
-        );
-        if (plotData) {
-            console.log(`${logPrefix} FINAL plotData length:`, plotData.length);
-        }
-
-        // --- Spin Tip ---
         const spinTip = styledPointsForPlot === null ? <>Processing plot data...</> : undefined;
         if (styledPointsForPlot === null) {
-            return <Spin tip={spinTip} />;
+            return (
+                <div style={{ height: `${PLOT_HEIGHT}px`, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Spin tip={spinTip} />
+                </div>
+            );
         }
         if (!plotData || !plotLayout) {
             return (
@@ -5560,21 +5609,13 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             );
         }
 
-        // Define Plotly config
         const plotConfig: Partial<Config> = {
             responsive: true,
             displaylogo: false,
             modeBarButtonsToRemove: [
-                'zoom2d',
-                'pan2d',
-                'select2d',
-                'zoomIn2d',
-                'zoomOut2d',
-                'autoScale2d',
-                'resetScale2d',
-                'hoverClosestCartesian',
-                'hoverCompareCartesian',
-                'toggleSpikelines',
+                'zoom2d', 'pan2d', 'select2d', 'zoomIn2d', 'zoomOut2d',
+                'autoScale2d', 'resetScale2d', 'hoverClosestCartesian',
+                'hoverCompareCartesian', 'toggleSpikelines',
             ],
         };
 
@@ -5597,19 +5638,15 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
 );
 
 export default AccumulationPlot;
-/* src/components/analysis/UmapPlotComponent.module.css */
+/* src/components/analysis/GOUmapAnalysisUnit/UmapPlotComponent.module.css */
 
 .plotContainer {
     position: relative;
-    /* Needed for absolute positioning of the plot inside */
     width: 100%;
-    /* Take up available width */
     aspect-ratio: 1 / 1;
-    /* Force square aspect ratio */
-    /* border: 1px dashed lightcoral; */
-    /* Keep commented out unless debugging */
+    /* <<< ENSURE THIS IS PRESENT */
     overflow: hidden;
-    /* Hide anything overflowing the square */
+    /* height: 400px; <<< ENSURE THIS IS REMOVED or commented out */
 }
 
 /* Target Plotly's generated div within our container */
@@ -5618,46 +5655,34 @@ export default AccumulationPlot;
     top: 0;
     left: 0;
     width: 100% !important;
-    /* Override Plotly's inline styles */
     height: 100% !important;
-    /* Override Plotly's inline styles */
 }
 
-/* Target Plotly elements *only* within this component's container */
-
+/* --- Modebar Styles --- */
 /* Ensure horizontal layout for the modebar */
 .plotContainer :global(.modebar) {
     display: flex !important;
     flex-direction: row !important;
     justify-content: flex-end !important;
-    /* Align buttons to the right */
     background-color: transparent !important;
-    /* No background */
     border: none !important;
-    /* No border */
     box-shadow: none !important;
-    /* No shadow */
     padding: 2px !important;
-    /* Minimal padding */
 }
 
 /* Target the groups of buttons */
 .plotContainer :global(.modebar-group) {
     display: inline-flex !important;
-    /* Keep groups inline */
     background-color: transparent !important;
-    /* No group background */
     margin-left: 5px !important;
-    /* Space between groups */
     padding: 0 !important;
     border: none !important;
     box-shadow: none !important;
 }
 
-/* Style individual buttons - Increase padding for larger click area */
+/* Style individual buttons */
 .plotContainer :global(.modebar-btn) {
     padding: 6px !important;
-    /* <<< Increased padding */
     background: none !important;
     border: none !important;
     cursor: pointer;
@@ -5665,20 +5690,16 @@ export default AccumulationPlot;
     vertical-align: middle;
 }
 
-/* Style the icons (SVGs) - Make ~50% larger */
+/* Style the icons (SVGs) */
 .plotContainer :global(.modebar-btn svg) {
     color: rgba(0, 0, 0, 0.65) !important;
-    /* Default icon color */
     width: 24px !important;
-    /* <<< Increased width (~50% > 16px) */
     height: 24px !important;
-    /* <<< Increased height */
     display: block !important;
 }
 
 .plotContainer :global(.modebar-btn svg path) {
     fill: currentColor !important;
-    /* Inherit color */
 }
 
 /* Hover state */
@@ -5704,28 +5725,17 @@ export default AccumulationPlot;
 /* Hide the plotly logo button */
 .plotContainer :global(a[data-title="Produced with Plotly"]) {
     display: none !important;
-}/**
- * Renders a Plotly scatter plot showing overlay data points
- * on top of the reference UMAP data. Uses Partial<ScatterData> internally
- * for clarity and casts only when passing data to the Plot component.
- * Includes internal error handling for Plotly rendering issues.
- */
-import React, { useMemo, useEffect, useState, useCallback } from 'react';
+}import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import Plot from 'react-plotly.js';
-// --- Import Plotly types ---
 import type { Layout, ScatterData } from 'plotly.js';
-// --- Import the Plotly namespace for the general Data type needed for the final cast ---
 import type * as Plotly from 'plotly.js';
-
-// --- Import application model types ---
-import type { UmapAnalysisDataPoint } from '../../../models/applicationModel'; // Adjusted path
-import type { ReferenceUmapItem } from '../../../data/referenceUmapData'; // Adjusted path
-
-// --- Import AntD component ---
-import { Alert } from 'antd'; // Import Alert
-
-// --- Import CSS Module ---
+import type { UmapAnalysisDataPoint } from '../../../models/applicationModel';
+import type { ReferenceUmapItem } from '../../../data/referenceUmapData';
+import { Alert } from 'antd';
 import styles from './UmapPlotComponent.module.css';
+
+// Define the consistent height
+const PLOT_HEIGHT = 400; // Match AccumulationPlot
 
 interface UmapPlotComponentProps {
     data: UmapAnalysisDataPoint[] | null;
@@ -5736,143 +5746,111 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
     data = null,
     referenceData = null,
 }) => {
-    // --- State for internal rendering errors ---
     const [renderError, setRenderError] = useState<string | null>(null);
 
     useEffect(() => {
-        // Reset error state if props change, allowing retry on data update
         setRenderError(null);
     }, [data, referenceData]);
 
-    // --- Plotly Error Handler ---
-    // --- FIX: Replace 'any' with 'Error' ---
     const handlePlotError = useCallback((err: Error) => {
         console.error('[UmapPlotComponent] Plotly rendering error:', err);
-        // Set a user-friendly error message
         setRenderError(
-            'Failed to render UMAP plot. This might be due to data issues or browser limitations (e.g., too many WebGL contexts).'
+            'Failed to render UMAP plot. This might be due to data issues or browser limitations.'
         );
     }, []);
-    // --------------------------------------
 
-    // --- Transform data for Plotly Traces ---
+    // Transform data for Plotly Traces (Unchanged)
     const plotData = useMemo((): Partial<ScatterData>[] => {
         const traces: Partial<ScatterData>[] = [];
-
-        // 1. Create Reference Trace
+        // 1. Reference Trace
         if (referenceData && referenceData.length > 0) {
             const referenceTrace: Partial<ScatterData> = {
                 x: referenceData.map((p) => p.UMAP_1),
                 y: referenceData.map((p) => p.UMAP_2),
-                mode: 'markers',
-                type: 'scattergl', // Keep using scattergl for potentially large reference set
-                name: 'Reference Data',
-                marker: {
-                    color: '#b0b0b0',
-                    size: 4,
-                    opacity: 0.5,
-                    symbol: 'circle',
-                },
+                mode: 'markers', type: 'scattergl', name: 'Reference Data',
+                marker: { color: '#b0b0b0', size: 4, opacity: 0.5, symbol: 'circle' },
                 hoverinfo: 'text',
-                text: referenceData.map(
-                    (p) =>
-                        `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Cluster: ${p.cluster_id}`
-                ),
-                customdata: referenceData.map((p) => [p.go_id]), // Removed unnecessary assertion
+                text: referenceData.map(p => `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Cluster: ${p.cluster_id}`),
+                customdata: referenceData.map((p) => [p.go_id]),
             };
             traces.push(referenceTrace);
         }
-
-        // 2. Create Overlay Trace
+        // 2. Overlay Trace
         if (data && data.length > 0) {
             const overlayTrace: Partial<ScatterData> = {
-                x: data.map((p) => p.UMAP_1),
-                y: data.map((p) => p.UMAP_2),
-                mode: 'markers',
-                type: 'scattergl', // Keep using scattergl for overlay
-                name: 'Selected Analysis',
+                x: data.map((p) => p.UMAP_1), y: data.map((p) => p.UMAP_2),
+                mode: 'markers', type: 'scattergl', name: 'Selected Analysis',
                 marker: {
-                    color: data.map((p) => p.finalColor),
-                    size: data.map((p) => p.finalSize ?? 8),
-                    symbol: data.map((p) => p.finalShape),
-                    opacity: data.map((p) => p.finalOpacity),
+                    color: data.map((p) => p.finalColor), size: data.map((p) => p.finalSize ?? 8),
+                    symbol: data.map((p) => p.finalShape), opacity: data.map((p) => p.finalOpacity),
                     line: { color: 'rgba(50, 50, 50, 0.6)', width: 0.5 },
                 },
                 hoverinfo: 'text',
-                text: data.map(
-                    (p) =>
-                        `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Experiment: ${p.bmdResultName
-                        }<br>UMAP: (${p.UMAP_1?.toFixed(2)}, ${p.UMAP_2?.toFixed(
-                            2
-                        )})<br>Cluster: ${p.cluster_id}`
-                ),
-                customdata: data.map((p) => [
-                    p.go_id,
-                    p.bmdResultRef,
-                ]), // Removed unnecessary assertion
+                text: data.map(p => `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Experiment: ${p.bmdResultName}<br>UMAP: (${p.UMAP_1?.toFixed(2)}, ${p.UMAP_2?.toFixed(2)})<br>Cluster: ${p.cluster_id}`),
+                customdata: data.map((p) => [p.go_id, p.bmdResultRef]),
             };
             traces.push(overlayTrace);
         }
         return traces;
     }, [data, referenceData]);
 
-    // --- Define Plotly Layout ---
+    // Define Plotly Layout (Updated Margins)
     const layout: Partial<Layout> = useMemo(
         () => ({
-            xaxis: { visible: false, range: [-10, 15], autorange: false }, // Example fixed range, adjust as needed
+            xaxis: {
+                visible: false,
+                autorange: true
+            },
             yaxis: {
                 visible: false,
-                scaleanchor: 'x',
-                scaleratio: 1,
-                range: [-10, 15], // Example fixed range, adjust as needed
-                autorange: false,
+                autorange: true
             },
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            height: PLOT_HEIGHT,
             hovermode: 'closest',
             showlegend: false,
-            paper_bgcolor: 'rgba(0,0,0,0)',
-            plot_bgcolor: 'rgba(248, 248, 248, 1)',
-            margin: { l: 5, r: 5, t: 5, b: 5 },
+            // --- INCREASED MARGINS ---
+            // Adjust these values to visually match the space taken by
+            // the Accumulation plot's axes.
+            margin: {
+                l: 60, // Simulate left axis space
+                r: 20, // Standard right margin
+                t: 20, // Standard top margin
+                b: 50  // Simulate bottom axis space
+            },
+            // --- END INCREASED MARGINS ---
             autosize: true,
         }),
         []
     );
 
-    // --- Render Logic ---
-
-    // --- Display Alert if an internal rendering error occurred ---
+    // Render Logic
     if (renderError) {
         return (
-            <div className={styles.plotContainer} style={{ padding: '20px' }}>
-                <Alert
-                    message="Plot Rendering Error"
-                    description={renderError}
-                    type="error"
-                    showIcon
-                />
+            <div className={styles.plotContainer} style={{ height: `${PLOT_HEIGHT}px`, padding: '20px' }}>
+                <Alert message="Plot Rendering Error" description={renderError} type="error" showIcon />
             </div>
         );
     }
-    // -------------------------------------------------------------
 
     if (plotData.length === 0) {
         return (
-            <div className={styles.plotContainer}>
-                <p>No data available for UMAP plot.</p>
+            <div className={styles.plotContainer} style={{ height: `${PLOT_HEIGHT}px`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', border: '1px dashed #d9d9d9' }}>
+                <p>No data to display.</p>
             </div>
         );
     }
 
     return (
-        <div className={styles.plotContainer}>
+        <div className={styles.plotContainer} style={{ height: `${PLOT_HEIGHT}px` }}>
             <Plot
                 data={plotData as Plotly.Data[]}
                 layout={layout}
                 style={{ width: '100%', height: '100%' }}
                 useResizeHandler={true}
                 config={{ responsive: true, displaylogo: false }}
-                // --- Add the onError handler ---
                 onError={handlePlotError}
-            // -----------------------------
             />
         </div>
     );
@@ -5910,27 +5888,82 @@ export default UmapPlotComponent;
     flex-direction: column;
 }
 
-/* --- Inner Bordered Scrollable Div --- */
-.innerBorderedScrollable {
+/* --- UPDATED: Outer container for Border & Clipping --- */
+.innerBorderedContainer {
+    /* <<< RENAMED */
     flex-grow: 1;
     min-height: 0;
-    overflow: auto !important;
-    /* SCROLL THIS INNER DIV */
+    overflow: hidden !important;
+    /* <<< CHANGED: Clip content, don't scroll */
     border: 1.5px solid #1677ff;
     /* BORDER */
     border-radius: 8px;
     background-color: #ffffff;
     box-sizing: border-box;
-    padding: 20;
-    /* Padding applied inside Spin */
     display: flex;
-    /* Keep as flex container */
+    /* To contain the inner scroll container */
     flex-direction: column;
-    /* Keep as flex container */
+    /* To contain the inner scroll container */
+    /* mask-image: REMOVED */
+    /* -webkit-mask-image: REMOVED */
 }
 
-/* --- REMOVED .spinContainer --- */
-/* --- REMOVED .spinCenteringWrapper --- */   Bud1            %                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @      €                                        @      €                                          @      €                                          @                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   E   %                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       DSDB                             `          €                                           @      €                                          @      €                                          @                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              import React, { useState, useCallback } from 'react';
+/* --- NEW: Inner container for Scrolling & Masking --- */
+.scrollMaskContainer {
+    height: 100%;
+    /* Fill the bordered container */
+    overflow: auto !important;
+    /* <<< ADDED: This div scrolls */
+    display: flex;
+    /* Needed to make Spin fill height correctly */
+    flex-direction: column;
+    /* Needed to make Spin fill height correctly */
+    flex-grow: 1;
+    /* Needed to make Spin fill height correctly */
+
+    /* --- ADD MASKING HERE --- */
+    mask-image: linear-gradient(to bottom,
+            transparent 0%,
+            black 30px,
+            /* Adjust fade height */
+            black calc(100% - 30px),
+            /* Adjust fade height */
+            transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom,
+            transparent 0%,
+            black 30px,
+            black calc(100% - 30px),
+            transparent 100%);
+    /* --- END MASKING --- */
+}
+
+/* --- ADD SCROLLBAR STYLING FOR THE MAIN SCROLL CONTAINER --- */
+.scrollMaskContainer::-webkit-scrollbar {
+    /* <<< TARGET CORRECT ELEMENT */
+    width: 8px;
+    height: 8px;
+}
+
+.scrollMaskContainer::-webkit-scrollbar-track {
+    background: #e6f7ff;
+    /* Ant Design Blue-1 */
+    border-radius: 4px;
+    /* Add margin to prevent overlap with border if needed, though usually not required */
+    /* margin: 2px; */
+}
+
+.scrollMaskContainer::-webkit-scrollbar-thumb {
+    background: #adc6ff;
+    /* Ant Design Blue-3 */
+    border-radius: 4px;
+}
+
+.scrollMaskContainer::-webkit-scrollbar-thumb:hover {
+    background: #bae0ff;
+    /* Ant Design Blue-4 */
+}
+
+/* --- END SCROLLBAR STYLING --- */   Bud1            %                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @      €                                        @      €                                          @      €                                          @                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   E   %                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       DSDB                             `          €                                           @      €                                          @      €                                          @                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              import React, { useState, useCallback } from 'react';
 import { Layout, Drawer, Menu, Spin, Alert, Typography } from 'antd';
 import {
     ExperimentOutlined,
@@ -5954,12 +5987,11 @@ import GOUmapAnalysisUnit from '../analysis/GOUmapAnalysisUnit/GOUmapAnalysisUni
 import GOClusteringAnalysisUnit from '../analysis/GOClusteringAnalysisUnit/GOClusteringAnalysisUnit';
 import AppHeader from './AppHeader';
 import { usePyodide } from '../../contexts/PyodideProvider';
-import styles from './AppLayoutController.module.css';
+import styles from './AppLayoutController.module.css'; // Ensure this path is correct
 
 const { Content, Header } = Layout;
 
 // --- Menu Items Configuration ---
-// Define this at the top level so it's accessible by NavigationMenu
 const menuItems: MenuProps['items'] = [
     { key: 'experiments', icon: <ExperimentOutlined />, label: 'Experiments' },
     {
@@ -5974,7 +6006,7 @@ const menuItems: MenuProps['items'] = [
     { key: 'settings', icon: <SettingOutlined />, label: 'Project Settings' },
 ];
 
-// --- Internal Component for Main Content Area (Unchanged) ---
+// --- Internal Component for Main Content Area ---
 const AppContentInternal: React.FC = () => {
     const { error: pyodideError } = usePyodide();
     const selectedProjectName = useAppSelector(selectSelectedProjectName);
@@ -6020,48 +6052,42 @@ const AppContentInternal: React.FC = () => {
                 break;
         }
     } else {
-        // Should not be reached if pyodideLoading is handled by Spin
         mainContent = (
             <div style={{ textAlign: 'center', marginTop: '50px' }}>
                 <Spin size="large" />
             </div>
         );
     }
-    // No wrapper needed here
     return <>{mainContent}</>;
 };
 
-// --- Navigation Menu Component (Full Implementation) ---
+// --- Navigation Menu Component ---
 const NavigationMenu: React.FC<{
     currentViewKey: string | null;
     onClick: MenuProps['onClick'];
     disabled: boolean;
 }> = ({ currentViewKey, onClick, disabled }) => {
-    // No need for usePyodide here, disabled state is passed via props
-
     return (
         <Menu
             mode="inline"
-            // Determine default open keys based on the current view belonging to a submenu
             defaultOpenKeys={
                 currentViewKey &&
                     ['categoryAnalysis', 'goClustering'].includes(currentViewKey)
-                    ? ['analysis'] // Keep the 'Analysis' submenu open if its child is active
+                    ? ['analysis']
                     : []
             }
-            // Highlight the currently selected view key
             selectedKeys={currentViewKey ? [currentViewKey] : []}
             style={{ height: '100%', borderRight: 0 }}
-            items={menuItems} // Use the top-level menuItems constant
-            onClick={onClick} // Pass the click handler from props
-            disabled={disabled} // Pass the disabled state from props
+            items={menuItems}
+            onClick={onClick}
+            disabled={disabled}
         />
     );
 };
 
 // --- Main Layout Controller Component ---
 const AppLayoutController: React.FC = () => {
-    console.log('[AppLayoutController] Rendering with Outer Padding v9 - Centering Spin STYLE...'); // Updated log
+    console.log('[AppLayoutController] Rendering with Nested Scroll/Mask...'); // Updated log
     const dispatch = useAppDispatch();
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -6101,41 +6127,24 @@ const AppLayoutController: React.FC = () => {
         <>Initializing Pyodide Environment...</>
     ) : undefined;
 
-    // --- Define header height (Unchanged) ---
     const HEADER_HEIGHT = 64;
-
-    // --- Determine styles for Spin (Centering and Base) ---
     const showCentering = !isProjectSelected || pyodideLoading;
 
-    // Base style for Spin (padding, height, flex)
     const baseSpinStyle: React.CSSProperties = {
-        height: '100%', // Spin container should fill its parent
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         boxSizing: 'border-box',
         minHeight: 0,
         flexGrow: 1,
-        padding: '24px', // <<< INNER PADDING (Inside Border)
+        padding: '24px', // Inner padding remains on Spin
     };
 
-    // Conditional style for centering
     const centeringStyle: React.CSSProperties = showCentering
-        ? {
-            justifyContent: 'center', // Center vertically
-            alignItems: 'center', // Center horizontally
-        }
-        : {
-            // When not centering, use defaults to allow content alignment
-            justifyContent: 'flex-start',
-            alignItems: 'stretch',
-        };
+        ? { justifyContent: 'center', alignItems: 'center' }
+        : { justifyContent: 'flex-start', alignItems: 'stretch' };
 
-    // Combine base and conditional styles for the Spin component
-    const spinStyle: React.CSSProperties = {
-        ...baseSpinStyle,
-        ...centeringStyle, // <<< Apply centering styles HERE
-    };
-    // --- End style determination ---
+    const spinStyle: React.CSSProperties = { ...baseSpinStyle, ...centeringStyle };
 
     return (
         <Layout
@@ -6167,22 +6176,21 @@ const AppLayoutController: React.FC = () => {
                 />
             </Header>
 
-            {/* --- Outer Content Area (Provides Padding/Margin) --- */}
             <Content className={styles.outerContentArea}>
-                {/* --- Inner Bordered Scrollable Div --- */}
-                {/* No conditional style needed here */}
-                <div className={styles.innerBorderedScrollable}>
-                    {/* --- Spin: Applies INNER padding and CONDITIONAL centering via style --- */}
-                    <Spin
-                        spinning={pyodideLoading}
-                        tip={pyodideSpinTip}
-                        size="large"
-                        style={spinStyle} // <<< Apply combined style HERE
-                    // Removed wrapperClassName
-                    >
-                        {/* <<< ALWAYS render AppContentInternal >>> */}
-                        <AppContentInternal />
-                    </Spin>
+                {/* --- Outer container: Holds border, clips content --- */}
+                <div className={styles.innerBorderedContainer}>
+                    {/* --- NEW Inner container: Handles scrolling and mask --- */}
+                    <div className={styles.scrollMaskContainer}>
+                        {/* Spin component now lives inside the scroll/mask container */}
+                        <Spin
+                            spinning={pyodideLoading}
+                            tip={pyodideSpinTip}
+                            size="large"
+                            style={spinStyle} // Style applied to Spin
+                        >
+                            <AppContentInternal />
+                        </Spin>
+                    </div>
                 </div>
             </Content>
 
@@ -6192,13 +6200,12 @@ const AppLayoutController: React.FC = () => {
                 placement="left"
                 onClose={closeDrawer}
                 open={isDrawerOpen}
-                styles={{ body: { padding: 0 } }} // Removes default body padding
+                styles={{ body: { padding: 0 } }}
             >
-                {/* Render the fully defined NavigationMenu component */}
                 <NavigationMenu
                     currentViewKey={currentViewKey}
                     onClick={handleMenuClick}
-                    disabled={!isProjectSelected} // Disable menu if no project selected
+                    disabled={!isProjectSelected}
                 />
             </Drawer>
             <PyodideErrorNotifier />
@@ -6254,24 +6261,24 @@ import { Select, Button, Space, Typography, Tooltip } from 'antd';
 import {
     PlusOutlined,
     MenuOutlined,
-    BarChartOutlined, // Icon for the Run Analysis button
+    BarChartOutlined,
 } from '@ant-design/icons';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setActiveProject } from '../../store/slices/projectSlice';
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
 import {
     setActiveView,
-    selectCurrentView, // <<< Import selector for current view
+    selectCurrentView,
 } from '../../store/slices/navigationSlice';
 import {
-    clearSelectedAnalyses, // <<< Keep this import
-    selectSelectedAnalysisRefs, // <<< Import selector for selected refs
+    clearSelectedAnalyses,
+    selectSelectedAnalysisRefs,
 } from '../../store/slices/selectedAnalysisSlice';
 import {
     setActiveClusteringRef,
     setGoIdInputString,
 } from '../../store/slices/analysisUISlice';
-import styles from './AppHeader.module.css'; // Import CSS module
+import styles from './AppHeader.module.css';
 
 const { Option } = Select;
 const { Text } = Typography;
@@ -6299,23 +6306,22 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 }) => {
     const dispatch = useAppDispatch();
     const activeProjectName = useAppSelector(selectSelectedProjectName);
-    const currentViewKey = useAppSelector(selectCurrentView); // <<< Get current view
-    const selectedRefs = useAppSelector(selectSelectedAnalysisRefs); // <<< Get selected refs
+    const currentViewKey = useAppSelector(selectCurrentView);
+    const selectedRefs = useAppSelector(selectSelectedAnalysisRefs);
 
     console.log(
         `[AppHeader] Rendering. activeProjectName: ${activeProjectName}, currentView: ${currentViewKey}, selectedRefs: ${selectedRefs.length}`
     );
 
     const handleProjectChange = (value: string | null) => {
-        // <<< Only dispatch if the project name actually changes >>>
         if (value !== activeProjectName) {
             console.log(
                 `[AppHeader] Project CHANGED. Dispatching actions to switch project TO: ${value || 'None'
                 }`
             );
             dispatch(setActiveProject(value));
-            dispatch(setActiveView('experiments')); // Reset view on project change
-            dispatch(clearSelectedAnalyses()); // <<< Clear selections on project change
+            dispatch(setActiveView('experiments'));
+            dispatch(clearSelectedAnalyses());
             dispatch(setActiveClusteringRef(null));
             dispatch(setGoIdInputString(''));
         } else {
@@ -6327,16 +6333,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 
     const handleAddNewProject = () => {
         console.log('Import Project button clicked - Implement me!');
-        // TODO: Implement project import functionality (e.g., open modal)
+        // TODO: Implement project import functionality
     };
 
-    // --- Callback for the Run Analysis button ---
     const handleRunAnalysis = useCallback(() => {
         if (!selectedRefs || selectedRefs.length === 0) return;
         console.log('[AppHeader] Run Analysis clicked, dispatching setActiveView.');
-        dispatch(setActiveView('categoryAnalysis')); // Navigate to the first analysis view
+        dispatch(setActiveView('categoryAnalysis'));
     }, [dispatch, selectedRefs]);
-    // --- End Callback ---
 
     let placeholderText = 'Select Project...';
     if (isLoading) {
@@ -6350,18 +6354,20 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     const isRunAnalysisDisabled = selectedRefs.length === 0;
     const showRunAnalysisButton = currentViewKey === 'experiments';
 
+    // Define the fixed width for the button container
+    const buttonContainerWidth = '450px'; // <<< UPDATED WIDTH
+
     return (
-        // Use Flexbox for 3-section layout (Left, Center, Right)
         <div
             style={{
                 display: 'flex',
-                justifyContent: 'space-between', // Distribute space
+                justifyContent: 'space-between',
                 alignItems: 'center',
                 width: '100%',
             }}
         >
-            {/* --- Left Section --- */}
-            <Space align="center" style={{ flexShrink: 0 }}> {/* Prevent shrinking */}
+            {/* --- Left Section (Unchanged) --- */}
+            <Space align="center" style={{ flexShrink: 0 }}>
                 <Button
                     type="text"
                     icon={<MenuOutlined />}
@@ -6376,7 +6382,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                         fontSize: '1.4em',
                         marginLeft: '8px',
                         marginRight: '24px',
-                        whiteSpace: 'nowrap', // Prevent title wrapping
+                        whiteSpace: 'nowrap',
                     }}
                 >
                     BMD Express...Plus!
@@ -6395,8 +6401,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                         !projectList ||
                         projectList.length === 0
                     }
-                    allowClear // Allow clearing selection
-                    onClear={() => handleProjectChange(null)} // Handle clear event
+                    allowClear
+                    onClear={() => handleProjectChange(null)}
                 >
                     {projectList?.map((project) => (
                         <Option key={project.name} value={project.name}>
@@ -6416,24 +6422,26 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 </Tooltip>
             </Space>
 
-            {/* --- Center Section (Conditional Button) --- */}
-            {/* This div will be centered between the left and right sections */}
-            <div style={{ textAlign: 'center' }}>
+            {/* --- Center Section (UPDATED) --- */}
+            <div style={{ flexGrow: 1, display: 'flex', justifyContent: 'center', padding: '0 16px' }}>
                 {showRunAnalysisButton && (
-                    <Button
-                        type="primary"
-                        icon={<BarChartOutlined />}
-                        onClick={handleRunAnalysis}
-                        disabled={isRunAnalysisDisabled}
-                    >
-                        Run Category Analysis{' '}
-                        {selectedRefs.length > 0 ? `(${selectedRefs.length})` : ''}
-                    </Button>
+                    /* Wrapper Div with FIXED width and centering */
+                    <div style={{ width: buttonContainerWidth, marginLeft: 'auto', marginRight: 'auto' }}> {/* <<< Use width instead of maxWidth */}
+                        <Button
+                            type="primary"
+                            icon={<BarChartOutlined />}
+                            onClick={handleRunAnalysis}
+                            disabled={isRunAnalysisDisabled}
+                            style={{ width: '100%' }} // Button fills wrapper
+                        >
+                            Run Category Analysis{' '}
+                            {selectedRefs.length > 0 ? `(${selectedRefs.length})` : ''}
+                        </Button>
+                    </div>
                 )}
             </div>
 
-            {/* --- Right Section (Placeholder for balance) --- */}
-            {/* Use a Space component matching the left side for better width calculation */}
+            {/* --- Right Section (Placeholder - Unchanged) --- */}
             <Space align="center" style={{ visibility: 'hidden', flexShrink: 0 }}>
                 <Button type="text" icon={<MenuOutlined />} style={{ fontSize: '20px' }} />
                 <Text strong style={{ fontSize: '1.4em', marginLeft: '8px', marginRight: '24px', whiteSpace: 'nowrap' }}>
@@ -6790,7 +6798,7 @@ export default ErrorBoundary;   Bud1            %                         
     min-height: 0;
     width: 100%;
     align-items: center;
-    /* Center listArea */
+    /* Center listArea horizontally */
     justify-content: flex-start;
 }
 
@@ -6798,9 +6806,12 @@ export default ErrorBoundary;   Bud1            %                         
     border: none;
     border-radius: 4px;
     background-color: #f9f9f9;
-    width: fit-content;
-    min-width: 300px;
-    max-width: 90%;
+    /* min-width: 300px; <<< Optional: Keep if you want a minimum */
+    /* max-width: 700px; <<< REMOVED */
+    width: 450px;
+    /* <<< ADDED: Define a FIXED width */
+    margin-left: auto;
+    margin-right: auto;
     padding: 12px;
     box-sizing: border-box;
     margin-top: 16px;
@@ -6808,7 +6819,7 @@ export default ErrorBoundary;   Bud1            %                         
     max-height: calc(100% - 16px);
 }
 
-/* --- Checkbox Styling --- */
+/* --- Checkbox Styling (Unchanged) --- */
 .listArea :global(.ant-checkbox-inner) {
     border-color: #91caff;
     background-color: #fff;
@@ -6820,63 +6831,37 @@ export default ErrorBoundary;   Bud1            %                         
     border-color: #0958d9;
 }
 
-/* --- Scrollbar Styling (Unchanged) --- */
-.listArea::-webkit-scrollbar {
-    /* ... */
-}
 
-.listArea::-webkit-scrollbar-track {
-    /* ... */
-}
-
-.listArea::-webkit-scrollbar-thumb {
-    /* ... */
-}
-
-.listArea::-webkit-scrollbar-thumb:hover {
-    /* ... */
-}
 
 
 /* --- FIX for Visual Check State --- */
-/* Use the actual generated class name for listArea if needed for specificity */
-/* e.g., ._listArea_92uba_37 :global(.ant-checkbox-checked .ant-checkbox-inner) */
-:global(.ant-checkbox-checked) :global(.ant-checkbox-inner) {
+/* Add .listArea context for specificity */
+.listArea :global(.ant-checkbox-checked) :global(.ant-checkbox-inner) {
+    /* <<< ADDED .listArea here */
     background-color: #1677ff;
     /* AntD primary blue */
     border-color: #1677ff;
 }
 
-/* Style the checkmark itself */
-:global(.ant-checkbox-checked) :global(.ant-checkbox-inner)::after {
-    /* Re-apply AntD's default checkmark styles with high specificity */
-    /* Values might need slight adjustment based on AntD version */
-    position: absolute;
-    display: table;
-    border: 2px solid #fff;
-    /* Checkmark color */
-    border-top: 0;
-    border-left: 0;
-    transform: rotate(45deg) scale(1) translate(-50%, -50%);
-    opacity: 1;
-    /* Ensure visible */
-    content: ' ';
-    width: 5.71428571px;
-    /* Example value */
-    height: 9.14285714px;
-    /* Example value */
-    top: 50%;
-    /* Adjust vertical position */
-    left: 21.5%;
-    /* Adjust horizontal position */
-    transition: all 0.2s cubic-bezier(0.12, 0.4, 0.29, 1.46) 0.1s;
-    /* AntD transition */
+/* --- ADDED: Ellipsis for long labels --- */
+/* Target the span containing the label text within the checkbox wrapper */
+.listArea :global(.ant-checkbox-wrapper > span:last-child) {
+    display: inline-block;
+    /* Allow width and overflow */
+    white-space: nowrap;
+    /* Prevent wrapping */
+    overflow: hidden;
+    /* Hide overflowing text */
+    text-overflow: ellipsis;
+    /* Show ellipsis (...) */
+    vertical-align: middle;
+    /* Align text nicely with checkbox */
+    /* Calculate max-width based on container padding and checkbox size */
+    /* Adjust the subtracted value (e.g., 40px) as needed */
+    max-width: calc(100% - 40px);
 }
 
-/* Ensure hover doesn't accidentally hide it again */
-:global(.ant-checkbox-wrapper):hover :global(.ant-checkbox-checked) :global(.ant-checkbox-inner)::after {
-    opacity: 1;
-}import React, { useMemo, useCallback } from 'react';
+/* --- END ADDED --- */import React, { useMemo, useCallback } from 'react';
 import { Checkbox, Spin, Alert, Empty } from 'antd'; // Removed Space
 import { useGetSelectableAnalysesQuery } from '../../store/apis/experimentsApi';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';

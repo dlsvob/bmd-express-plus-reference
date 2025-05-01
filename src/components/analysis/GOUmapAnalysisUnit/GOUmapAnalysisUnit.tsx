@@ -4,6 +4,7 @@ import {
 } from 'antd';
 import { UpOutlined, DownOutlined } from '@ant-design/icons';
 import UmapPlotComponent from './UmapPlotComponent';
+import AccumulationPlot from './AccumulationPlot'; // Use the reverted/simplified version
 import { useAppSelector, useAppDispatch } from '../../../store/hooks';
 import { usePreparedPlotData } from '../../../hooks/usePreparedPlotData';
 import type { AnalysisTableRow, PreparedPlotHookData } from '../../../models/applicationModel';
@@ -45,25 +46,34 @@ import type { ColumnType } from 'antd/es/table';
 import CustomLegends from '../shared/CustomLegends';
 import StylingSelectors from '../controls/StylingSelectors';
 import SlidingWindowFilter from '../controls/SlidingWindowFilter';
-import AccumulationPlot from './AccumulationPlot';
 import GoIdFilterUI from '../controls/GoUIdFilterUI';
 import {
     COLOR_BY_OPTIONS,
     SHAPE_BY_OPTIONS,
     SIZE_BY_OPTIONS,
 } from '../../../config/analysisConstants';
-import styles from './GOUmapAnalysisUnit.module.css'; // Import CSS module
+import styles from './GOUmapAnalysisUnit.module.css'; // Ensure this contains styles for filter header
 
 const { Text, Title } = Typography;
 type UmapViewMode = 'single' | 'multiple';
 
+// Style for the horizontally scrolling row
+const horizontalScrollRowStyle: React.CSSProperties = {
+    width: '100%',
+    overflowX: 'auto', // Enable horizontal scroll
+    overflowY: 'hidden', // Hide vertical scrollbar on the row itself
+    flexWrap: 'nowrap', // Prevent wrapping
+    paddingBottom: '10px', // Add some space for scrollbar if it appears
+};
+
+
 const GOUmapAnalysisUnit: React.FC = () => {
     const dispatch = useAppDispatch();
-    const [umapViewMode, setUmapViewMode] = useState<UmapViewMode>('multiple');
-    // State for Filter Header Collapse
+    // *** CHANGE DEFAULT STATE TO 'single' ***
+    const [umapViewMode, setUmapViewMode] = useState<UmapViewMode>('single');
     const [isFilterHeaderCollapsed, setIsFilterHeaderCollapsed] = useState(false);
 
-    // Selectors
+    // --- Selectors (Unchanged) ---
     const projectName = useAppSelector(selectSelectedProjectName);
     const selectedBmdResultRefs = useAppSelector(selectSelectedAnalysisRefs);
     const colorByOption = useAppSelector(selectColorBy);
@@ -83,7 +93,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
     );
     const currentTableSelectedGoId = useAppSelector(selectTableSelectedGoId);
 
-    // State for Table
+    // --- State for Table (Unchanged) ---
     const [tableSorter, setTableSorter] = useState<
         SorterResult<AnalysisTableRow> | SorterResult<AnalysisTableRow>[]
     >({});
@@ -97,7 +107,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
         }
     );
 
-    // Data Fetching
+    // --- Data Fetching (Unchanged) ---
     const {
         data: rawData,
         isLoading: isLoadingRaw,
@@ -118,22 +128,22 @@ const GOUmapAnalysisUnit: React.FC = () => {
     const queryError = rawError;
     const hasSelection = selectedBmdResultRefs && selectedBmdResultRefs.length > 0;
 
-    // Memoized Maps
+    // --- Memoized Maps (Unchanged) ---
     const { bmdResultMap, bmdRefToExperimentNameMap } = useMemo<{
         bmdResultMap: Map<number, BMDResult>;
         bmdRefToExperimentNameMap: Map<number, string>;
     }>(() => {
         const tempBmdResultMap = new Map<number, BMDResult>();
         const tempBmdRefToNameMap = new Map<number, string>();
-        if (rawSuccess && rawData) {
-            rawData.rawBmdResults?.forEach((r) => {
+        if (rawSuccess && rawData?.rawBmdResults) {
+            rawData.rawBmdResults.forEach((r) => {
                 if (r && r['@ref'] != null) {
                     const numericRef = Number(r['@ref']);
                     if (!isNaN(numericRef)) {
                         tempBmdResultMap.set(numericRef, r);
                         tempBmdRefToNameMap.set(
                             numericRef,
-                            r.name || `BMD Result ${numericRef}`
+                            r.name || `Analysis ${numericRef}`
                         );
                     }
                 }
@@ -145,41 +155,29 @@ const GOUmapAnalysisUnit: React.FC = () => {
         };
     }, [rawSuccess, rawData]);
 
-    // Prepare Plot Data
+    // --- Prepare Plot Data Hook (Unchanged) ---
     const {
-        analysisPoints,
-        allStyledPoints,
-        styledGroupedData,
-        colorItems,
-        shapeItems,
-        sizeItems,
-        minRank,
-        maxRank,
+        analysisPoints, allStyledPoints, styledGroupedData,
+        colorItems, shapeItems, sizeItems, minRank, maxRank,
     }: PreparedPlotHookData = usePreparedPlotData({
         selectedBmdResultRefs: selectedBmdResultRefs || [],
-        referenceDataMap: referenceDataMap,
-        referenceData: referenceData,
+        referenceDataMap: referenceDataMap, referenceData: referenceData,
+        colorBy: colorByOption, shapeBy: shapeByOption, sizeBy: sizeByOption,
+        rankRange: committedRankValue, highlightMode: highlightMode,
+        highlightGoIds: goIdFilterList, selectedAccumGoIds: selectedAccumGoIdsSet,
+        tableSelectedGoId: currentTableSelectedGoId,
     });
 
-    // Highlight GO ID Set
-    const highlightGoIdsSet = useMemo(
-        () => new Set(goIdFilterList),
-        [goIdFilterList]
-    );
+    // --- Highlight GO ID Set (Unchanged) ---
+    const highlightGoIdsSet = useMemo(() => new Set(goIdFilterList), [goIdFilterList]);
 
-    // Prepare Table Data Source
+    // --- Prepare Table Data Source (Unchanged) ---
     const tableDataSource = useMemo(() => {
         const points = allStyledPoints || [];
-        if (!tableSorter || !('field' in tableSorter) || !tableSorter.order) {
-            return points;
-        }
+        if (!tableSorter || !('field' in tableSorter) || !tableSorter.order) return points;
         const { field, order } = tableSorter;
-        const sorterFn = DEFAULT_GOUMAP_TABLE_COLUMNS.find(
-            (col) => col.key === field
-        )?.sorter;
-        if (typeof sorterFn !== 'function') {
-            return points;
-        }
+        const sorterFn = DEFAULT_GOUMAP_TABLE_COLUMNS.find(col => col.key === field)?.sorter;
+        if (typeof sorterFn !== 'function') return points;
         const sortedPoints = [...points].sort((a, b) => {
             const result = sorterFn(a, b, order);
             return order === 'descend' ? -result : result;
@@ -187,26 +185,19 @@ const GOUmapAnalysisUnit: React.FC = () => {
         return sortedPoints;
     }, [allStyledPoints, tableSorter]);
 
-    // Prepare Table Columns
+    // --- Prepare Table Columns (Unchanged) ---
     const tableColumns = useMemo(() => {
         return DEFAULT_GOUMAP_TABLE_COLUMNS.map((col: ColumnType<AnalysisTableRow>) => {
             if (!col.key) return col;
             let currentSortOrder: SorterResult<AnalysisTableRow>['order'] = null;
-            if (
-                tableSorter &&
-                'field' in tableSorter &&
-                tableSorter.field === col.key
-            ) {
+            if (tableSorter && 'field' in tableSorter && tableSorter.field === col.key) {
                 currentSortOrder = tableSorter.order || null;
             }
-            return {
-                ...col,
-                sortOrder: currentSortOrder,
-            };
+            return { ...col, sortOrder: currentSortOrder };
         });
     }, [tableSorter]);
 
-    // Callbacks
+    // --- Callbacks (Unchanged) ---
     const handleToggleColorVisibility = useCallback((label: string) => { dispatch(toggleColorLabelVisibility(label)); }, [dispatch]);
     const handleToggleShapeVisibility = useCallback((label: string) => { dispatch(toggleShapeLabelVisibility(label)); }, [dispatch]);
     const handleToggleSizeVisibility = useCallback((label: string) => { dispatch(toggleSizeLabelVisibility(label)); }, [dispatch]);
@@ -216,153 +207,123 @@ const GOUmapAnalysisUnit: React.FC = () => {
     const handleRankChange = useCallback((value: [number, number]) => { dispatch(setCommittedRankSliderValue(value)); }, [dispatch]);
     const handleGoIdInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => { dispatch(setGoIdInputString(e.target.value)); }, [dispatch]);
     const handleHighlightModeChange = useCallback((e: RadioChangeEvent) => { const mode = e.target.value as HighlightMode; if (Object.values(HighlightMode).includes(mode)) { dispatch(setHighlightModeAction(mode)); } else { console.warn('Invalid highlight mode selected:', mode); dispatch(setHighlightModeAction(HighlightMode.NONE)); } }, [dispatch]);
-    const handleTableChange = useCallback((pagination: TablePaginationConfig, filters: Record<string, FilterValue | null>, sorter: SorterResult<AnalysisTableRow> | SorterResult<AnalysisTableRow>[], extra: { currentDataSource: AnalysisTableRow[]; action: string }) => { console.log('[GOUmapAnalysisUnit] handleTableChange:', { pagination, filters, sorter, action: extra.action, }); setTablePagination(pagination); setTableSorter(sorter); }, []);
+    const handleTableChange = useCallback((pagination: TablePaginationConfig, filters: Record<string, FilterValue | null>, sorter: SorterResult<AnalysisTableRow> | SorterResult<AnalysisTableRow>[], extra: { currentDataSource: AnalysisTableRow[]; action: string }) => { console.log('[GOUmapAnalysisUnit] handleTableChange:', { pagination, filters, sorter, action: extra.action, }); setTablePagination(pagination); const currentSorter = Array.isArray(sorter) ? sorter[0] : sorter; setTableSorter(currentSorter || {}); }, []);
     const handleTableRowClick = useCallback((record: AnalysisTableRow) => { const clickedGoId = record?.go_id; console.log('[GOUmapAnalysisUnit] Row clicked:', clickedGoId); if (clickedGoId && clickedGoId === currentTableSelectedGoId) { dispatch(setTableSelectedGoId(null)); } else { dispatch(setTableSelectedGoId(clickedGoId || null)); } }, [dispatch, currentTableSelectedGoId]);
     const handleViewModeChange = useCallback((checked: boolean) => { setUmapViewMode(checked ? 'multiple' : 'single'); }, []);
-    // Handler for collapsing the filter header
-    const toggleFilterHeaderCollapse = useCallback(() => {
-        setIsFilterHeaderCollapsed(prev => !prev);
-    }, []);
+    const toggleFilterHeaderCollapse = useCallback(() => { setIsFilterHeaderCollapsed(prev => !prev); }, []);
 
     // === Render Logic ===
 
     if (queryError) {
-        const errorMessage = typeof queryError === 'object' && queryError !== null && 'message' in queryError ? String(queryError.message) : String(queryError);
-        return (<Alert message="Error Loading Data" description={errorMessage} type="error" showIcon style={{ margin: '24px' }} />);
+        const errorMessage = typeof queryError === 'object' && queryError !== null && 'data' in queryError ? String((queryError as any).data?.message || queryError) : String(queryError);
+        return (<Alert message="Error Loading Analysis Data" description={errorMessage} type="error" showIcon style={{ margin: '24px' }} />);
     }
 
     if (!hasSelection) {
-        return <Empty description="No analyses selected." style={{ marginTop: '50px' }} />;
+        return <Empty description="No analyses selected. Please select analyses from the Experiment List." style={{ marginTop: '50px' }} />;
     }
 
     return (
         <div>
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
 
-                {/* --- Filter Header Section --- */}
+                {/* --- Filter Header Section (Unchanged) --- */}
                 <div className={`${styles.filterHeader} ${isFilterHeaderCollapsed ? styles.collapsed : styles.expanded}`}>
                     <div className={styles.filterHeaderToolbar}>
                         <Title level={5} style={{ margin: 0, flexGrow: 1 }}>Filters & Styling</Title>
-                        <Button
-                            type="text"
-                            icon={isFilterHeaderCollapsed ? <DownOutlined /> : <UpOutlined />}
-                            onClick={toggleFilterHeaderCollapse}
-                            aria-label={isFilterHeaderCollapsed ? 'Expand Filters' : 'Collapse Filters'}
-                        />
+                        <Button type="text" icon={isFilterHeaderCollapsed ? <DownOutlined /> : <UpOutlined />} onClick={toggleFilterHeaderCollapse} aria-label={isFilterHeaderCollapsed ? 'Expand Filters' : 'Collapse Filters'} />
                     </div>
                     <div className={styles.filterHeaderControls}>
-                        <GoIdFilterUI
-                            goIdInputString={goIdInputString}
-                            highlightMode={highlightMode}
-                            onGoIdInputChange={handleGoIdInputChange}
-                            onHighlightModeChange={handleHighlightModeChange}
-                        />
-                        <SlidingWindowFilter
-                            min={minRank}
-                            max={maxRank}
-                            value={committedRankValue}
-                            onAfterChange={handleRankChange}
-                            disabled={isLoading || !hasSelection || maxRank <= 0 || minRank >= maxRank}
-                            label="Filter by Rank"
-                            analysisName="GOUmapRankFilter"
-                        />
-                        <StylingSelectors
-                            colorByOption={colorByOption}
-                            shapeByOption={shapeByOption}
-                            sizeByOption={sizeByOption}
-                            onColorByChange={handleColorByChange}
-                            onShapeByChange={handleShapeByChange}
-                            onSizeByChange={handleSizeByChange}
-                            colorOptions={COLOR_BY_OPTIONS}
-                            shapeOptions={SHAPE_BY_OPTIONS}
-                            sizeOptions={SIZE_BY_OPTIONS}
-                            disabled={isLoading || !hasSelection}
-                        />
-                        <Space style={{ marginTop: '10px', marginLeft: '15px' }}>
-                            <Text strong>UMAP View:</Text>
-                            <Switch
-                                checkedChildren="Multiple"
-                                unCheckedChildren="Single"
-                                checked={umapViewMode === 'multiple'}
-                                onChange={handleViewModeChange}
-                                disabled={isLoading || !hasSelection}
-                            />
-                        </Space>
+                        <Row gutter={[16, 16]}>
+                            <Col xs={24} md={12} lg={8}><GoIdFilterUI goIdInputString={goIdInputString} highlightMode={highlightMode} onGoIdInputChange={handleGoIdInputChange} onHighlightModeChange={handleHighlightModeChange} /></Col>
+                            <Col xs={24} md={12} lg={8}><SlidingWindowFilter min={minRank} max={maxRank} value={committedRankValue} onAfterChange={handleRankChange} disabled={isLoading || !hasSelection || maxRank <= 0 || minRank >= maxRank} label="Filter by Rank" analysisName="GOUmapRankFilter" /></Col>
+                            <Col xs={24} md={24} lg={8}><StylingSelectors colorByOption={colorByOption} shapeByOption={shapeByOption} sizeByOption={sizeByOption} onColorByChange={handleColorByChange} onShapeByChange={handleShapeByChange} onSizeByChange={handleSizeByChange} colorOptions={COLOR_BY_OPTIONS} shapeOptions={SHAPE_BY_OPTIONS} sizeOptions={SIZE_BY_OPTIONS} disabled={isLoading || !hasSelection} /></Col>
+                            <Col xs={24}><Space style={{ marginTop: '10px' }}><Text strong>UMAP View:</Text><Switch checkedChildren="Multiple" unCheckedChildren="Single" checked={umapViewMode === 'multiple'} onChange={handleViewModeChange} disabled={isLoading || !hasSelection} /></Space></Col>
+                        </Row>
                     </div>
                 </div>
                 {/* --- END Filter Header Section --- */}
 
 
-                {/* Plots/Legends Row */}
+                {/* --- Plots/Legends Row --- */}
                 <div>
                     <Row gutter={[16, 16]} wrap={false}>
                         {/* Color Legend */}
-                        <Col flex="200px">
-                            <CustomLegends
-                                colorItems={colorItems}
-                                hiddenColorLabelsSet={hiddenColorLabelsSet}
-                                onToggleColorVisibility={handleToggleColorVisibility}
-                                onToggleShapeVisibility={handleToggleShapeVisibility}
-                                onToggleSizeVisibility={handleToggleSizeVisibility}
-                                showColor={true}
-                                showShape={false}
-                                showSize={false}
-                            />
-                        </Col>
+                        <Col flex="200px"><CustomLegends colorItems={colorItems} hiddenColorLabelsSet={hiddenColorLabelsSet} onToggleColorVisibility={handleToggleColorVisibility} onToggleShapeVisibility={handleToggleShapeVisibility} onToggleSizeVisibility={handleToggleSizeVisibility} showColor={true} showShape={false} showSize={false} /></Col>
 
-                        {/* Main Content Area (Plots by Experiment) */}
+                        {/* Main Content Area (Plots) - Conditionally Rendered */}
                         <Col flex="auto">
                             <Spin spinning={isLoading} tip="Loading analysis data...">
                                 <Space direction="vertical" size="large" style={{ width: '100%' }}>
 
-                                    {/* Map over selected refs to create rows */}
-                                    {selectedBmdResultRefs?.map((refStr) => {
+                                    {/* == MULTIPLE VIEW MODE RENDERING == */}
+                                    {umapViewMode === 'multiple' && selectedBmdResultRefs?.map((refStr) => {
                                         const numericRef = Number(refStr);
                                         if (isNaN(numericRef)) return null;
-
-                                        const bmdInfo = bmdResultMap.get(numericRef);
-                                        const analysisNameForPlot = bmdInfo?.name || `Analysis ${numericRef}`;
-
-                                        // Get data specific to this ref
+                                        const analysisNameForPlot = bmdRefToExperimentNameMap.get(numericRef) || `Analysis ${numericRef}`;
                                         const pointsForAccumPlot = isLoading ? null : (allStyledPoints?.filter(p => p.bmdResultRef === numericRef) || null);
                                         const pointsForUmapPlot = isLoading ? null : (styledGroupedData?.get(refStr) || null);
-
                                         return (
                                             <Card key={`exp-row-${refStr}`} size="small" title={analysisNameForPlot} bordered={false} style={{ width: '100%' }}>
-                                                <Row gutter={[16, 16]} align="middle">
-                                                    {/* Column 1: Accumulation Plot */}
-                                                    <Col xs={24} lg={umapViewMode === 'multiple' ? 12 : 24}>
+                                                <Row gutter={[16, 16]} align="top">
+                                                    <Col xs={24} lg={12}>
                                                         <Title level={5} style={{ textAlign: 'center', marginBottom: '8px' }}>Accumulation</Title>
-                                                        <AccumulationPlot
-                                                            analysisName={analysisNameForPlot}
-                                                            styledPointsForPlot={pointsForAccumPlot}
-                                                            bmdResultRef={numericRef}
-                                                        />
+                                                        <AccumulationPlot analysisName={analysisNameForPlot} styledPointsForPlot={pointsForAccumPlot} bmdResultRef={numericRef} />
                                                     </Col>
-
-                                                    {/* Column 2: UMAP Plot (Only in multiple view mode) */}
-                                                    {umapViewMode === 'multiple' && (
-                                                        <Col xs={24} lg={12}>
-                                                            <Title level={5} style={{ textAlign: 'center', marginBottom: '8px' }}>UMAP</Title>
-                                                            <UmapPlotComponent
-                                                                data={pointsForUmapPlot}
-                                                                referenceData={referenceData}
-                                                            />
-                                                        </Col>
-                                                    )}
+                                                    <Col xs={24} lg={12}>
+                                                        <Title level={5} style={{ textAlign: 'center', marginBottom: '8px' }}>UMAP</Title>
+                                                        <UmapPlotComponent data={pointsForUmapPlot} referenceData={referenceData} />
+                                                    </Col>
                                                 </Row>
                                             </Card>
                                         );
                                     })}
 
-                                    {/* Render the single combined UMAP plot if in single view mode */}
+                                    {/* == SINGLE VIEW MODE RENDERING == */}
                                     {umapViewMode === 'single' && (
-                                        <Card size="small" title="Combined UMAP Visualization" bordered={false}>
-                                            <UmapPlotComponent
-                                                data={isLoading ? null : analysisPoints} // Use combined points
-                                                referenceData={referenceData}
-                                            />
-                                        </Card>
+                                        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                                            {/* Card containing the row of individual Accumulation plots */}
+                                            <Card size="small" title="Individual Accumulation Plots" bordered={false} style={{ width: '100%' }}>
+                                                {/* *** ADDED STYLE FOR HORIZONTAL SCROLLING ROW *** */}
+                                                <Row gutter={[16, 0]} style={horizontalScrollRowStyle} align="top">
+                                                    {selectedBmdResultRefs?.map((refStr) => {
+                                                        const numericRef = Number(refStr);
+                                                        if (isNaN(numericRef)) return null;
+                                                        const analysisNameForPlot = bmdRefToExperimentNameMap.get(numericRef) || `Analysis ${numericRef}`;
+                                                        const pointsForThisAccumPlot = isLoading ? null : (allStyledPoints?.filter(p => p.bmdResultRef === numericRef) || null);
+                                                        return (
+                                                            // Use fixed width or flex basis for columns inside non-wrapping row
+                                                            // Using span might still cause issues depending on screen size,
+                                                            // Let's try a fixed width approach within the Col
+                                                            <Col key={`single-accum-${refStr}`} style={{ minWidth: '300px', flexShrink: 0 }}> {/* Adjust minWidth as needed */}
+                                                                <Title level={5} style={{ textAlign: 'center', marginBottom: '8px', fontSize: '0.9em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={analysisNameForPlot}>
+                                                                    {analysisNameForPlot}
+                                                                </Title>
+                                                                <AccumulationPlot
+                                                                    analysisName={analysisNameForPlot}
+                                                                    styledPointsForPlot={pointsForThisAccumPlot}
+                                                                    bmdResultRef={numericRef}
+                                                                />
+                                                            </Col>
+                                                        );
+                                                    })}
+                                                </Row>
+                                            </Card>
+
+                                            {/* Card containing the single combined UMAP plot */}
+                                            <Card size="small" title="Combined UMAP Plot" bordered={false} style={{ width: '100%' }}>
+                                                <Row justify="center">
+                                                    {/* Make UMAP plot reasonably wide */}
+                                                    <Col xs={24} lg={16} xl={12}>
+                                                        <Title level={5} style={{ textAlign: 'center', marginBottom: '8px' }}>UMAP</Title>
+                                                        <UmapPlotComponent
+                                                            data={isLoading ? null : analysisPoints}
+                                                            referenceData={referenceData}
+                                                        />
+                                                    </Col>
+                                                </Row>
+                                            </Card>
+                                        </Space>
                                     )}
 
                                 </Space>
@@ -370,26 +331,14 @@ const GOUmapAnalysisUnit: React.FC = () => {
                         </Col>
                         {/* END Main Content Area */}
 
-
                         {/* Shape/Size Legend */}
-                        <Col flex="200px">
-                            <CustomLegends
-                                shapeItems={shapeItems}
-                                sizeItems={sizeItems}
-                                hiddenShapeLabelsSet={hiddenShapeLabelsSet}
-                                hiddenSizeLabelsSet={hiddenSizeLabelsSet}
-                                onToggleColorVisibility={handleToggleColorVisibility}
-                                onToggleShapeVisibility={handleToggleShapeVisibility}
-                                onToggleSizeVisibility={handleToggleSizeVisibility}
-                                showColor={false}
-                                showShape={true}
-                                showSize={true}
-                            />
-                        </Col>
+                        <Col flex="200px"><CustomLegends shapeItems={shapeItems} sizeItems={sizeItems} hiddenShapeLabelsSet={hiddenShapeLabelsSet} hiddenSizeLabelsSet={hiddenSizeLabelsSet} onToggleColorVisibility={handleToggleColorVisibility} onToggleShapeVisibility={handleToggleShapeVisibility} onToggleSizeVisibility={handleToggleSizeVisibility} showColor={false} showShape={true} showSize={true} /></Col>
                     </Row>
                 </div>
+                {/* --- END Plots/Legends Row --- */}
 
-                {/* Table Row */}
+
+                {/* --- Table Row (Unchanged) --- */}
                 <Card size="small" title="Analysis Data Table" bordered={false}>
                     <Row>
                         <Col span={24}>
@@ -405,10 +354,12 @@ const GOUmapAnalysisUnit: React.FC = () => {
                                 pagination={tablePagination}
                                 onChange={handleTableChange}
                                 onRowClick={handleTableRowClick}
+                                selectedGoId={currentTableSelectedGoId}
                             />
                         </Col>
                     </Row>
                 </Card>
+                {/* --- END Table Row --- */}
 
             </Space>
         </div>

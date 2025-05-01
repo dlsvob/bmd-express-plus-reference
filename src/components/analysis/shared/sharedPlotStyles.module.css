@@ -1,4 +1,4 @@
-/* src/components/analysis/GOUmapAnalysisUnit/UmapPlotComponent.module.css */
+/* src/components/shared/sharedPlotStyles.module.css */
 
 .plotContainer {
     position: relative;
@@ -24,7 +24,7 @@
     /* Force fill */
 }
 
-/* --- Modebar Styles --- */
+/* --- Optional: Consistent Modebar Styles --- */
 /* Ensure horizontal layout for the modebar */
 .plotContainer :global(.modebar) {
     display: flex !important;
@@ -34,34 +34,45 @@
     border: none !important;
     box-shadow: none !important;
     padding: 2px !important;
+    position: absolute;
+    /* Keep it positioned relative to plot */
+    top: 2px;
+    right: 2px;
 }
 
 /* Target the groups of buttons */
 .plotContainer :global(.modebar-group) {
     display: inline-flex !important;
-    background-color: transparent !important;
+    background-color: rgba(255, 255, 255, 0.8) !important;
+    /* Slight background */
+    border-radius: 3px;
     margin-left: 5px !important;
     padding: 0 !important;
-    border: none !important;
-    box-shadow: none !important;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 /* Style individual buttons */
 .plotContainer :global(.modebar-btn) {
-    padding: 6px !important;
+    padding: 4px !important;
+    /* Slightly smaller padding */
     background: none !important;
     border: none !important;
     cursor: pointer;
     display: inline-block !important;
     vertical-align: middle;
+    line-height: 1;
+    /* Ensure icon alignment */
 }
 
 /* Style the icons (SVGs) */
 .plotContainer :global(.modebar-btn svg) {
     color: rgba(0, 0, 0, 0.65) !important;
-    width: 24px !important;
-    height: 24px !important;
+    width: 18px !important;
+    /* Slightly smaller icons */
+    height: 18px !important;
     display: block !important;
+    vertical-align: middle;
 }
 
 .plotContainer :global(.modebar-btn svg path) {
@@ -69,12 +80,12 @@
 }
 
 /* Hover state */
-.plotContainer :global(.modebar-btn:hover svg) {
-    color: #1677ff !important;
+.plotContainer :global(.modebar-btn:hover) {
+    background-color: rgba(0, 0, 0, 0.05) !important;
 }
 
-.plotContainer :global(.modebar-btn:hover svg path) {
-    fill: currentColor !important;
+.plotContainer :global(.modebar-btn:hover svg) {
+    color: #1677ff !important;
 }
 
 /* Active state */
@@ -83,12 +94,7 @@
     color: #0958d9 !important;
 }
 
-.plotContainer :global(.modebar-btn.active svg path),
-.plotContainer :global(.modebar-btn--active svg path) {
-    fill: currentColor !important;
-}
-
 /* Hide the plotly logo button */
-.plotContainer :global(a[data-title="Produced with Plotly"]) {
+.plotContainer :global(a[data-title*='Plotly']) {
     display: none !important;
 }
