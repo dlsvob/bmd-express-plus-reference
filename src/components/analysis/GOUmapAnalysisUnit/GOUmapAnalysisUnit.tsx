@@ -1,10 +1,16 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, {
+    useCallback,
+    useMemo,
+    useState,
+    useRef, // Import useRef
+    useEffect, // Import useEffect
+} from 'react';
 import {
     Row,
     Col,
     Spin,
     Alert,
-    Space, // Keep Space for internal use if needed
+    Space,
     Switch,
     Typography,
     Card,
@@ -94,7 +100,16 @@ const verticalSpacingStyle: React.CSSProperties = {
 const GOUmapAnalysisUnit: React.FC = () => {
     const dispatch = useAppDispatch();
     const [umapViewMode, setUmapViewMode] = useState<UmapViewMode>('single');
-    const [isFilterHeaderCollapsed, setIsFilterHeaderCollapsed] = useState(false);
+    const [isFilterHeaderCollapsed, setIsFilterHeaderCollapsed] =
+        useState(false);
+
+    // --- STATE FOR DYNAMIC PLOT HEIGHT ---
+    // Store height as string (e.g., "250px") or null initially
+    const [accumulationPlotHeight, setAccumulationPlotHeight] = useState<
+        string | null
+    >(null);
+    // Ref for the UMAP plot's container column
+    const umapContainerRef = useRef<HTMLDivElement>(null);
 
     // --- Selectors (Unchanged) ---
     const projectName = useAppSelector(selectSelectedProjectName);
@@ -243,7 +258,68 @@ const GOUmapAnalysisUnit: React.FC = () => {
         );
     }, [tableSorter]);
 
-    // --- Callbacks (Unchanged) ---
+    // --- EFFECT TO MEASURE UMAP PLOT CONTAINER HEIGHT ---
+    useEffect(() => {
+        // Only run this effect in single view mode
+        if (umapViewMode !== 'single') {
+            // Optional: Reset height if switching away from single view?
+            // setAccumulationPlotHeight(null);
+            return;
+        }
+
+        const targetElement = umapContainerRef.current;
+
+        // Ensure the target element exists before observing
+        if (!targetElement) {
+            console.log('[HeightEffect] Target element not found yet.');
+            return;
+        }
+
+        console.log('[HeightEffect] Setting up ResizeObserver for:', targetElement);
+
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (let entry of entries) {
+                // Use contentRect for dimensions
+                const { height } = entry.contentRect;
+                if (height > 0) {
+                    // Calculate half height and round
+                    const newHeight = Math.round(height / 2);
+                    const newHeightPx = `${newHeight}px`;
+
+                    // Update state only if the value actually changes
+                    setAccumulationPlotHeight((prevHeight) => {
+                        if (prevHeight !== newHeightPx) {
+                            console.log(
+                                `[ResizeObserver] UMAP container height: ${height.toFixed(
+                                    1
+                                )}px -> Accumulation plot height: ${newHeightPx}`
+                            );
+                            return newHeightPx;
+                        }
+                        return prevHeight; // No change needed
+                    });
+                } else {
+                    console.log(
+                        '[ResizeObserver] Observed height is 0 or less.'
+                    );
+                }
+            }
+        });
+
+        // Start observing the target element
+        resizeObserver.observe(targetElement);
+
+        // --- Cleanup function ---
+        return () => {
+            console.log(
+                '[HeightEffect] Cleaning up ResizeObserver for:',
+                targetElement
+            );
+            resizeObserver.disconnect();
+        };
+    }, [umapViewMode]); // Dependency: Re-run if view mode changes
+
+    // --- Callbacks ---
     const handleToggleColorVisibility = useCallback(
         (label: string) => {
             dispatch(toggleColorLabelVisibility(label));
@@ -339,6 +415,8 @@ const GOUmapAnalysisUnit: React.FC = () => {
     );
     const handleViewModeChange = useCallback((checked: boolean) => {
         setUmapViewMode(checked ? 'multiple' : 'single');
+        // Optional: Reset height immediately when switching modes
+        // setAccumulationPlotHeight(null);
     }, []);
     const toggleFilterHeaderCollapse = useCallback(() => {
         setIsFilterHeaderCollapsed((prev) => !prev);
@@ -383,12 +461,12 @@ const GOUmapAnalysisUnit: React.FC = () => {
         width: '100%', // Ensure it takes full width
     };
 
+    // --- Define a default/fallback height for initial render ---
+    const defaultAccumPlotHeight = '250px'; // Adjust if needed
+
     return (
-        // *** REMOVED OUTERMOST <Space> ***
-        // Added rootStyle to the container div
         <div style={rootStyle} className={styles.goumapRoot}>
-            {/* --- Filter Header Section (Unchanged structure, added margin) --- */}
-            {/* Added style={verticalSpacingStyle} for spacing */}
+            {/* --- Filter Header Section (Simplified - No hover expand) --- */}
             <div
                 className={`${styles.filterHeader} ${isFilterHeaderCollapsed ? styles.collapsed : styles.expanded
                     }`}
@@ -473,11 +551,10 @@ const GOUmapAnalysisUnit: React.FC = () => {
             {/* --- END Filter Header Section --- */}
 
             {/* --- Plots/Legends Row --- */}
-            {/* Added style={verticalSpacingStyle} for spacing */}
             <div style={verticalSpacingStyle}>
                 <Row gutter={[16, 16]} wrap={false}>
-                    {/* Color Legend */}
-                    <Col flex="200px">
+                    {/* Color Legend (Fixed Width) */}
+                    <Col flex="0 0 200px">
                         <CustomLegends
                             colorItems={colorItems}
                             hiddenColorLabelsSet={hiddenColorLabelsSet}
@@ -493,8 +570,6 @@ const GOUmapAnalysisUnit: React.FC = () => {
                     {/* Main Content Area (Plots) - Conditionally Rendered */}
                     <Col flex="auto">
                         <Spin spinning={isLoading} tip="Loading analysis data...">
-                            {/* Removed inner Space, content flows directly */}
-
                             {/* == MULTIPLE VIEW MODE RENDERING == */}
                             {umapViewMode === 'multiple' &&
                                 selectedBmdResultRefs?.map((refStr) => {
@@ -517,10 +592,10 @@ const GOUmapAnalysisUnit: React.FC = () => {
                                             key={`exp-row-${refStr}`}
                                             size="small"
                                             title={analysisNameForPlot}
-                                            bordered={false}
+                                            bordered={false} // Ensure no border
                                             style={{
                                                 width: '100%',
-                                                marginBottom: '16px', // Add margin between cards
+                                                marginBottom: '16px',
                                             }}
                                         >
                                             <Row gutter={[16, 16]} align="top">
@@ -542,6 +617,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
                                                             pointsForAccumPlot
                                                         }
                                                         bmdResultRef={numericRef}
+                                                    // plotHeight="300px" // Optional: Fixed height for multi-view
                                                     />
                                                 </Col>
                                                 <Col xs={24} lg={12}>
@@ -566,18 +642,17 @@ const GOUmapAnalysisUnit: React.FC = () => {
                                     );
                                 })}
 
-                            {/* == SINGLE VIEW MODE RENDERING == */}
+                            {/* == SINGLE VIEW MODE RENDERING (MODIFIED) == */}
                             {umapViewMode === 'single' && (
-                                // Removed wrapping Space, added margin to cards
                                 <>
                                     {/* Card containing the row of individual Accumulation plots */}
                                     <Card
                                         size="small"
                                         title="Individual Accumulation Plots"
-                                        bordered={false}
+                                        bordered={false} // Ensure no border
                                         style={{
                                             width: '100%',
-                                            marginBottom: '16px', // Add margin below this card
+                                            marginBottom: '16px',
                                         }}
                                     >
                                         <Row
@@ -608,8 +683,10 @@ const GOUmapAnalysisUnit: React.FC = () => {
                                                         <Col
                                                             key={`single-accum-${refStr}`}
                                                             style={{
-                                                                minWidth: '300px',
+                                                                // Set a fixed width for consistency
+                                                                width: '350px',
                                                                 flexShrink: 0,
+                                                                paddingBottom: '16px', // Optional spacing
                                                             }}
                                                         >
                                                             <Title
@@ -646,6 +723,12 @@ const GOUmapAnalysisUnit: React.FC = () => {
                                                                 bmdResultRef={
                                                                     numericRef
                                                                 }
+                                                                // *** PASS THE DYNAMIC HEIGHT ***
+                                                                // Use state value or fallback default
+                                                                plotHeight={
+                                                                    accumulationPlotHeight ??
+                                                                    defaultAccumPlotHeight
+                                                                }
                                                             />
                                                         </Col>
                                                     );
@@ -658,11 +741,17 @@ const GOUmapAnalysisUnit: React.FC = () => {
                                     <Card
                                         size="small"
                                         title="Combined UMAP Plot"
-                                        bordered={false}
-                                        style={{ width: '100%' }} // No bottom margin needed if it's the last plot element
+                                        bordered={false} // Ensure no border
+                                        style={{ width: '100%' }}
                                     >
                                         <Row justify="center">
-                                            <Col xs={24} lg={16} xl={12}>
+                                            {/* *** ATTACH THE REF HERE *** */}
+                                            <Col
+                                                xs={24}
+                                                lg={16}
+                                                xl={12}
+                                                ref={umapContainerRef}
+                                            >
                                                 <Title
                                                     level={5}
                                                     style={{
@@ -689,8 +778,8 @@ const GOUmapAnalysisUnit: React.FC = () => {
                     </Col>
                     {/* END Main Content Area */}
 
-                    {/* Shape/Size Legend */}
-                    <Col flex="200px">
+                    {/* Shape/Size Legend (Fixed Width) */}
+                    <Col flex="0 0 200px">
                         <CustomLegends
                             shapeItems={shapeItems}
                             sizeItems={sizeItems}
@@ -708,8 +797,14 @@ const GOUmapAnalysisUnit: React.FC = () => {
             </div>
             {/* --- END Plots/Legends Row --- */}
 
-            {/* --- Table Row (Unchanged structure, no extra margin needed if last element) --- */}
-            <Card size="small" title="Analysis Data Table" bordered={false}>
+            {/* --- Table Row --- */}
+            {/* Add spacing below the table card */}
+            <Card
+                size="small"
+                title="Analysis Data Table"
+                bordered={false} // Ensure no border
+                style={verticalSpacingStyle} // Add bottom margin
+            >
                 <Row>
                     <Col span={24}>
                         <GOUmapAnalysisTable

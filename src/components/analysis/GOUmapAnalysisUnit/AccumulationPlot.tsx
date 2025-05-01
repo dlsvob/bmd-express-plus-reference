@@ -1,5 +1,11 @@
 import React, { useMemo, useCallback } from 'react';
-import type { Data, Layout, PlotMouseEvent, PlotSelectionEvent, Config } from 'plotly.js';
+import type {
+    Data,
+    Layout,
+    PlotMouseEvent,
+    PlotSelectionEvent,
+    Config,
+} from 'plotly.js';
 import type * as Plotly from 'plotly.js';
 import { Spin } from 'antd';
 import { UmapAnalysisDataPoint } from '../../../models/applicationModel';
@@ -12,10 +18,21 @@ import {
     selectAccumulationPlotSelectedGoIdsSet,
     selectTableSelectedGoId,
 } from '../../../store/slices/analysisUISlice';
-import sharedStyles from '../shared/sharedPlotStyles.module.css';
+import sharedStyles from '../shared/sharedPlotStyles.module.css'; // Ensure this is imported
 
 // Define simple default colors or import from a utility
-const defaultPlotColors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'];
+const defaultPlotColors = [
+    '#1f77b4',
+    '#ff7f0e',
+    '#2ca02c',
+    '#d62728',
+    '#9467bd',
+    '#8c564b',
+    '#e377c2',
+    '#7f7f7f',
+    '#bcbd22',
+    '#17becf',
+];
 
 export interface AccumulationPlotProps {
     analysisName: string;
@@ -23,6 +40,7 @@ export interface AccumulationPlotProps {
     bmdResultRef: number; // Identifier for this specific plot (0 for combined overlay)
     // Add map for combined plot line names
     experimentNameMap?: Map<number, string>;
+    plotHeight?: string | number; // Add optional height prop
 }
 
 // Define structure for processed group data in combined overlay mode
@@ -59,6 +77,7 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
         styledPointsForPlot,
         bmdResultRef,
         experimentNameMap, // Receive the map
+        plotHeight = '300px', // Default height if not provided
     }) {
         const dispatch = useAppDispatch();
         const logPrefix = `[AccumulationPlot ${analysisName}]`;
@@ -66,27 +85,35 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
         // --- Get highlighting/selection state ---
         const highlightMode = useAppSelector(selectHighlightMode);
         const highlightGoIdsList = useAppSelector(selectGoIdFilterList);
-        const selectedAccumGoIdsSet = useAppSelector(selectAccumulationPlotSelectedGoIdsSet);
+        const selectedAccumGoIdsSet = useAppSelector(
+            selectAccumulationPlotSelectedGoIdsSet
+        );
         const tableSelectedGoId = useAppSelector(selectTableSelectedGoId);
 
         // Determine if this is the combined plot overlay mode
-        const isCombinedOverlayPlot = bmdResultRef === 0 && analysisName === "Combined";
+        const isCombinedOverlayPlot =
+            bmdResultRef === 0 && analysisName === 'Combined';
 
         console.log(
-            `${logPrefix} Rendering. CombinedOverlay: ${isCombinedOverlayPlot}. Received ${styledPointsForPlot?.length ?? 0} points.`
+            `${logPrefix} Rendering. CombinedOverlay: ${isCombinedOverlayPlot}. Received ${styledPointsForPlot?.length ?? 0
+            } points. Height: ${plotHeight}`
         );
 
         // --- Calculate Data for Combined Overlay Plot ---
         const combinedOverlayData = useMemo(() => {
             // Only run if in combined mode and data/map are available
-            if (!isCombinedOverlayPlot || !styledPointsForPlot || !experimentNameMap) {
+            if (
+                !isCombinedOverlayPlot ||
+                !styledPointsForPlot ||
+                !experimentNameMap
+            ) {
                 return null;
             }
             console.log(`${logPrefix} Calculating combined overlay data...`);
 
             // Group points by bmdResultRef
             const groups = new Map<number, UmapAnalysisDataPoint[]>();
-            styledPointsForPlot.forEach(p => {
+            styledPointsForPlot.forEach((p) => {
                 if (p.bmdResultRef != null) {
                     if (!groups.has(p.bmdResultRef)) {
                         groups.set(p.bmdResultRef, []);
@@ -96,7 +123,9 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             });
 
             if (groups.size === 0) {
-                console.log(`${logPrefix} No valid groups found for combined overlay.`);
+                console.log(
+                    `${logPrefix} No valid groups found for combined overlay.`
+                );
                 return null;
             }
 
@@ -129,7 +158,9 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
                     );
 
                     // Calculate cumulative counts and rank map for this group
-                    const cumulativeCounts = sortedPoints.map((_, index) => index + 1);
+                    const cumulativeCounts = sortedPoints.map(
+                        (_, index) => index + 1
+                    );
                     const goIdToRankMap = new Map<string, number>();
                     sortedPoints.forEach((p, index) => {
                         goIdToRankMap.set(p.go_id!, index + 1);
@@ -137,8 +168,11 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
 
                     // Get min/max for this group
                     const minX = sortedPoints[0].bmdFifthPercentileTotalGenes!;
-                    const maxX = sortedPoints[sortedPoints.length - 1].bmdFifthPercentileTotalGenes!;
-                    const maxY = cumulativeCounts[cumulativeCounts.length - 1];
+                    const maxX =
+                        sortedPoints[sortedPoints.length - 1]
+                            .bmdFifthPercentileTotalGenes!;
+                    const maxY =
+                        cumulativeCounts[cumulativeCounts.length - 1];
 
                     // Update overall ranges
                     overallMinX = Math.min(overallMinX, minX);
@@ -148,33 +182,45 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
                     // Store processed data for this group
                     processedGroups.set(ref, {
                         ref: ref,
-                        name: experimentNameMap.get(ref) || `Analysis ${ref}`,
+                        name:
+                            experimentNameMap.get(ref) || `Analysis ${ref}`,
                         sortedPoints: sortedPoints,
                         cumulativeCounts: cumulativeCounts,
                         goIdToRankMap: goIdToRankMap,
                         minX: minX,
                         maxX: maxX,
                         maxY: maxY,
-                        color: defaultPlotColors[colorIndex % defaultPlotColors.length], // Assign color cyclically
+                        color: defaultPlotColors[
+                            colorIndex % defaultPlotColors.length
+                        ], // Assign color cyclically
                     });
                     colorIndex++;
-
                 } catch (error) {
-                    console.error(`${logPrefix} Error processing group ${ref}:`, error);
+                    console.error(
+                        `${logPrefix} Error processing group ${ref}:`,
+                        error
+                    );
                 }
             }
 
             if (processedGroups.size === 0) {
-                console.log(`${logPrefix} No groups processed successfully for combined overlay.`);
+                console.log(
+                    `${logPrefix} No groups processed successfully for combined overlay.`
+                );
                 return null;
             }
 
-            console.log(`${logPrefix} Combined overlay data calculated. Groups: ${processedGroups.size}, MinX: ${overallMinX}, MaxX: ${overallMaxX}, MaxY: ${overallMaxY}`);
+            console.log(
+                `${logPrefix} Combined overlay data calculated. Groups: ${processedGroups.size}, MinX: ${overallMinX}, MaxX: ${overallMaxX}, MaxY: ${overallMaxY}`
+            );
             // Return processed groups and overall axis ranges
             return { processedGroups, overallMinX, overallMaxX, overallMaxY };
-
-        }, [isCombinedOverlayPlot, styledPointsForPlot, experimentNameMap, logPrefix]);
-
+        }, [
+            isCombinedOverlayPlot,
+            styledPointsForPlot,
+            experimentNameMap,
+            logPrefix,
+        ]);
 
         // --- Calculate Data for Single Plot (Original Logic) ---
         const singlePlotData = useMemo((): SinglePlotProcessedData | null => {
@@ -204,28 +250,41 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
                         (b.bmdFifthPercentileTotalGenes ?? Infinity)
                 );
                 // Calculate cumulative counts and rank map for the single list
-                const cumulativeCounts = sortedPoints.map((_, index) => index + 1);
+                const cumulativeCounts = sortedPoints.map(
+                    (_, index) => index + 1
+                );
                 const goIdToRankMap = new Map<string, number>();
                 sortedPoints.forEach((p, index) => {
                     goIdToRankMap.set(p.go_id!, index + 1);
                 });
                 // Get min/max for the single list
                 const minX = sortedPoints[0].bmdFifthPercentileTotalGenes!;
-                const maxX = sortedPoints[sortedPoints.length - 1].bmdFifthPercentileTotalGenes!;
+                const maxX =
+                    sortedPoints[sortedPoints.length - 1]
+                        .bmdFifthPercentileTotalGenes!;
                 const maxY = cumulativeCounts[cumulativeCounts.length - 1];
 
-                console.log(`${logPrefix} Single plot data calculated. Points: ${sortedPoints.length}, MinX: ${minX}, MaxX: ${maxX}, MaxY: ${maxY}`);
+                console.log(
+                    `${logPrefix} Single plot data calculated. Points: ${sortedPoints.length}, MinX: ${minX}, MaxX: ${maxX}, MaxY: ${maxY}`
+                );
                 return {
-                    sortedPoints, cumulativeCounts, goIdToRankMap,
-                    minXValue: minX, maxXValue: maxX, minYValue: 0, maxYValue: maxY,
+                    sortedPoints,
+                    cumulativeCounts,
+                    goIdToRankMap,
+                    minXValue: minX,
+                    maxXValue: maxX,
+                    minYValue: 0,
+                    maxYValue: maxY,
                     totalPoints: sortedPoints.length,
                 };
             } catch (error) {
-                console.error(`${logPrefix} Error processing single plot data:`, error);
+                console.error(
+                    `${logPrefix} Error processing single plot data:`,
+                    error
+                );
                 return null;
             }
         }, [isCombinedOverlayPlot, styledPointsForPlot, logPrefix]);
-
 
         // --- Generate Plotly Traces ---
         const plotData = useMemo((): Data[] | null => {
@@ -235,44 +294,68 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             const goIdsToShowMarkers = new Set<string>([
                 ...(highlightMode !== 'NONE' ? highlightGoIdsList : []),
                 ...selectedAccumGoIdsSet,
-                ...(tableSelectedGoId ? [tableSelectedGoId] : [])
+                ...(tableSelectedGoId ? [tableSelectedGoId] : []),
             ]);
 
             let traces: Data[] = [];
             // Structure to hold data for the single marker trace
-            let markerPointsData: { x: number | null, y: number | null, go_id: string, text: string, color: string, shape: string, size: number, opacity: number }[] = [];
+            let markerPointsData: {
+                x: number | null;
+                y: number | null;
+                go_id: string;
+                text: string;
+                color: string;
+                shape: string;
+                size: number;
+                opacity: number;
+            }[] = [];
 
             if (isCombinedOverlayPlot) {
                 // === Combined Overlay Plot Traces ===
                 if (!combinedOverlayData) {
-                    console.log(`${logPrefix} plotData Memo] No combinedOverlayData available.`);
+                    console.log(
+                        `${logPrefix} plotData Memo] No combinedOverlayData available.`
+                    );
                     return null;
                 }
 
                 // Create Line Traces (one per experiment group)
-                for (const [ref, groupData] of combinedOverlayData.processedGroups.entries()) {
+                for (const [
+                    ref,
+                    groupData,
+                ] of combinedOverlayData.processedGroups.entries()) {
                     traces.push({
-                        x: groupData.sortedPoints.map(p => p.bmdFifthPercentileTotalGenes ?? null),
+                        x: groupData.sortedPoints.map(
+                            (p) => p.bmdFifthPercentileTotalGenes ?? null
+                        ),
                         y: groupData.cumulativeCounts,
-                        type: 'scatter', mode: 'lines',
+                        type: 'scatter',
+                        mode: 'lines',
                         name: groupData.name, // Use experiment name for legend
                         line: { color: groupData.color, width: 2 }, // Use assigned color
-                        customdata: groupData.sortedPoints.map(p => p.go_id), // GO IDs for interaction
+                        customdata: groupData.sortedPoints.map((p) => p.go_id), // GO IDs for interaction
                         hoverinfo: 'name+x+y', // Show name, x, y on line hover
                         legendgroup: groupData.name, // Group line and potential markers in legend
                     });
                 }
 
                 // Prepare Marker Data (only for points that are selected/highlighted)
-                const pointsForMarkers = (styledPointsForPlot || []).filter(p =>
-                    p.go_id && goIdsToShowMarkers.has(p.go_id) && // Is it selected/highlighted?
-                    p.bmdFifthPercentileTotalGenes != null && !isNaN(p.bmdFifthPercentileTotalGenes) && isFinite(p.bmdFifthPercentileTotalGenes) && p.bmdFifthPercentileTotalGenes > 0 && // Valid BMD?
-                    p.bmdResultRef != null // Has a ref to find its group?
+                const pointsForMarkers = (styledPointsForPlot || []).filter(
+                    (p) =>
+                        p.go_id &&
+                        goIdsToShowMarkers.has(p.go_id) && // Is it selected/highlighted?
+                        p.bmdFifthPercentileTotalGenes != null &&
+                        !isNaN(p.bmdFifthPercentileTotalGenes) &&
+                        isFinite(p.bmdFifthPercentileTotalGenes) &&
+                        p.bmdFifthPercentileTotalGenes > 0 && // Valid BMD?
+                        p.bmdResultRef != null // Has a ref to find its group?
                 );
 
-                pointsForMarkers.forEach(p => {
+                pointsForMarkers.forEach((p) => {
                     // Find the processed data for the group this point belongs to
-                    const groupData = combinedOverlayData.processedGroups.get(p.bmdResultRef!);
+                    const groupData = combinedOverlayData.processedGroups.get(
+                        p.bmdResultRef!
+                    );
                     if (!groupData) return; // Skip if group data not found
 
                     // Find the rank of this point *within its own group*
@@ -288,47 +371,70 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
                         x: p.bmdFifthPercentileTotalGenes,
                         y: yValue, // Y-value relative to its own group's line
                         go_id: p.go_id!,
-                        text: `Exp: ${groupData.name}<br>Rank: ${rank}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term}<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(2)}`,
+                        text: `Exp: ${groupData.name}<br>Rank: ${rank}<br>GO ID: ${p.go_id
+                            }<br>Term: ${p.go_term
+                            }<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(
+                                2
+                            )}`,
                         color: p.finalColor, // Use styling from hook
                         shape: p.finalShape,
                         size: p.finalSize,
                         opacity: p.finalOpacity,
                     });
                 });
-
             } else {
                 // === Single Plot Traces ===
                 if (!singlePlotData) {
-                    console.log(`${logPrefix} plotData Memo] No singlePlotData available.`);
+                    console.log(
+                        `${logPrefix} plotData Memo] No singlePlotData available.`
+                    );
                     return null;
                 }
 
                 // Create the single Line Trace
                 traces.push({
-                    x: singlePlotData.sortedPoints.map(p => p.bmdFifthPercentileTotalGenes ?? null),
+                    x: singlePlotData.sortedPoints.map(
+                        (p) => p.bmdFifthPercentileTotalGenes ?? null
+                    ),
                     y: singlePlotData.cumulativeCounts,
-                    type: 'scatter', mode: 'lines', name: 'Cumulative Count',
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Cumulative Count',
                     line: { color: defaultPlotColors[0], width: 2 }, // Use default color
-                    customdata: singlePlotData.sortedPoints.map(p => p.go_id),
-                    text: singlePlotData.sortedPoints.map((p, i) => `Rank: ${i + 1}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term}<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(2)}<br>Count: ${singlePlotData.cumulativeCounts[i]}`),
+                    customdata: singlePlotData.sortedPoints.map((p) => p.go_id),
+                    text: singlePlotData.sortedPoints.map(
+                        (p, i) =>
+                            `Rank: ${i + 1}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term
+                            }<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(
+                                2
+                            )}<br>Count: ${singlePlotData.cumulativeCounts[i]}`
+                    ),
                     hoverinfo: 'text',
-                    hoverlabel: { bgcolor: '#FFF', bordercolor: defaultPlotColors[0] },
+                    hoverlabel: {
+                        bgcolor: '#FFF',
+                        bordercolor: defaultPlotColors[0],
+                    },
                     showlegend: false, // No legend needed for single line plot
                 });
 
                 // Prepare Marker Data (show all points with opacity > 0)
-                const pointsForMarkers = (styledPointsForPlot || []).filter(p =>
-                    p.finalOpacity > 0 && // Original condition: visible
-                    p.bmdFifthPercentileTotalGenes != null && !isNaN(p.bmdFifthPercentileTotalGenes) && isFinite(p.bmdFifthPercentileTotalGenes) && p.bmdFifthPercentileTotalGenes > 0 &&
-                    p.go_id
+                const pointsForMarkers = (styledPointsForPlot || []).filter(
+                    (p) =>
+                        p.finalOpacity > 0 && // Original condition: visible
+                        p.bmdFifthPercentileTotalGenes != null &&
+                        !isNaN(p.bmdFifthPercentileTotalGenes) &&
+                        isFinite(p.bmdFifthPercentileTotalGenes) &&
+                        p.bmdFifthPercentileTotalGenes > 0 &&
+                        p.go_id
                 );
 
-                pointsForMarkers.forEach(p => {
+                pointsForMarkers.forEach((p) => {
                     // Find rank in the single sorted list
                     const rank = singlePlotData.goIdToRankMap.get(p.go_id!);
                     if (rank == null) return;
                     // Get y-value from the single cumulative count list
-                    const yValue = singlePlotData.cumulativeCounts[rank - 1] ?? null;
+                    const yValue =
+                        singlePlotData.cumulativeCounts[rank - 1] ?? null;
                     if (yValue === null) return;
 
                     // Add data for this marker
@@ -336,7 +442,10 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
                         x: p.bmdFifthPercentileTotalGenes,
                         y: yValue,
                         go_id: p.go_id!,
-                        text: `Rank: ${rank}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term}<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(2)}<br>Source: ${p.bmdResultName}`,
+                        text: `Rank: ${rank}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term
+                            }<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(
+                                2
+                            )}<br>Source: ${p.bmdResultName}`,
                         color: p.finalColor,
                         shape: p.finalShape,
                         size: p.finalSize,
@@ -348,36 +457,46 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             // Create a single Marker Trace if any marker data was collected
             if (markerPointsData.length > 0) {
                 traces.push({
-                    x: markerPointsData.map(d => d.x),
-                    y: markerPointsData.map(d => d.y),
-                    customdata: markerPointsData.map(d => d.go_id),
-                    text: markerPointsData.map(d => d.text),
-                    type: 'scatter', mode: 'markers',
+                    x: markerPointsData.map((d) => d.x),
+                    y: markerPointsData.map((d) => d.y),
+                    customdata: markerPointsData.map((d) => d.go_id),
+                    text: markerPointsData.map((d) => d.text),
+                    type: 'scatter',
+                    mode: 'markers',
                     name: 'Selected/Highlighted', // Generic name for markers trace
                     marker: {
-                        color: markerPointsData.map(d => d.color),
-                        symbol: markerPointsData.map(d => d.shape),
-                        size: markerPointsData.map(d => d.size),
-                        opacity: markerPointsData.map(d => d.opacity),
+                        color: markerPointsData.map((d) => d.color),
+                        symbol: markerPointsData.map((d) => d.shape),
+                        size: markerPointsData.map((d) => d.size),
+                        opacity: markerPointsData.map((d) => d.opacity),
                         line: { color: 'black', width: 0.5 },
                     },
                     hoverinfo: 'text',
                     hoverlabel: { bgcolor: '#FFF', bordercolor: '#333' },
                     // Show marker legend only if combined and markers exist to be shown
-                    showlegend: isCombinedOverlayPlot && goIdsToShowMarkers.size > 0 && markerPointsData.length > 0,
+                    showlegend:
+                        isCombinedOverlayPlot &&
+                        goIdsToShowMarkers.size > 0 &&
+                        markerPointsData.length > 0,
                     legendgroup: 'markers', // Group all markers under one legend item if shown
                 });
             }
 
-            console.log(`${logPrefix} plotData Memo] Generated ${traces.length} traces.`);
+            console.log(
+                `${logPrefix} plotData Memo] Generated ${traces.length} traces.`
+            );
             return traces.length > 0 ? traces : null; // Return null if no traces generated
-
         }, [
-            isCombinedOverlayPlot, combinedOverlayData, singlePlotData,
-            styledPointsForPlot, logPrefix, highlightMode, highlightGoIdsList,
-            selectedAccumGoIdsSet, tableSelectedGoId
+            isCombinedOverlayPlot,
+            combinedOverlayData,
+            singlePlotData,
+            styledPointsForPlot,
+            logPrefix,
+            highlightMode,
+            highlightGoIdsList,
+            selectedAccumGoIdsSet,
+            tableSelectedGoId,
         ]);
-
 
         // --- Layout Calculation ---
         const plotLayout = useMemo((): Partial<Layout> | null => {
@@ -399,8 +518,17 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             }
 
             // Validate calculated ranges
-            if (minXVal === undefined || maxXVal === undefined || maxYVal === undefined || !isFinite(minXVal) || !isFinite(maxXVal) || !isFinite(maxYVal)) {
-                console.warn(`${logPrefix} Invalid axis range calculated: minX=${minXVal}, maxX=${maxXVal}, maxY=${maxYVal}`);
+            if (
+                minXVal === undefined ||
+                maxXVal === undefined ||
+                maxYVal === undefined ||
+                !isFinite(minXVal) ||
+                !isFinite(maxXVal) ||
+                !isFinite(maxYVal)
+            ) {
+                console.warn(
+                    `${logPrefix} Invalid axis range calculated: minX=${minXVal}, maxX=${maxXVal}, maxY=${maxYVal}`
+                );
                 return null; // Cannot create layout with invalid range
             }
 
@@ -413,14 +541,21 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
 
             return {
                 xaxis: {
-                    title: '5th Percentile BMD (Log Scale)', type: 'log',
-                    autorange: false, range: [logMinX, logMaxX],
-                    showline: true, showticklabels: true, ticks: 'outside',
+                    title: '5th Percentile BMD (Log Scale)',
+                    type: 'log',
+                    autorange: false,
+                    range: [logMinX, logMaxX],
+                    showline: true,
+                    showticklabels: true,
+                    ticks: 'outside',
                 },
                 yaxis: {
-                    title: 'Cumulative Count', autorange: false,
+                    title: 'Cumulative Count',
+                    autorange: false,
                     range: [minYValue, maxYValueWithPadding],
-                    showline: true, showticklabels: true, ticks: 'outside',
+                    showline: true,
+                    showticklabels: true,
+                    ticks: 'outside',
                 },
                 margin: PLOT_MARGINS, // Use margins with space for legend
                 hovermode: 'closest',
@@ -431,13 +566,20 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
                     // x: 1.02, y: 1, xanchor: 'left', yanchor: 'top',
                     bgcolor: 'rgba(255,255,255,0.7)', // Semi-transparent background
                     bordercolor: '#CCCCCC',
-                    borderwidth: 1
+                    borderwidth: 1,
                 },
-                autosize: true, paper_bgcolor: 'rgba(0,0,0,0)',
-                plot_bgcolor: 'rgba(0,0,0,0)', dragmode: 'lasso',
+                autosize: true,
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                dragmode: 'lasso',
                 clickmode: 'event+select',
             };
-        }, [isCombinedOverlayPlot, combinedOverlayData, singlePlotData, logPrefix]);
+        }, [
+            isCombinedOverlayPlot,
+            combinedOverlayData,
+            singlePlotData,
+            logPrefix,
+        ]);
 
         // --- Event Handlers ---
         const handleSelection = useCallback(
@@ -456,7 +598,9 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
             (event: Readonly<PlotMouseEvent>) => {
                 const clickedGoId = event.points[0]?.customdata as string;
                 console.log(`${logPrefix} Clicked GO ID:`, clickedGoId);
-                dispatch(setAccumulationPlotSelection(clickedGoId ? [clickedGoId] : []));
+                dispatch(
+                    setAccumulationPlotSelection(clickedGoId ? [clickedGoId] : [])
+                );
             },
             [dispatch, logPrefix]
         );
@@ -467,53 +611,130 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
         }, [dispatch, logPrefix]);
 
         // --- Plotly Config ---
-        const plotConfig: Partial<Config> = useMemo(() => ({
-            responsive: true,
-            displaylogo: false,
-            modeBarButtonsToRemove: [
-                'zoom2d', 'pan2d', 'select2d', 'zoomIn2d', 'zoomOut2d',
-                'autoScale2d', 'resetScale2d', 'hoverClosestCartesian',
-                'hoverCompareCartesian', 'toggleSpikelines',
-            ],
-            modeBarButtonsToAdd: [
-                {
-                    name: 'Reset View', icon: Plotly.Icons.home,
-                    click: (gd) => {
-                        Plotly.relayout(gd, { 'xaxis.autorange': true, 'yaxis.autorange': true });
-                        dispatch(setAccumulationPlotSelection([])); // Also clear selection
-                    }
-                },
-                { name: 'Lasso Select', icon: Plotly.Icons.lasso, click: (gd) => Plotly.relayout(gd, { dragmode: 'lasso' }) },
-                { name: 'Box Select', icon: Plotly.Icons.select, click: (gd) => Plotly.relayout(gd, { dragmode: 'select' }) },
-                { name: 'Pan', icon: Plotly.Icons.pan, click: (gd) => Plotly.relayout(gd, { dragmode: 'pan' }) },
-                { name: 'Zoom', icon: Plotly.Icons.zoom, click: (gd) => Plotly.relayout(gd, { dragmode: 'zoom' }) },
-            ],
-        }), [dispatch]);
-
+        const plotConfig: Partial<Config> = useMemo(
+            () => ({
+                responsive: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: [
+                    'zoom2d',
+                    'pan2d',
+                    'select2d',
+                    'zoomIn2d',
+                    'zoomOut2d',
+                    'autoScale2d',
+                    'resetScale2d',
+                    'hoverClosestCartesian',
+                    'hoverCompareCartesian',
+                    'toggleSpikelines',
+                ],
+                modeBarButtonsToAdd: [
+                    {
+                        name: 'Reset View',
+                        icon: Plotly.Icons.home,
+                        click: (gd) => {
+                            Plotly.relayout(gd, {
+                                'xaxis.autorange': true,
+                                'yaxis.autorange': true,
+                            });
+                            dispatch(setAccumulationPlotSelection([])); // Also clear selection
+                        },
+                    },
+                    {
+                        name: 'Lasso Select',
+                        icon: Plotly.Icons.lasso,
+                        click: (gd) =>
+                            Plotly.relayout(gd, { dragmode: 'lasso' }),
+                    },
+                    {
+                        name: 'Box Select',
+                        icon: Plotly.Icons.select,
+                        click: (gd) =>
+                            Plotly.relayout(gd, { dragmode: 'select' }),
+                    },
+                    {
+                        name: 'Pan',
+                        icon: Plotly.Icons.pan,
+                        click: (gd) =>
+                            Plotly.relayout(gd, { dragmode: 'pan' }),
+                    },
+                    {
+                        name: 'Zoom',
+                        icon: Plotly.Icons.zoom,
+                        click: (gd) =>
+                            Plotly.relayout(gd, { dragmode: 'zoom' }),
+                    },
+                ],
+            }),
+            [dispatch]
+        );
 
         // --- Render Logic ---
-        const spinTip = styledPointsForPlot === null ? <>Processing plot data...</> : undefined;
+        const spinTip =
+            styledPointsForPlot === null ? (
+                <>Processing plot data...</>
+            ) : undefined;
 
         // Show spinner if initial data hasn't arrived
         if (styledPointsForPlot === null) {
-            return (<div className={sharedStyles.plotContainer} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}> <Spin tip={spinTip} /> </div>);
+            // Apply height to the loading container too
+            return (
+                <div
+                    className={sharedStyles.plotContainer}
+                    style={{
+                        height: plotHeight, // Apply height
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}
+                >
+                    <Spin tip={spinTip} />
+                </div>
+            );
         }
 
         // Show message if data processing failed or resulted in no plottable data/layout
         // Check plotData and plotLayout specifically, as data processing might yield null
         if (!plotData || !plotLayout) {
-            console.warn(`${logPrefix} Render condition failed: plotData=${!!plotData}, plotLayout=${!!plotLayout}`);
-            return (<div className={sharedStyles.plotContainer} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed lightgrey', fontSize: '0.9em', color: '#888', padding: '10px', textAlign: 'center' }}> <span>No valid data points found or processed for accumulation plot.</span> </div>);
+            console.warn(
+                `${logPrefix} Render condition failed: plotData=${!!plotData}, plotLayout=${!!plotLayout}`
+            );
+            // Apply height to the error/empty container too
+            return (
+                <div
+                    className={sharedStyles.plotContainer}
+                    style={{
+                        height: plotHeight, // Apply height
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '1px dashed lightgrey',
+                        fontSize: '0.9em',
+                        color: '#888',
+                        padding: '10px',
+                        textAlign: 'center',
+                    }}
+                >
+                    <span>
+                        No valid data points found or processed for accumulation
+                        plot.
+                    </span>
+                </div>
+            );
         }
 
         // Render the plot
+        // Apply height to the main plot container
         return (
-            <div className={sharedStyles.plotContainer}>
+            <div
+                className={sharedStyles.plotContainer}
+                style={{ height: plotHeight }} // Apply the height here
+            >
                 <Plot
                     divId={`${analysisName}-accumulation-${bmdResultRef}`}
                     data={plotData}
                     layout={plotLayout}
                     config={plotConfig}
+                    // Plotly's style ensures it fills the container
                     style={{ width: '100%', height: '100%' }}
                     useResizeHandler={true}
                     onClick={handleClick}
