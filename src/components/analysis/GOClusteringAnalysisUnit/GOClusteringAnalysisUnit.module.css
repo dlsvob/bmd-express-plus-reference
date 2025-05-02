@@ -1,10 +1,27 @@
 /* src/components/analysis/GOClusteringAnalysisUnit/GOClusteringAnalysisUnit.module.css */
 
-/* --- Styles for the Filter Header (Sticky/Collapsible) --- */
-.filterHeader {
+/* --- Styles for the NEW Sticky Header Group --- */
+.stickyHeaderGroup {
     position: sticky;
     top: 0;
+    /* Adjust this if you have a main app header above */
+    z-index: 30;
+    /* Higher z-index than individual filter header */
+    background-color: #ffffff;
+    /* Give it a solid background to prevent content showing through */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    /* Optional: Add a subtle shadow */
+    /* Add padding or margin-bottom if needed to space from content below */
+    /* margin-bottom: 16px; */
+}
+
+
+/* --- Styles for the Filter Header (Sticky/Collapsible) --- */
+.filterHeader {
+    /* REMOVED: position: sticky; */
+    /* REMOVED: top: 0; */
     z-index: 20;
+    /* Lower z-index now, as parent handles overall stickiness */
     background-color: #f0f2f5;
     /* Light grey background */
     border-bottom: 1px solid transparent;

@@ -1,6 +1,5 @@
 // src/components/analysis/GOClusteringAnalysisUnit/GOClusteringAnalysisUnit.tsx
 // CORRECTED: Sticky Header for Filters ONLY. Enrichment Controls separate card below table.
-
 import React, { useMemo, useCallback, useEffect, useState, useRef } from 'react';
 import { Card, Spin, Alert, Empty, Row, Col, Tabs, message, Space, Typography, Button } from 'antd';
 import { UpOutlined, DownOutlined } from '@ant-design/icons';
@@ -29,10 +28,9 @@ import AnalysisControls from '../controls/AnalysisControls';
 import GeneEnrichmentAnalysis from './GeneEnrichmentAnalysis';
 import SlidingWindowFilter from '../controls/SlidingWindowFilter';
 import GoIdFilterUI from '../controls/GoUIdFilterUI';
-import styles from './GOClusteringAnalysisUnit.module.css';
+import styles from './GOClusteringAnalysisUnit.module.css'; // Ensure CSS module is imported
 
 const { Title } = Typography;
-
 // Helper function
 const getErrorMessage = (error: unknown): string => {
   if (!error) return 'An unknown error occurred.';
@@ -56,11 +54,9 @@ const GOClusteringAnalysisUnit: React.FC = () => {
   const [enrichmentBackground, setEnrichmentBackground] = useState<string | undefined>(undefined);
   const [runEnrichmentTrigger, setRunEnrichmentTrigger] = useState<boolean>(false);
   const [geneListForEnrichment, setGeneListForEnrichment] = useState<string[] | null>(null);
-
   // State & Ref for Header
   const [isFilterHeaderCollapsed, setIsFilterHeaderCollapsed] = useState(true);
   const filterHeaderRef = useRef<HTMLDivElement>(null);
-
   // Selectors
   const projectName = useAppSelector(selectSelectedProjectName);
   const selectedBmdResultRefs = useAppSelector(selectSelectedAnalysisRefs);
@@ -71,15 +67,18 @@ const GOClusteringAnalysisUnit: React.FC = () => {
   const clusteringRankFilter = useAppSelector(selectClusteringRankFilterValue);
   const goIdInputString = useAppSelector(selectGoIdInputString);
   const highlightMode = useAppSelector(selectHighlightMode);
-
   // Data Fetching & Processing Hooks
   const { data: rawData, isLoading: isLoadingRaw, error: rawError, isSuccess: rawSuccess } = useGetRawAnalysisDataQuery({ projectName, selectedBmdResultRefs }, { skip: !projectName || !selectedBmdResultRefs || selectedBmdResultRefs.length === 0 });
   const bmdRefToExperimentNameMap = useMemo(() => {
     const tempMap = new Map<number, string>(); if (rawSuccess && rawData?.rawBmdResults) { rawData.rawBmdResults.forEach((r) => { if (r && r['@ref'] != null) { const numericRef = Number(r['@ref']); if (!isNaN(numericRef)) { tempMap.set(numericRef, r.name || `BMD Result ${numericRef}`); } } }); } return tempMap;
   }, [rawSuccess, rawData]);
-
   useEffect(() => { // Active Analysis Logic
-    const effectLogPrefix = `${logPrefix} [useEffect activeRef]`; if (!isLoadingRaw && selectedBmdResultRefs && selectedBmdResultRefs.length > 0) { const firstRef = selectedBmdResultRefs[0]; if (activeClusteringRef === null || !selectedBmdResultRefs.includes(activeClusteringRef)) { console.log(`${effectLogPrefix} Initializing or resetting activeClusteringRef to first selected: ${firstRef}`); dispatch(setActiveClusteringRef(firstRef)); setSelectedClusterForEnrichment(null); setRunEnrichmentTrigger(false); setGeneListForEnrichment(null); setEnrichmentBackground(undefined); dispatch(setClusteringRankFilterValue([1, 1000])); } else { console.log(`${effectLogPrefix} Active ref ${activeClusteringRef} is valid.`); } } else if (!isLoadingRaw && (!selectedBmdResultRefs || selectedBmdResultRefs.length === 0)) { if (activeClusteringRef !== null) { console.log(`${effectLogPrefix} No refs selected, clearing activeClusteringRef.`); dispatch(setActiveClusteringRef(null)); setSelectedClusterForEnrichment(null); setRunEnrichmentTrigger(false); setGeneListForEnrichment(null); setEnrichmentBackground(undefined); dispatch(setClusteringRankFilterValue([1, 1000])); } }
+    const effectLogPrefix = `${logPrefix} [useEffect activeRef]`; if (!isLoadingRaw && selectedBmdResultRefs && selectedBmdResultRefs.length > 0) { const firstRef = selectedBmdResultRefs[0]; if (activeClusteringRef === null || !selectedBmdResultRefs.includes(activeClusteringRef)) { console.log(`${effectLogPrefix} Initializing or resetting activeClusteringRef to first selected: ${firstRef}`); dispatch(setActiveClusteringRef(firstRef)); setSelectedClusterForEnrichment(null); setRunEnrichmentTrigger(false); setGeneListForEnrichment(null); setEnrichmentBackground(undefined); dispatch(setClusteringRankFilterValue([1, 1000])); } else { console.log(`${effectLogPrefix} Active ref ${activeClusteringRef} is valid.`); } } else if (!isLoadingRaw && (!selectedBmdResultRefs || selectedBmdResultRefs.length === 0)) {
+      if (activeClusteringRef !== null) {
+        console.log(`${effectLogPrefix} No refs selected, clearing activeClusteringRef.`); dispatch(setActiveClusteringRef(null));
+        setSelectedClusterForEnrichment(null); setRunEnrichmentTrigger(false); setGeneListForEnrichment(null); setEnrichmentBackground(undefined); dispatch(setClusteringRankFilterValue([1, 1000]));
+      }
+    }
   }, [selectedBmdResultRefs, activeClusteringRef, isLoadingRaw, dispatch, logPrefix]);
   const activeAnalysisName = activeClusteringRef ? bmdRefToExperimentNameMap.get(Number(activeClusteringRef)) || `Analysis ${activeClusteringRef}` : 'No Analysis Selected';
 
@@ -88,17 +87,14 @@ const GOClusteringAnalysisUnit: React.FC = () => {
   }, [rawData?.rawCategoryAnalysisItems, activeClusteringRef, logPrefix]);
   const dataLength = rowDataForClustering?.length ?? 0;
   const computedNumClusters = useMemo(() => Math.max(2, Math.ceil(Math.sqrt(dataLength) / 2)), [dataLength]);
-
   const { result: pyodideResult, isLoading: isPyodideLoading, error: pyodideError, } = usePyodideClustering(rowDataForClustering, 'average', computedNumClusters);
   const clustersForProcessingHook = useMemo(() => (pyodideResult ? [pyodideResult] : null), [pyodideResult]);
   const { categoryTableData, summaryTableData, processingError, minRank, maxRank } = useProcessedClusteringData(clustersForProcessingHook, pyodideError ? getErrorMessage(pyodideError) : null);
   const { scatterPlotData, legendColorItems, presentClusterIds } = useClusteringVisualizationData({ categoryTableData, summaryTableData, referenceDataMap, referenceData });
   const clusterOptionsForDropdown = useMemo((): ClusterOption[] => { if (!summaryTableData) return []; return [...summaryTableData].sort((a, b) => (a.sort ?? Infinity) - (b.sort ?? Infinity)).map((summary) => ({ value: String(summary.cluster), label: `Cluster ${summary.cluster} (${summary.numCategoryIDs} cats)`, })); }, [summaryTableData]);
-
   // Combined Loading/Error
   const isLoading = isLoadingRaw || isPyodideLoading;
   const error = rawError || pyodideError || processingError;
-
   // Callbacks
   const handleToggleHighlightRefCluster = useCallback((clusterIdLabel: string) => { dispatch(toggleClusteringRefClusterHighlight(clusterIdLabel)); }, [dispatch]);
   const handleActiveRefChange = useCallback((activeKey: string) => { console.log(`${logPrefix} handleActiveRefChange called with key: ${activeKey}`); dispatch(setActiveClusteringRef(activeKey)); setSelectedClusterForEnrichment(null); setRunEnrichmentTrigger(false); setGeneListForEnrichment(null); setEnrichmentBackground(undefined); /* Filter reset via key */ }, [dispatch, logPrefix]);
@@ -112,16 +108,13 @@ const GOClusteringAnalysisUnit: React.FC = () => {
   const toggleFilterHeaderCollapse = useCallback(() => { setIsFilterHeaderCollapsed((prev) => !prev); }, []);
   const handleGoIdInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => { dispatch(setGoIdInputString(e.target.value)); }, [dispatch]);
   const handleHighlightModeChange = useCallback((e: RadioChangeEvent) => { const mode = e.target.value as HighlightMode; dispatch(setHighlightModeAction(Object.values(HighlightMode).includes(mode) ? mode : HighlightMode.NONE)); }, [dispatch]);
-
   // Derived values
   const hasActiveDataToCluster = rowDataForClustering && rowDataForClustering.length > 0;
   const hasActiveResults = categoryTableData && categoryTableData.length > 0;
   const tabItems = useMemo(() => { if (!selectedBmdResultRefs) return []; return selectedBmdResultRefs.map((refStr) => { const numericRef = Number(refStr); const name = !isNaN(numericRef) ? bmdRefToExperimentNameMap.get(numericRef) || `Analysis ${refStr}` : `Analysis ${refStr}`; return { key: refStr, label: name }; }); }, [selectedBmdResultRefs, bmdRefToExperimentNameMap]);
-
   // Filtered Data
   const filteredCategoryTableData = useMemo(() => { if (!categoryTableData) return []; const [minFilterRank, maxFilterRank] = clusteringRankFilter; return categoryTableData.filter(row => row.rank != null && row.rank >= minFilterRank && row.rank <= maxFilterRank); }, [categoryTableData, clusteringRankFilter]);
   const filteredScatterPlotData = useMemo(() => { if (!scatterPlotData) return null; const [minFilterRank, maxFilterRank] = clusteringRankFilter; return scatterPlotData.filter(point => point.rank != null && point.rank >= minFilterRank && point.rank <= maxFilterRank); }, [scatterPlotData, clusteringRankFilter]);
-
 
   // --- Render Logic ---
   if (isLoadingRaw && !activeClusteringRef) { return <div style={{ textAlign: 'center', padding: '50px' }}><Spin tip="Loading analysis list..." size="large" /></div>; }
@@ -132,62 +125,66 @@ const GOClusteringAnalysisUnit: React.FC = () => {
 
   return (
     <div className={styles.clusteringRoot}>
-      <Tabs
-        type="card"
-        activeKey={activeClusteringRef ?? undefined}
-        onChange={handleActiveRefChange}
-        items={tabItems}
-        style={{ marginBottom: '0px' }}
-      />
+      {/* ================================================== */}
+      {/* START: Added Sticky Header Group Wrapper         */}
+      {/* ================================================== */}
+      <div className={styles.stickyHeaderGroup}>
+        <Tabs
+          type="card"
+          activeKey={activeClusteringRef ?? undefined}
+          onChange={handleActiveRefChange}
+          items={tabItems}
+          style={{ marginBottom: '0px' }}
+        />
 
-      {/* === Collapsible Sticky Header (for Filters ONLY) === */}
-      {activeClusteringRef && ( // Render header only when an analysis is selected
-        <div
-          ref={filterHeaderRef}
-          className={`${styles.filterHeader} ${isFilterHeaderCollapsed ? styles.collapsed : styles.expanded}`}
-          style={verticalSpacingStyle}
-        >
-          <div className={styles.filterHeaderToolbar} onClick={toggleFilterHeaderCollapse} >
-            <Title level={5} style={{ margin: 0, flexGrow: 1 }}>
-              Clustering View Filters
-            </Title>
-            <Button type="text" icon={isFilterHeaderCollapsed ? <DownOutlined /> : <UpOutlined />} aria-label={isFilterHeaderCollapsed ? 'Expand Filters' : 'Collapse Filters'} />
+        {/* === Collapsible Sticky Header (for Filters ONLY) === */}
+        {activeClusteringRef && ( // Render header only when an analysis is selected
+          <div
+            ref={filterHeaderRef}
+            // Apply original filterHeader class AND collapsed/expanded state classes
+            className={`${styles.filterHeader} ${isFilterHeaderCollapsed ? styles.collapsed : styles.expanded}`}
+          // Removed verticalSpacingStyle from here, might need it on the wrapper or elsewhere
+          >
+            <div className={styles.filterHeaderToolbar} onClick={toggleFilterHeaderCollapse} >
+              <Title level={5} style={{ margin: 0, flexGrow: 1 }}>
+                Clustering View Filters
+              </Title>
+              <Button type="text" icon={isFilterHeaderCollapsed ? <DownOutlined /> : <UpOutlined />} aria-label={isFilterHeaderCollapsed ? 'Expand Filters' : 'Collapse Filters'} />
+            </div>
+            <div className={styles.filterHeaderControls}>
+              {/* Render controls only when data/ranks are ready */}
+              {hasActiveResults && !isLoading && !error ? (
+                <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                  <GoIdFilterUI
+                    goIdInputString={goIdInputString}
+                    highlightMode={highlightMode}
+                    onGoIdInputChange={handleGoIdInputChange}
+                    onHighlightModeChange={handleHighlightModeChange}
+                  />
+                  <SlidingWindowFilter
+                    key={`rank-filter-${activeClusteringRef}`}
+                    min={minRank}
+                    max={maxRank}
+                    value={clusteringRankFilter}
+                    onAfterChange={handleClusteringRankChange}
+                    disabled={maxRank <= 0 || minRank >= maxRank}
+                    label="Filter Categories by Rank (Cluster BMD Asc.)"
+                    analysisName={`ClusteringRankFilter-${activeClusteringRef}`}
+                  />
+                </Space>
+              ) : (
+                <div style={{ padding: '10px', color: '#888' }}>Loading filters...</div>
+              )}
+            </div>
           </div>
-          <div className={styles.filterHeaderControls}>
-            {/* Render controls only when data/ranks are ready */}
-            {hasActiveResults && !isLoading && !error ? (
-              // Use Space to layout controls (add more controls here later if needed)
-              <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                {/* GO ID Filter (using UMAP slice state for now) */}
-                <GoIdFilterUI
-                  goIdInputString={goIdInputString}
-                  highlightMode={highlightMode}
-                  onGoIdInputChange={handleGoIdInputChange}
-                  onHighlightModeChange={handleHighlightModeChange}
-                />
-                {/* Rank Filter */}
-                <SlidingWindowFilter
-                  key={`rank-filter-${activeClusteringRef}`}
-                  min={minRank}
-                  max={maxRank}
-                  value={clusteringRankFilter}
-                  onAfterChange={handleClusteringRankChange}
-                  disabled={maxRank <= 0 || minRank >= maxRank}
-                  label="Filter Categories by Rank (Cluster BMD Asc.)"
-                  analysisName={`ClusteringRankFilter-${activeClusteringRef}`}
-                />
-                {/* AnalysisControls is NOT rendered here */}
-              </Space>
-            ) : (
-              <div style={{ padding: '10px', color: '#888' }}>Loading filters...</div>
-            )}
-          </div>
-        </div>
-      )}
-      {/* === End Collapsible Sticky Header === */}
+        )}
+      </div>
+      {/* ================================================== */}
+      {/* END: Added Sticky Header Group Wrapper           */}
+      {/* ================================================== */}
 
 
-      {/* Main Content Area */}
+      {/* Main Content Area (Starts below the sticky group) */}
       <Spin spinning={isLoading && !!activeClusteringRef} tip={spinTip}>
         {/* Error display */}
         {!isLoading && error && activeClusteringRef && (
@@ -252,6 +249,7 @@ const GOClusteringAnalysisUnit: React.FC = () => {
             )}
           </>
         )}
+
         {/* Message if no analysis tab is selected */}
         {!activeClusteringRef && selectedBmdResultRefs && selectedBmdResultRefs.length > 0 && (
           <div style={{ padding: '24px' }}><Empty description="Select an analysis tab above." /></div>

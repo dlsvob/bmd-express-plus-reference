@@ -2698,14 +2698,11 @@ const GeneEnrichmentAnalysis: React.FC<GeneEnrichmentAnalysisProps> = ({
                     size={size}
                     bordered={bordered}
                     onChange={onChange} // Pass AntD's handler
-        // Secondary sort: Experiment Name Ascending
-    ]);
-    const [tablePagination, setTablePagination] = useState<TablePaginationConfig>(
 
-    // --- Prepare Plot Data Hook ---
+    // Prepare Plot Data
     const {
         analysisPoints,
-        allStyledPoints, // This is the raw data for the table before sorting
+        allStyledPoints,
         styledGroupedData,
         colorItems,
         shapeItems,
@@ -2716,625 +2713,189 @@ const GeneEnrichmentAnalysis: React.FC<GeneEnrichmentAnalysisProps> = ({
         selectedBmdResultRefs: selectedBmdResultRefs || [],
         referenceDataMap: referenceDataMap,
         referenceData: referenceData,
-        colorBy: colorByOption,
-        shapeBy: shapeByOption,
-        sizeBy: sizeByOption,
-        rankRange: committedRankValue,
-        highlightMode: highlightMode,
-        highlightGoIds: goIdFilterList,
-        selectedAccumGoIds: selectedAccumGoIdsSet,
-        tableSelectedGoId: currentTableSelectedGoId,
     });
 
-    // --- Highlight GO ID Set ---
+    // Highlight GO ID Set
     const highlightGoIdsSet = useMemo(
         () => new Set(goIdFilterList),
         [goIdFilterList]
     );
 
-    // --- Prepare Table Data Source (Handles Multi-Sort) ---
+    // Prepare Table Data Source
     const tableDataSource = useMemo(() => {
         const points = allStyledPoints || [];
-        // Ensure tableSorter is treated as an array for consistent logic
-        const sorters = (Array.isArray(tableSorter) ? tableSorter : (tableSorter && tableSorter.columnKey ? [tableSorter] : [])).filter(s => s.order); // Filter out sorters without an order
-
-        if (!sorters || sorters.length === 0) {
-            // If no active sorters, return original data
+        if (!tableSorter || !('field' in tableSorter) || !tableSorter.order) {
             return points;
         }
-
-        // Create a copy to sort
-        const sortedPoints = [...points];
-
-        sortedPoints.sort((a, b) => {
-            for (const sorter of sorters) {
-                // Find the column definition to get the sorter function
-                const column = DEFAULT_GOUMAP_TABLE_COLUMNS.find(
-                    (col) => col.key === sorter.columnKey || col.key === sorter.field
-                );
-
-                // Ensure the column and its sorter function exist
-                if (column && typeof column.sorter === 'function') {
-                    // Pass the sort order to the sorter function if it accepts it
-                    // AntD sorter functions typically have signature: (a, b, sortOrder) => number
-                    // If not, call it as (a, b) => number
-                    let result: number;
-                    try {
-                        // Attempt to call with sortOrder (some sorters might use it)
-                        result = column.sorter(a, b, sorter.order);
-                    } catch (e) {
-                        // Fallback if sorter doesn't accept third argument
-                        result = (column.sorter as (a: AnalysisTableRow, b: AnalysisTableRow) => number)(a, b);
-                    }
-
-
-                    // Apply direction
-                    if (result !== 0) {
-                        return sorter.order === 'descend' ? -result : result;
-                    }
-                } else {
-                    console.warn(`Sorter function not found for column key: ${sorter.columnKey || sorter.field}`);
-                }
-            }
-            // If all sorters result in 0, maintain original relative order (or return 0)
-            return 0;
+        const { field, order } = tableSorter;
+        const sorterFn = DEFAULT_GOUMAP_TABLE_COLUMNS.find(
+            (col) => col.key === field
+        )?.sorter;
+        if (typeof sorterFn !== 'function') {
+            return points;
+        }
+        const sortedPoints = [...points].sort((a, b) => {
+            const result = sorterFn(a, b, order);
+            return order === 'descend' ? -result : result;
         });
-
         return sortedPoints;
-    }, [allStyledPoints, tableSorter]); // Depend on the sorter state
+    }, [allStyledPoints, tableSorter]);
 
-    // --- Prepare Table Columns (Handles Multi-Sort for sortOrder prop) ---
+    // Prepare Table Columns
     const tableColumns = useMemo(() => {
-        // Ensure tableSorter is an array for easier lookup
-        const sortersArray = Array.isArray(tableSorter) ? tableSorter : (tableSorter && tableSorter.columnKey ? [tableSorter] : []);
-
-        return DEFAULT_GOUMAP_TABLE_COLUMNS.map(
-            (col: ColumnType<AnalysisTableRow>) => {
-                if (!col.key || !col.sorter) return col; // Only modify sortable columns with keys
-
-                // Find the sorter object for this column in the current state
-                const currentColumnSorter = sortersArray.find(
-                    s => s.columnKey === col.key || s.field === col.key
-                );
-
-                return {
-                    ...col,
-                    // Set sortOrder based on whether this column is in the active sorters
-                    sortOrder: currentColumnSorter ? currentColumnSorter.order : null,
-                };
+        return DEFAULT_GOUMAP_TABLE_COLUMNS.map((col: ColumnType<AnalysisTableRow>) => {
+            if (!col.key) return col;
+            let currentSortOrder: SorterResult<AnalysisTableRow>['order'] = null;
+            if (
+                tableSorter &&
+                'field' in tableSorter &&
+                tableSorter.field === col.key
+            ) {
+                currentSortOrder = tableSorter.order || null;
             }
-        );
-    }, [tableSorter]); // Depend on the sorter state
-
-    // --- EFFECT TO MEASURE UMAP PLOT CONTAINER HEIGHT ---
-    useEffect(() => {
-        if (umapViewMode !== 'single') {
-            return;
-        }
-        const targetElement = umapContainerRef.current;
-        if (!targetElement) {
-            return;
-        }
-        const resizeObserver = new ResizeObserver((entries) => {
-            for (let entry of entries) {
-                const { height } = entry.contentRect;
-                if (height > 0) {
-                    const newHeight = Math.round(height / 2);
-                    const newHeightPx = `${newHeight}px`;
-                    setAccumulationPlotHeight((prevHeight) => {
-                        if (prevHeight !== newHeightPx) {
-                            return newHeightPx;
-                        }
-                        return prevHeight;
-                    });
-                }
-            }
+            return {
+                ...col,
+                sortOrder: currentSortOrder,
+            };
         });
-        resizeObserver.observe(targetElement);
-        return () => {
-            resizeObserver.disconnect();
-        };
-    }, [umapViewMode]);
+    }, [tableSorter]);
 
-    // --- EFFECT TO MEASURE FILTER HEADER HEIGHT for Legend Offset ---
-    useEffect(() => {
-        const headerElement = filterHeaderRef.current;
-        const marginBottom = verticalSpacingStyle.marginBottom
-            ? parseInt(String(verticalSpacingStyle.marginBottom).replace('px', ''), 10)
-            : 0;
-        const validMarginBottom = !isNaN(marginBottom) ? marginBottom : 0;
-
-        if (headerElement) {
-            const resizeObserver = new ResizeObserver(entries => {
-                const height = headerElement.offsetHeight;
-                if (height > 0) {
-                    const newOffset = height + validMarginBottom;
-                    setLegendTopOffset(prevOffset => {
-                        if (prevOffset !== newOffset) {
-                            console.log(`[Sticky Offset] Filter header offsetHeight: ${height}px, marginBottom: ${validMarginBottom}px -> Legend top: ${newOffset}px`);
-                            return newOffset;
-                        }
-                        return prevOffset;
-                    });
-                }
-            });
-            resizeObserver.observe(headerElement);
-            const initialHeight = headerElement.offsetHeight;
-            if (initialHeight > 0) {
-                setLegendTopOffset(initialHeight + validMarginBottom);
-            }
-            return () => resizeObserver.disconnect();
-        }
-    }, [isFilterHeaderCollapsed]);
-
-    // --- Callbacks ---
-    const handleToggleColorVisibility = useCallback(
-        (label: string) => {
-            dispatch(toggleColorLabelVisibility(label));
-        },
-        [dispatch]
-    );
-    const handleToggleShapeVisibility = useCallback(
-        (label: string) => {
-            dispatch(toggleShapeLabelVisibility(label));
-        },
-        [dispatch]
-    );
-    const handleToggleSizeVisibility = useCallback(
-        (label: string) => {
-            dispatch(toggleSizeLabelVisibility(label));
-        },
-        [dispatch]
-    );
-    const handleColorByChange = useCallback(
-        (value: string) => {
-            dispatch(setColorBy(value));
-        },
-        [dispatch]
-    );
-    const handleShapeByChange = useCallback(
-        (value: string) => {
-            dispatch(setShapeBy(value));
-        },
-        [dispatch]
-    );
-    const handleSizeByChange = useCallback(
-        (value: string) => {
-            dispatch(setSizeBy(value));
-        },
-        [dispatch]
-    );
-    const handleRankChange = useCallback(
-        (value: [number, number]) => {
-            dispatch(setCommittedRankSliderValue(value));
-        },
-        [dispatch]
-    );
-    const handleGoIdInputChange = useCallback(
-        (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-            dispatch(setGoIdInputString(e.target.value));
-        },
-        [dispatch]
-    );
-    const handleHighlightModeChange = useCallback(
-        (e: RadioChangeEvent) => {
-            const mode = e.target.value as HighlightMode;
-            if (Object.values(HighlightMode).includes(mode)) {
-                dispatch(setHighlightModeAction(mode));
-            } else {
-                dispatch(setHighlightModeAction(HighlightMode.NONE));
-            }
-        },
-        [dispatch]
-    );
-    // *** UPDATED handleTableChange to accept single or array sorter ***
-    const handleTableChange = useCallback(
-        (
-            pagination: TablePaginationConfig,
-            filters: Record<string, FilterValue | null>,
-            sorter: TableSorterType, // Use the helper type
-            extra: { currentDataSource: AnalysisTableRow[]; action: string }
-            // extra: TableCurrentDataSource<AnalysisTableRow> // Use imported type if available
-        ) => {
-            console.log('[GOUmapAnalysisUnit] handleTableChange:', {
-                pagination,
-                filters,
-                sorter, // Log the sorter received from AntD
-                action: extra.action,
-            });
-            setTablePagination(pagination);
-            // AntD might pass a single object or an array for multi-sort
-            // Store whatever AntD gives us directly in the state
-            setTableSorter(sorter);
-        },
-        [] // No dependencies needed for setTablePagination/setTableSorter
-    );
-    const handleTableRowClick = useCallback(
-        (record: AnalysisTableRow) => {
-            const clickedGoId = record?.go_id;
-            if (clickedGoId && clickedGoId === currentTableSelectedGoId) {
-                dispatch(setTableSelectedGoId(null));
-            } else {
-                dispatch(setTableSelectedGoId(clickedGoId || null));
-            }
-        },
-        [dispatch, currentTableSelectedGoId]
-    );
-    const handleViewModeChange = useCallback((checked: boolean) => {
-        setUmapViewMode(checked ? 'multiple' : 'single');
-    }, []);
+    // Callbacks
+    const handleToggleColorVisibility = useCallback((label: string) => { dispatch(toggleColorLabelVisibility(label)); }, [dispatch]);
+    const handleToggleShapeVisibility = useCallback((label: string) => { dispatch(toggleShapeLabelVisibility(label)); }, [dispatch]);
+    const handleToggleSizeVisibility = useCallback((label: string) => { dispatch(toggleSizeLabelVisibility(label)); }, [dispatch]);
+    const handleColorByChange = useCallback((value: string) => { dispatch(setColorBy(value)); }, [dispatch]);
+    const handleShapeByChange = useCallback((value: string) => { dispatch(setShapeBy(value)); }, [dispatch]);
+    const handleSizeByChange = useCallback((value: string) => { dispatch(setSizeBy(value)); }, [dispatch]);
+    const handleRankChange = useCallback((value: [number, number]) => { dispatch(setCommittedRankSliderValue(value)); }, [dispatch]);
+    const handleGoIdInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => { dispatch(setGoIdInputString(e.target.value)); }, [dispatch]);
+    const handleHighlightModeChange = useCallback((e: RadioChangeEvent) => { const mode = e.target.value as HighlightMode; if (Object.values(HighlightMode).includes(mode)) { dispatch(setHighlightModeAction(mode)); } else { console.warn('Invalid highlight mode selected:', mode); dispatch(setHighlightModeAction(HighlightMode.NONE)); } }, [dispatch]);
+    const handleTableChange = useCallback((pagination: TablePaginationConfig, filters: Record<string, FilterValue | null>, sorter: SorterResult<AnalysisTableRow> | SorterResult<AnalysisTableRow>[], extra: { currentDataSource: AnalysisTableRow[]; action: string }) => { console.log('[GOUmapAnalysisUnit] handleTableChange:', { pagination, filters, sorter, action: extra.action, }); setTablePagination(pagination); setTableSorter(sorter); }, []);
+    const handleTableRowClick = useCallback((record: AnalysisTableRow) => { const clickedGoId = record?.go_id; console.log('[GOUmapAnalysisUnit] Row clicked:', clickedGoId); if (clickedGoId && clickedGoId === currentTableSelectedGoId) { dispatch(setTableSelectedGoId(null)); } else { dispatch(setTableSelectedGoId(clickedGoId || null)); } }, [dispatch, currentTableSelectedGoId]);
+    const handleViewModeChange = useCallback((checked: boolean) => { setUmapViewMode(checked ? 'multiple' : 'single'); }, []);
+    // Handler for collapsing the filter header
     const toggleFilterHeaderCollapse = useCallback(() => {
-        setIsFilterHeaderCollapsed((prev) => !prev);
+        setIsFilterHeaderCollapsed(prev => !prev);
     }, []);
 
     // === Render Logic ===
 
     if (queryError) {
-        const errorMessage =
-            typeof queryError === 'object' &&
-                queryError !== null &&
-                'data' in queryError
-                ? String((queryError as any).data?.message || queryError)
-                : String(queryError);
-        return (
-            <Alert
-                message="Error Loading Analysis Data"
-                description={errorMessage}
-                type="error"
-                showIcon
-                style={{ margin: '24px' }}
-            />
-        );
+        const errorMessage = typeof queryError === 'object' && queryError !== null && 'message' in queryError ? String(queryError.message) : String(queryError);
+        return (<Alert message="Error Loading Data" description={errorMessage} type="error" showIcon style={{ margin: '24px' }} />);
     }
 
     if (!hasSelection) {
-        return (
-            <Empty
-                description="No analyses selected. Please select analyses from the Experiment List."
-                style={{ marginTop: '50px' }}
-            />
-        );
+        return <Empty description="No analyses selected." style={{ marginTop: '50px' }} />;
     }
 
-    const rootStyle: React.CSSProperties = {
-        display: 'flex',
-        flexDirection: 'column',
-        flexGrow: 1,
-        minHeight: 0,
-        width: '100%',
-    };
-
-    const defaultAccumPlotHeight = '250px';
-
-    const stickyLegendStyle: React.CSSProperties = {
-        ...stickyLegendBaseStyle,
-        top: `${legendTopOffset}px`,
-    };
-
     return (
-        <div style={rootStyle} className={styles.goumapRoot}>
-            isCombinedOverlayPlot,
-            styledPointsForPlot,
-            experimentNameMap,
-            logPrefix,
-        ]);
+        <div>
+            <Space direction="vertical" size="large" style={{ width: '100%' }}>
 
-        // --- Calculate Data for Single Plot (Original Logic) ---
-        const singlePlotData = useMemo((): SinglePlotProcessedData | null => {
-            // Only run if NOT in combined mode and data is available
-            if (isCombinedOverlayPlot || !styledPointsForPlot) {
-                return null;
-            }
-            console.log(`${logPrefix} Calculating single plot data...`);
-            try {
-                // Filter valid points (same criteria as combined groups)
-                const validPoints = styledPointsForPlot.filter(
-                    (p) =>
-                        p.bmdFifthPercentileTotalGenes != null &&
-                        !isNaN(p.bmdFifthPercentileTotalGenes) &&
-                        isFinite(p.bmdFifthPercentileTotalGenes) &&
-                        p.bmdFifthPercentileTotalGenes > 0 &&
-                        p.go_id
-                );
-                if (validPoints.length === 0) {
-                    console.log(`${logPrefix} No valid points for single plot.`);
-                    return null;
-                }
-                // Sort all valid points together
-                const sortedPoints = [...validPoints].sort(
-                    (a, b) =>
-                        (a.bmdFifthPercentileTotalGenes ?? Infinity) -
-                        (b.bmdFifthPercentileTotalGenes ?? Infinity)
-                );
-                // Calculate cumulative counts and rank map for the single list
-                const cumulativeCounts = sortedPoints.map(
-                    (_, index) => index + 1
-                );
-                const goIdToRankMap = new Map<string, number>();
-                sortedPoints.forEach((p, index) => {
-                    goIdToRankMap.set(p.go_id!, index + 1);
-                });
-                // Get min/max for the single list
-                const minX = sortedPoints[0].bmdFifthPercentileTotalGenes!;
-                const maxX =
-                    sortedPoints[sortedPoints.length - 1]
-                        .bmdFifthPercentileTotalGenes!;
-                const maxY = cumulativeCounts[cumulativeCounts.length - 1];
-
-                console.log(
-                    `${logPrefix} Single plot data calculated. Points: ${sortedPoints.length}, MinX: ${minX}, MaxX: ${maxX}, MaxY: ${maxY}`
-                );
-                return {
-                    sortedPoints,
-                    cumulativeCounts,
-                    goIdToRankMap,
-                    minXValue: minX,
-                    maxXValue: maxX,
-                    minYValue: 0,
-                    maxYValue: maxY,
-                    totalPoints: sortedPoints.length,
-                };
-            } catch (error) {
-                console.error(
-                    `${logPrefix} Error processing single plot data:`,
-                    error
-                );
-                return null;
-            }
-        }, [isCombinedOverlayPlot, styledPointsForPlot, logPrefix]);
 
         // --- Generate Plotly Traces ---
         const plotData = useMemo((): Data[] | null => {
             console.log(`${logPrefix} plotData Memo] Recalculating traces...`);
 
-            // Determine which GO IDs should have markers based on global state
-            const goIdsToShowMarkers = new Set<string>([
-                ...(highlightMode !== 'NONE' ? highlightGoIdsList : []),
-                ...selectedAccumGoIdsSet,
-                ...(tableSelectedGoId ? [tableSelectedGoId] : []),
-            ]);
-
-            let traces: Data[] = [];
-            // Structure to hold data for the single marker trace
-            let markerPointsData: {
-                x: number | null;
-                y: number | null;
-                go_id: string;
-                text: string;
-                color: string;
-                shape: string;
-                size: number;
-                opacity: number;
-            }[] = [];
-
-            if (isCombinedOverlayPlot) {
-                // === Combined Overlay Plot Traces ===
-                if (!combinedOverlayData) {
-                    console.log(
-                        `${logPrefix} plotData Memo] No combinedOverlayData available.`
-                    );
-                    return null;
-                }
-
-                // Create Line Traces (one per experiment group)
-                for (const [
-                    ref,
-                    groupData,
-                ] of combinedOverlayData.processedGroups.entries()) {
-                    traces.push({
-                        x: groupData.sortedPoints.map(
-                            (p) => p.bmdFifthPercentileTotalGenes ?? null
-                        ),
-                        y: groupData.cumulativeCounts,
-                        type: 'scatter',
-                        mode: 'lines',
-                        name: groupData.name, // Use experiment name for legend
-                        line: { color: groupData.color, width: 2 }, // Use assigned color
-                        customdata: groupData.sortedPoints.map((p) => p.go_id), // GO IDs for interaction
-                        hoverinfo: 'name+x+y', // Show name, x, y on line hover
-                        legendgroup: groupData.name, // Group line and potential markers in legend
-                    });
-                }
-
-                // Prepare Marker Data (only for points that are selected/highlighted)
-                const pointsForMarkers = (styledPointsForPlot || []).filter(
-                    (p) =>
-                        p.go_id &&
-                        goIdsToShowMarkers.has(p.go_id) && // Is it selected/highlighted?
-                        p.bmdFifthPercentileTotalGenes != null &&
-                        !isNaN(p.bmdFifthPercentileTotalGenes) &&
-                        isFinite(p.bmdFifthPercentileTotalGenes) &&
-                        p.bmdFifthPercentileTotalGenes > 0 && // Valid BMD?
-                        p.bmdResultRef != null // Has a ref to find its group?
+            if (!linePlotData) {
+                console.log(
+                    `${logPrefix} plotData Memo] Exiting early: no linePlotData.`
                 );
-
-                pointsForMarkers.forEach((p) => {
-                    // Find the processed data for the group this point belongs to
-                    const groupData = combinedOverlayData.processedGroups.get(
-                        p.bmdResultRef!
-                    );
-                    if (!groupData) return; // Skip if group data not found
-
-                    // Find the rank of this point *within its own group*
-                    const rank = groupData.goIdToRankMap.get(p.go_id!);
-                    if (rank == null) return; // Skip if point not found in its group's rank map
-
-                    // Get the y-value (cumulative count) from its own group's data
-                    const yValue = groupData.cumulativeCounts[rank - 1] ?? null;
-                    if (yValue === null) return; // Skip if y-value is invalid
-
-                    // Add data for this marker
-                    markerPointsData.push({
-                        x: p.bmdFifthPercentileTotalGenes,
-                        y: yValue, // Y-value relative to its own group's line
-                        go_id: p.go_id!,
-                        text: `Exp: ${groupData.name}<br>Rank: ${rank}<br>GO ID: ${p.go_id
-                            }<br>Term: ${p.go_term
-                            }<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(
-                                2
-                            )}`,
-                        color: p.finalColor, // Use styling from hook
-                        shape: p.finalShape,
-                        size: p.finalSize,
-                        opacity: p.finalOpacity,
-                    });
-                });
-            } else {
-                // === Single Plot Traces ===
-                if (!singlePlotData) {
-                    console.log(
-                        `${logPrefix} plotData Memo] No singlePlotData available.`
-                    );
-                    return null;
-                }
-
-                // Create the single Line Trace
-                traces.push({
-                    x: singlePlotData.sortedPoints.map(
-                        (p) => p.bmdFifthPercentileTotalGenes ?? null
-                    ),
-                    y: singlePlotData.cumulativeCounts,
-                    type: 'scatter',
-                    mode: 'lines',
-                    name: 'Cumulative Count',
-                    line: { color: defaultPlotColors[0], width: 2 }, // Use default color
-                    customdata: singlePlotData.sortedPoints.map((p) => p.go_id),
-                    text: singlePlotData.sortedPoints.map(
-                        (p, i) =>
-                            `Rank: ${i + 1}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term
-                            }<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(
-                                2
-                            )}<br>Count: ${singlePlotData.cumulativeCounts[i]}`
-                    ),
-                    hoverinfo: 'text',
-                    hoverlabel: {
-                        bgcolor: '#FFF',
-                        bordercolor: defaultPlotColors[0],
-                    },
-                    showlegend: false, // No legend needed for single line plot
-                });
-
-                // Prepare Marker Data (show all points with opacity > 0)
-                const pointsForMarkers = (styledPointsForPlot || []).filter(
-                    (p) =>
-                        p.finalOpacity > 0 && // Original condition: visible
-                        p.bmdFifthPercentileTotalGenes != null &&
-                        !isNaN(p.bmdFifthPercentileTotalGenes) &&
-                        isFinite(p.bmdFifthPercentileTotalGenes) &&
-                        p.bmdFifthPercentileTotalGenes > 0 &&
-                        p.go_id
-                );
-
-                pointsForMarkers.forEach((p) => {
-                    // Find rank in the single sorted list
-                    const rank = singlePlotData.goIdToRankMap.get(p.go_id!);
-                    if (rank == null) return;
-                    // Get y-value from the single cumulative count list
-                    const yValue =
-                        singlePlotData.cumulativeCounts[rank - 1] ?? null;
-                    if (yValue === null) return;
-
-                    // Add data for this marker
-                    markerPointsData.push({
-                        x: p.bmdFifthPercentileTotalGenes,
-                        y: yValue,
-                        go_id: p.go_id!,
-                        text: `Rank: ${rank}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term
-                            }<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(
-                                2
-                            )}<br>Source: ${p.bmdResultName}`,
-                        color: p.finalColor,
-                        shape: p.finalShape,
-                        size: p.finalSize,
-                        opacity: p.finalOpacity,
-                    });
-                });
+                return null;
             }
 
-            // Create a single Marker Trace if any marker data was collected
-            if (markerPointsData.length > 0) {
-                traces.push({
-                    x: markerPointsData.map((d) => d.x),
-                    y: markerPointsData.map((d) => d.y),
-                    customdata: markerPointsData.map((d) => d.go_id),
-                    text: markerPointsData.map((d) => d.text),
-                    type: 'scatter',
-                    mode: 'markers',
-                    name: 'Selected/Highlighted', // Generic name for markers trace
-                    marker: {
-                        color: markerPointsData.map((d) => d.color),
-                        symbol: markerPointsData.map((d) => d.shape),
-                        size: markerPointsData.map((d) => d.size),
-                        opacity: markerPointsData.map((d) => d.opacity),
-                        line: { color: 'black', width: 0.5 },
-                    },
-                    hoverinfo: 'text',
-                    hoverlabel: { bgcolor: '#FFF', bordercolor: '#333' },
-                    // Show marker legend only if combined and markers exist to be shown
-                    showlegend:
-                        isCombinedOverlayPlot &&
-                        goIdsToShowMarkers.size > 0 &&
-                        markerPointsData.length > 0,
-                    legendgroup: 'markers', // Group all markers under one legend item if shown
-                });
-            }
+            // --- Line Trace ---
+            const lineTrace: Data = {
+                x: linePlotData.points.map((p) => p.bmdFifthPercentileTotalGenes ?? null),
+                y: linePlotData.cumulativeCounts,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Cumulative Count',
+                line: { color: LINE_COLOR, width: 2 },
+                customdata: linePlotData.points.map((p) => p.go_id),
+                text: linePlotData.points.map(
+                    (p, i) =>
+                        `Rank: ${i + 1}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term
+                        }<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(
+                            2
+                        )}<br>Count: ${linePlotData.cumulativeCounts[i]}`
+                ),
+                hoverinfo: 'text',
+                hoverlabel: { bgcolor: '#FFF', bordercolor: LINE_COLOR },
+                showlegend: false,
+            };
+
+            // --- Marker Trace ---
+            const pointsForMarkers = (styledPointsForPlot || []).filter(
+                (p) =>
+                    p.finalOpacity > 0 &&
+                    p.bmdFifthPercentileTotalGenes != null &&
+                    !isNaN(p.bmdFifthPercentileTotalGenes) &&
+                    isFinite(p.bmdFifthPercentileTotalGenes) &&
+                    p.bmdFifthPercentileTotalGenes > 0
+            );
+
+            const goIdToRankMap = new Map<string, number>();
+            linePlotData.points.forEach((p, index) => {
+                goIdToRankMap.set(p.go_id, index + 1);
+            });
 
             console.log(
-                `${logPrefix} plotData Memo] Generated ${traces.length} traces.`
+                `${logPrefix} plotData Memo] Found ${pointsForMarkers.length} marker points (visible & valid BMD).`
             );
-            return traces.length > 0 ? traces : null; // Return null if no traces generated
-        }, [
-            isCombinedOverlayPlot,
-            combinedOverlayData,
-            singlePlotData,
-            styledPointsForPlot,
-            logPrefix,
-            highlightMode,
-            highlightGoIdsList,
-            selectedAccumGoIdsSet,
-            tableSelectedGoId,
-        ]);
 
-        // --- Layout Calculation ---
+            const markerTrace: Data | null =
+                pointsForMarkers.length > 0
+                    ? {
+                        x: pointsForMarkers.map(
+                            (p) => p.bmdFifthPercentileTotalGenes ?? null
+                        ),
+                        y: pointsForMarkers.map(
+                            (p) =>
+                                linePlotData.cumulativeCounts[
+                                goIdToRankMap.get(p.go_id)! - 1
+                                ] ?? null
+                        ),
+                        customdata: pointsForMarkers.map((p) => p.go_id),
+                        text: pointsForMarkers.map(
+                            (p) =>
+                                `Rank: ${goIdToRankMap.get(p.go_id) ?? 'N/A'}<br>GO ID: ${p.go_id
+                                }<br>Term: ${p.go_term}<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(
+                                    2
+                                )}<br>Source: ${p.bmdResultName}`
+                        ),
+                        type: 'scatter',
+                        mode: 'markers',
+                        name: 'Points',
+                        marker: {
+                            color: pointsForMarkers.map((p) => p.finalColor),
+                            symbol: pointsForMarkers.map((p) => p.finalShape),
+                            size: pointsForMarkers.map((p) => p.finalSize),
+                            opacity: pointsForMarkers.map((p) => p.finalOpacity),
+                            line: { color: 'black', width: 0.5 },
+                        },
+                        hoverinfo: 'text',
+                        hoverlabel: { bgcolor: '#FFF', bordercolor: '#333' },
+                        showlegend: false,
+                    }
+                    : null;
+
+            console.log(
+                `${logPrefix} plotData Memo] markerTrace created?`,
+                !!markerTrace
+            );
+            return markerTrace ? [lineTrace, markerTrace] : [lineTrace];
+        }, [linePlotData, styledPointsForPlot, logPrefix]);
+
+        // --- Layout Calculation (Corrected - No 1:1 Aspect Ratio) ---
         const plotLayout = useMemo((): Partial<Layout> | null => {
-            let minXVal: number | undefined;
-            let maxXVal: number | undefined;
-            let maxYVal: number | undefined;
-
-            // Determine axis ranges based on the mode
-            if (isCombinedOverlayPlot) {
-                if (!combinedOverlayData) return null; // Need data to calculate range
-                minXVal = combinedOverlayData.overallMinX;
-                maxXVal = combinedOverlayData.overallMaxX;
-                maxYVal = combinedOverlayData.overallMaxY;
-            } else {
-                if (!singlePlotData) return null; // Need data to calculate range
-                minXVal = singlePlotData.minXValue;
-                maxXVal = singlePlotData.maxXValue;
-                maxYVal = singlePlotData.maxYValue;
-            }
-
-            // Validate calculated ranges
-            if (
-                minXVal === undefined ||
-                maxXVal === undefined ||
-                maxYVal === undefined ||
-                !isFinite(minXVal) ||
-                !isFinite(maxXVal) ||
-                !isFinite(maxYVal)
-            ) {
-                console.warn(
-                    `${logPrefix} Invalid axis range calculated: minX=${minXVal}, maxX=${maxXVal}, maxY=${maxYVal}`
-                );
-                return null; // Cannot create layout with invalid range
-            }
-
-            // Calculate log scale ranges safely
-            const epsilon = 1e-10; // Prevent log(0)
-            const logMinX = Math.log10(Math.max(minXVal, epsilon));
-            const logMaxX = Math.log10(Math.max(maxXVal, epsilon)); // Ensure maxX is also positive
+            if (!linePlotData) return null;
+            const epsilon = 1e-10;
+            const logMinX = Math.log10(Math.max(linePlotData.minXValue, epsilon));
+            const logMaxX = Math.log10(linePlotData.maxXValue);
             const minYValue = 0;
-            const maxYValueWithPadding = maxYVal * 1.05; // Add padding to Y axis
+            const maxYValueWithPadding = linePlotData.maxYValue * 1.05;
 
             return {
                 xaxis: {
@@ -3342,164 +2903,96 @@ const GeneEnrichmentAnalysis: React.FC<GeneEnrichmentAnalysisProps> = ({
                     type: 'log',
                     autorange: false,
                     range: [logMinX, logMaxX],
-                    showline: true,
-                    showticklabels: true,
-                    ticks: 'outside',
                 },
                 yaxis: {
                     title: 'Cumulative Count',
                     autorange: false,
                     range: [minYValue, maxYValueWithPadding],
-                    showline: true,
-                    showticklabels: true,
-                    ticks: 'outside',
+                    // scaleanchor: 'x', // <<< REMOVED
+                    // scaleratio: 1,   // <<< REMOVED
                 },
-                margin: PLOT_MARGINS, // Use margins with space for legend
+                height: PLOT_HEIGHT, // Use constant height
+                margin: { l: 60, r: 20, t: 20, b: 50 }, // Standard margins
                 hovermode: 'closest',
-                showlegend: isCombinedOverlayPlot, // Show legend only for combined overlay
-                legend: {
-                    traceorder: 'normal', // Keep legend order same as trace order
-                    // Optional: Adjust legend position if needed
-                    // x: 1.02, y: 1, xanchor: 'left', yanchor: 'top',
-                    bgcolor: 'rgba(255,255,255,0.7)', // Semi-transparent background
-                    bordercolor: '#CCCCCC',
-                    borderwidth: 1,
-                },
+                showlegend: false,
                 autosize: true,
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
                 dragmode: 'lasso',
                 clickmode: 'event+select',
             };
-        }, [
-            isCombinedOverlayPlot,
-            combinedOverlayData,
-            singlePlotData,
-            logPrefix,
-        ]);
+        }, [linePlotData]);
 
         // --- Event Handlers ---
         const handleSelection = useCallback(
             (event: Readonly<PlotSelectionEvent> | undefined) => {
                 const selectedGoIds =
-                    event?.points
-                        ?.map((p) => p.customdata as string)
-                        .filter(Boolean) || [];
-                console.log(`${logPrefix} Lasso/Box Selection:`, selectedGoIds);
+                    event?.points?.map((p) => p.customdata as string).filter(Boolean) ||
+                    [];
                 dispatch(setAccumulationPlotSelection(selectedGoIds));
             },
-            [dispatch, logPrefix]
+            [dispatch] // Removed logPrefix dependency
         );
 
         const handleClick = useCallback(
             (event: Readonly<PlotMouseEvent>) => {
                 const clickedGoId = event.points[0]?.customdata as string;
-                console.log(`${logPrefix} Clicked GO ID:`, clickedGoId);
-                dispatch(
-                    setAccumulationPlotSelection(clickedGoId ? [clickedGoId] : [])
-                );
+                dispatch(setAccumulationPlotSelection(clickedGoId ? [clickedGoId] : []));
             },
-            [dispatch, logPrefix]
+            [dispatch] // Removed logPrefix dependency
         );
 
         const handleDoubleClick = useCallback(() => {
-            console.log(`${logPrefix} Double Click - Clearing selection`);
             dispatch(setAccumulationPlotSelection([]));
-        }, [dispatch, logPrefix]);
-
-        // --- Plotly Config ---
-        const plotConfig: Partial<Config> = useMemo(
-            () => ({
-                responsive: true,
-                displaylogo: false,
-                modeBarButtonsToRemove: [
-                    'zoom2d',
-                    'pan2d',
-                    'select2d',
-                    'zoomIn2d',
-                    'zoomOut2d',
-                    'autoScale2d',
-                    'resetScale2d',
-                    'hoverClosestCartesian',
-                    'hoverCompareCartesian',
-                    'toggleSpikelines',
-                ],
-                modeBarButtonsToAdd: [
-                    },
-                ],
-            }),
-            [dispatch]
-        );
+        }, [dispatch]); // Removed logPrefix dependency
 
         // --- Render Logic ---
-        const spinTip =
-            styledPointsForPlot === null ? (
-                <>Processing plot data...</>
-            ) : undefined;
-
-        // Show spinner if initial data hasn't arrived
+        const spinTip = styledPointsForPlot === null ? <>Processing plot data...</> : undefined;
         if (styledPointsForPlot === null) {
-            // Apply height to the loading container too
             return (
-                <div
-                    className={sharedStyles.plotContainer}
-                    style={{
-                        height: plotHeight, // Apply height
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                    }}
-                >
+                <div style={{ height: `${PLOT_HEIGHT}px`, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Spin tip={spinTip} />
                 </div>
             );
         }
-
-        // Show message if data processing failed or resulted in no plottable data/layout
-        // Check plotData and plotLayout specifically, as data processing might yield null
         if (!plotData || !plotLayout) {
-            console.warn(
-                `${logPrefix} Render condition failed: plotData=${!!plotData}, plotLayout=${!!plotLayout}`
-            );
-            // Apply height to the error/empty container too
             return (
                 <div
-                    className={sharedStyles.plotContainer}
                     style={{
-                        height: plotHeight, // Apply height
+                        height: `${PLOT_HEIGHT}px`,
+                        width: '100%',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        border: '1px dashed lightgrey',
+                        border: '1px solid lightgrey',
                         fontSize: '0.9em',
                         color: '#888',
-                        padding: '10px',
-                        textAlign: 'center',
                     }}
                 >
-                    <span>
-                        No valid data points found or processed for accumulation
-                        plot.
-                    </span>
+                    <span>No valid data for plot.</span>
                 </div>
             );
         }
 
-        // Render the plot
-        // Apply height to the main plot container
+        const plotConfig: Partial<Config> = {
+            responsive: true,
+            displaylogo: false,
+            modeBarButtonsToRemove: [
+                'zoom2d', 'pan2d', 'select2d', 'zoomIn2d', 'zoomOut2d',
+                'autoScale2d', 'resetScale2d', 'hoverClosestCartesian',
+                'hoverCompareCartesian', 'toggleSpikelines',
+            ],
+        };
+
         return (
-            <div
-                className={sharedStyles.plotContainer}
-                style={{ height: plotHeight }} // Apply the height here
-            >
+            <div style={{ height: `${PLOT_HEIGHT}px`, width: '100%' }}>
                 <Plot
                     divId={`${analysisName}-accumulation-${bmdResultRef}`}
                     data={plotData}
                     layout={plotLayout}
-                    config={plotConfig}
-                    // Plotly's style ensures it fills the container
                     style={{ width: '100%', height: '100%' }}
                     useResizeHandler={true}
+                    config={plotConfig}
                     onClick={handleClick}
                     onSelected={handleSelection}
                     onDoubleClick={handleDoubleClick}
@@ -3514,15 +3007,11 @@ export default AccumulationPlot;
 
 .plotContainer {
     position: relative;
-    /* Needed for absolute positioning of Plotly div */
     width: 100%;
-    /* Take full width of parent Col */
     aspect-ratio: 1 / 1;
-    /* Force square aspect ratio */
+    /* <<< ENSURE THIS IS PRESENT */
     overflow: hidden;
-    /* Clip anything going outside */
-    background-color: rgba(0, 0, 0, 0);
-    /* Ensure transparent background */
+    /* height: 400px; <<< ENSURE THIS IS REMOVED or commented out */
 }
 
 /* Target Plotly's generated div within our container */
@@ -3531,9 +3020,7 @@ export default AccumulationPlot;
     top: 0;
     left: 0;
     width: 100% !important;
-    /* Force fill */
     height: 100% !important;
-    /* Force fill */
 }
 
 /* --- Modebar Styles --- */
@@ -3605,21 +3092,20 @@ export default AccumulationPlot;
     display: none !important;
 }import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import Plot from 'react-plotly.js';
-import type { Layout, ScatterData, Config } from 'plotly.js';
+import type { Layout, ScatterData } from 'plotly.js';
 import type * as Plotly from 'plotly.js';
 import type { UmapAnalysisDataPoint } from '../../../models/applicationModel';
 import type { ReferenceUmapItem } from '../../../data/referenceUmapData';
 import { Alert } from 'antd';
-// Import shared styles
-import sharedStyles from '../shared/sharedPlotStyles.module.css';
+import styles from './UmapPlotComponent.module.css';
+
+// Define the consistent height
+const PLOT_HEIGHT = 400; // Match AccumulationPlot
 
 interface UmapPlotComponentProps {
     data: UmapAnalysisDataPoint[] | null;
     referenceData: ReferenceUmapItem[] | null;
 }
-
-// Define consistent margins (MATCH ACCUMULATION PLOT)
-const PLOT_MARGINS = { l: 60, r: 20, t: 20, b: 50 };
 
 const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
     data = null,
@@ -3638,7 +3124,7 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
         );
     }, []);
 
-    // Transform data for Plotly Traces
+    // Transform data for Plotly Traces (Unchanged)
     const plotData = useMemo((): Partial<ScatterData>[] => {
         const traces: Partial<ScatterData>[] = [];
         // 1. Reference Trace
@@ -3646,102 +3132,68 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
             const referenceTrace: Partial<ScatterData> = {
                 x: referenceData.map((p) => p.UMAP_1),
                 y: referenceData.map((p) => p.UMAP_2),
-                mode: 'markers',
-                type: 'scattergl', // Use scattergl for performance
-                name: 'Reference Data',
-                marker: {
-                    color: '#d3d3d3', // Lighter grey
-                    size: 4,
-                    opacity: 0.6,
-                    symbol: 'circle',
-                },
+                mode: 'markers', type: 'scattergl', name: 'Reference Data',
+                marker: { color: '#b0b0b0', size: 4, opacity: 0.5, symbol: 'circle' },
                 hoverinfo: 'text',
-                text: referenceData.map(
-                    (p) =>
-                        `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Cluster: ${p.cluster_id}`
-                ),
+                text: referenceData.map(p => `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Cluster: ${p.cluster_id}`),
                 customdata: referenceData.map((p) => [p.go_id]),
-                showlegend: false,
             };
             traces.push(referenceTrace);
         }
         // 2. Overlay Trace
         if (data && data.length > 0) {
             const overlayTrace: Partial<ScatterData> = {
-                x: data.map((p) => p.UMAP_1),
-                y: data.map((p) => p.UMAP_2),
-                mode: 'markers',
-                type: 'scattergl', // Use scattergl for performance
-                name: 'Selected Analysis',
+                x: data.map((p) => p.UMAP_1), y: data.map((p) => p.UMAP_2),
+                mode: 'markers', type: 'scattergl', name: 'Selected Analysis',
                 marker: {
-                    color: data.map((p) => p.finalColor),
-                    size: data.map((p) => p.finalSize ?? 8),
-                    symbol: data.map((p) => p.finalShape),
-                    opacity: data.map((p) => p.finalOpacity),
+                    color: data.map((p) => p.finalColor), size: data.map((p) => p.finalSize ?? 8),
+                    symbol: data.map((p) => p.finalShape), opacity: data.map((p) => p.finalOpacity),
                     line: { color: 'rgba(50, 50, 50, 0.6)', width: 0.5 },
                 },
                 hoverinfo: 'text',
-                text: data.map(
-                    (p) =>
-                        `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Experiment: ${p.bmdResultName
-                        }<br>UMAP: (${p.UMAP_1?.toFixed(
-                            2
-                        )}, ${p.UMAP_2?.toFixed(2)})<br>Cluster: ${p.cluster_id}`
-                ),
+                text: data.map(p => `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Experiment: ${p.bmdResultName}<br>UMAP: (${p.UMAP_1?.toFixed(2)}, ${p.UMAP_2?.toFixed(2)})<br>Cluster: ${p.cluster_id}`),
                 customdata: data.map((p) => [p.go_id, p.bmdResultRef]),
-                showlegend: false,
             };
             traces.push(overlayTrace);
         }
         return traces;
     }, [data, referenceData]);
 
-    // Define Plotly Layout (Updated Margins, No Height)
+    // Define Plotly Layout (Updated Margins)
     const layout: Partial<Layout> = useMemo(
         () => ({
             xaxis: {
-                visible: false, // Keep axes invisible
-                autorange: true,
-                zeroline: false,
-                showgrid: false,
+                visible: false,
+                autorange: true
             },
             yaxis: {
-                visible: false, // Keep axes invisible
-                autorange: true,
-                zeroline: false,
-                showgrid: false,
-                // No scaleanchor or scaleratio needed here
+                visible: false,
+                autorange: true
             },
             plot_bgcolor: 'rgba(0,0,0,0)',
             paper_bgcolor: 'rgba(0,0,0,0)',
-            // height: undefined, // Ensure no height is set here
+            height: PLOT_HEIGHT,
             hovermode: 'closest',
             showlegend: false,
-            margin: PLOT_MARGINS, // Use consistent margins
-            autosize: true, // Let Plotly resize to container
+            // --- INCREASED MARGINS ---
+            // Adjust these values to visually match the space taken by
+            // the Accumulation plot's axes.
+            margin: {
+                l: 60, // Simulate left axis space
+                r: 20, // Standard right margin
+                t: 20, // Standard top margin
+                b: 50  // Simulate bottom axis space
+            },
+            // --- END INCREASED MARGINS ---
+            autosize: true,
         }),
         []
     );
 
-    // Plotly config
-    const plotConfig: Partial<Config> = useMemo(() => ({
-        responsive: true,
-        displaylogo: false,
-        modeBarButtonsToRemove: [
-            'zoom2d', 'pan2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d',
-            'autoScale2d', 'resetScale2d', 'hoverClosestCartesian',
-            'hoverCompareCartesian', 'toggleSpikelines',
-        ],
-        modeBarButtonsToAdd: [
-        ],
-    }), []);
-
-
     // Render Logic
     if (renderError) {
         return (
-            // Use shared style, remove inline height
-            <div className={sharedStyles.plotContainer} style={{ padding: '20px', border: '1px dashed #d9d9d9' }}>
+            <div className={styles.plotContainer} style={{ height: `${PLOT_HEIGHT}px`, padding: '20px' }}>
                 <Alert message="Plot Rendering Error" description={renderError} type="error" showIcon />
             </div>
         );
@@ -3749,27 +3201,21 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
 
     if (plotData.length === 0) {
         return (
-            // Use shared style, remove inline height
-            <div className={sharedStyles.plotContainer} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', border: '1px dashed #d9d9d9' }}>
+            <div className={styles.plotContainer} style={{ height: `${PLOT_HEIGHT}px`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', border: '1px dashed #d9d9d9' }}>
                 <p>No data to display.</p>
             </div>
         );
     }
 
     return (
-        // Use shared style, remove inline height
-        <div className={sharedStyles.plotContainer}>
+        <div className={styles.plotContainer} style={{ height: `${PLOT_HEIGHT}px` }}>
             <Plot
                 data={plotData as Plotly.Data[]}
                 layout={layout}
-                config={plotConfig}
-                style={{ width: '100%', height: '100%' }} // Plotly div fills container
+                style={{ width: '100%', height: '100%' }}
                 useResizeHandler={true}
+                config={{ responsive: true, displaylogo: false }}
                 onError={handlePlotError}
-            // Add selection/click handlers if needed for UMAP interactivity
-            // onClick={...}
-            // onSelected={...}
-            // onDoubleClick={...}
             />
         </div>
     );
@@ -3794,208 +3240,124 @@ export default UmapPlotComponent;
 /* --- Outer Content Area (Provides Padding/Margin) --- */
 .outerContentArea {
     margin-top: 64px;
+    /* Fixed header height */
     flex-grow: 1;
     min-height: 0;
     overflow: hidden !important;
+    /* Outer area does NOT scroll */
     box-sizing: border-box;
     padding: 4px;
+    /* <<< OUTER PADDING */
     background-color: transparent;
     display: flex;
     flex-direction: column;
 }
 
-/* --- Outer container for Border & Clipping --- */
+/* --- UPDATED: Outer container for Border & Clipping --- */
 .innerBorderedContainer {
+    /* <<< RENAMED */
     flex-grow: 1;
     min-height: 0;
     overflow: hidden !important;
+    /* <<< CHANGED: Clip content, don't scroll */
     border: 1.5px solid #1677ff;
+    /* BORDER */
     border-radius: 8px;
     background-color: #ffffff;
     box-sizing: border-box;
     display: flex;
+    /* To contain the inner scroll container */
     flex-direction: column;
+    /* To contain the inner scroll container */
+    /* mask-image: REMOVED */
+    /* -webkit-mask-image: REMOVED */
 }
 
-/* --- Inner container for Scrolling & Masking --- */
+/* --- NEW: Inner container for Scrolling & Masking --- */
 .scrollMaskContainer {
-    overflow-y: auto;
-    /* <<< Keep this to enable scrolling */
-    overflow-x: hidden;
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1;
-    min-height: 0;
-    /* Masking Removed */
-    box-sizing: border-box;
-
-    /* === HIDE SCROLLBAR VISUALLY === */
-    /* For Firefox */
-    scrollbar-width: none;
-    /* For IE/Edge Legacy */
-    -ms-overflow-style: none;
-}
-
-/* Target the direct child of Spin */
-.scrollMaskContainer :global(.ant-spin-container) {
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1;
     height: 100%;
-    min-height: 0;
-    box-sizing: border-box;
-    /* overflow: visible !important; */
-    /* Reverted this */
+    /* Fill the bordered container */
+    overflow: auto !important;
+    /* <<< ADDED: This div scrolls */
+    display: flex;
+    /* Needed to make Spin fill height correctly */
+    flex-direction: column;
+    /* Needed to make Spin fill height correctly */
+    flex-grow: 1;
+    /* Needed to make Spin fill height correctly */
+
+    /* --- ADD MASKING HERE --- */
+    mask-image: linear-gradient(to bottom,
+            transparent 0%,
+            black 30px,
+            /* Adjust fade height */
+            black calc(100% - 30px),
+            /* Adjust fade height */
+            transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom,
+            transparent 0%,
+            black 30px,
+            black calc(100% - 30px),
+            transparent 100%);
+    /* --- END MASKING --- */
 }
 
-
-/* --- Styles for the Sticky Experiment Button Container --- */
-.stickyExperimentButtonContainer {
-    position: sticky;
-    /* Keep sticky */
-    top: 0;
-    z-index: 10;
-    background-color: #ffffff;
-    padding: 10px 0;
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
-    text-align: center;
-    width: 100%;
-    box-sizing: border-box;
-    margin-bottom: 2px;
-    /* position: relative; */
-    /* REMOVED */
-}
-
-/* Gradient Overlay Pseudo-Element REMOVED */
-/* .stickyExperimentButtonContainer::after { ... } */
-
-
-/* --- Default Button Style (within container) --- */
-.stickyExperimentButtonContainer :global(.ant-btn) {
-    width: 90%;
-    max-width: 400px;
-}
-
-/* --- Custom Disabled Button Styles --- */
-.stickyExperimentButtonContainer :global(.ant-btn:disabled),
-.stickyExperimentButtonContainer :global(.ant-btn:disabled:hover),
-.stickyExperimentButtonContainer :global(.ant-btn:disabled:active) {
-    background-color: #f5f5f5 !important;
-    border-color: #adc6ff !important;
-    color: #00000073 !important;
-    border-width: 2px !important;
-    opacity: 1 !important;
-    text-shadow: none !important;
-    box-shadow: none !important;
-    cursor: not-allowed !important;
-}
-
-
-/* --- Scrollbar Styling (Hide for WebKit) --- */
+/* --- ADD SCROLLBAR STYLING FOR THE MAIN SCROLL CONTAINER --- */
 .scrollMaskContainer::-webkit-scrollbar {
-    /* Make scrollbar invisible */
-    width: 0px;
-    height: 0px;
-    background: transparent;
-    /* Optional: just in case */
-    display: none;
-    /* Alternative way to hide */
+    /* <<< TARGET CORRECT ELEMENT */
+    width: 8px;
+    height: 8px;
 }
 
-/* Remove specific track/thumb styles as they are hidden */
-/*
-.scrollMaskContainer::-webkit-scrollbar-track { ... }
-.scrollMaskContainer::-webkit-scrollbar-thumb { ... }
-.scrollMaskContainer::-webkit-scrollbar-thumb:hover { ... }
-*/
+.scrollMaskContainer::-webkit-scrollbar-track {
+    background: #e6f7ff;
+    /* Ant Design Blue-1 */
+    border-radius: 4px;
+    /* Add margin to prevent overlap with border if needed, though usually not required */
+    /* margin: 2px; */
+}
+
+.scrollMaskContainer::-webkit-scrollbar-thumb {
+    background: #adc6ff;
+    /* Ant Design Blue-3 */
+    border-radius: 4px;
+}
+
+.scrollMaskContainer::-webkit-scrollbar-thumb:hover {
+    background: #bae0ff;
+    /* Ant Design Blue-4 */
+}
+
 /* --- END SCROLLBAR STYLING --- */
-// Import Button and Icon
-import { Layout, Drawer, Menu, Spin, Alert, Typography, Button } from 'antd';
+import { Layout, Drawer, Menu, Spin, Alert, Typography } from 'antd';
 import {
     ExperimentOutlined,
-    BarChartOutlined, // Keep this icon
+    BarChartOutlined,
     SettingOutlined,
 } from '@ant-design/icons';
 
 import type { MenuProps } from 'antd';
 import type { MenuInfo } from 'rc-menu/lib/interface';
 
-import { useAppSelector, useAppDispatch } from '../../store/hooks'; // Keep hooks
+import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { useGetProjectsQuery } from '../../store/apis/projectsApi';
 import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
 import {
     selectCurrentView,
-    setActiveView, // Keep action
+    setActiveView,
 } from '../../store/slices/navigationSlice';
-// Import selector for button state
-import { selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice';
 import PyodideErrorNotifier from '../shared/PyodideErrorNotifier';
-import ExperimentListView from '../views/ExperimentListView'; // Keep view import
+import ExperimentListView from '../views/ExperimentListView';
 import GOUmapAnalysisUnit from '../analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit';
 import GOClusteringAnalysisUnit from '../analysis/GOClusteringAnalysisUnit/GOClusteringAnalysisUnit';
 import AppHeader from './AppHeader';
 import { usePyodide } from '../../contexts/PyodideProvider';
-import styles from './AppLayoutController.module.css'; // Keep styles import
+import styles from './AppLayoutController.module.css'; // Ensure this path is correct
 
 const { Content, Header } = Layout;
 
 // --- Menu Items Configuration ---
 const menuItems: MenuProps['items'] = [
-
-    const isRunAnalysisDisabled = selectedRefs.length === 0;
-    const showRunAnalysisButton = activeView === 'experiments' && isProjectSelected; // Show only in experiments view when project selected
-
-    let viewContent: React.ReactNode;
-
-    // Determine the main view content based on activeView
-    if (isProjectSelected && selectedProjectName) {
-        switch (activeView) {
-            case 'experiments':
-            default:
-                viewContent = <ExperimentListView projectName={selectedProjectName} />;
-                break;
-            case 'categoryAnalysis':
-                viewContent = <GOUmapAnalysisUnit />;
-                break;
-            case 'goClustering':
-                viewContent = <GOClusteringAnalysisUnit />;
-                break;
-            case 'settings':
-                viewContent = (
-                    <Alert message="Project Settings View (Not Implemented)" type="info" />
-                );
-                break;
-        }
-    } else if (pyodideError) {
-        viewContent = (
-            <Alert
-                message="Pyodide Initialization Failed"
-                description="Core Python features may be unavailable. Please see the error modal for details or try reloading."
-                type="error"
-                showIcon
-            />
-        );
-    } else if (!isProjectSelected) {
-        viewContent = (
-            <div style={{ textAlign: 'center', marginTop: '50px' }}>
-                <Typography.Title level={3}>BMD Express...Plus!</Typography.Title>
-                <Typography.Paragraph>
-                    Select a project for analysis, or create one.
-                </Typography.Paragraph>
-            </div>
-        );
-    } else {
-        viewContent = (
-            <div style={{ textAlign: 'center', marginTop: '50px' }}>
-                <Spin size="large" />
-            </div>
-        );
-    }
-
-    // Render the sticky button container *before* the main view content
-    // ONLY if the conditions are met
-    return (
-        <>
         [dispatch, closeDrawer]
     );
 
@@ -4006,7 +3368,6 @@ const menuItems: MenuProps['items'] = [
     const HEADER_HEIGHT = 64;
     const showCentering = !isProjectSelected || pyodideLoading;
 
-    // --- Style for the Spin component itself ---
     const baseSpinStyle: React.CSSProperties = {
         height: '100%',
         display: 'flex',
@@ -4014,6 +3375,7 @@ const menuItems: MenuProps['items'] = [
         boxSizing: 'border-box',
         minHeight: 0,
         flexGrow: 1,
+        padding: '24px', // Inner padding remains on Spin
     };
 
     const centeringStyle: React.CSSProperties = showCentering
@@ -4038,7 +3400,7 @@ const menuItems: MenuProps['items'] = [
                 style={{
                     height: `${HEADER_HEIGHT}px`,
                     padding: '0 16px',
-                    backgroundColor: '#e2f2ff', // Match layout background
+                    backgroundColor: '#e2f2ff',
                     flexShrink: 0,
                 }}
             >
@@ -4053,7 +3415,31 @@ const menuItems: MenuProps['items'] = [
             </Header>
 
             <Content className={styles.outerContentArea}>
-                <div className={styles.innerBorderedContainer}>
+
+    let placeholderText = 'Select Project...';
+    if (isLoading) {
+        placeholderText = 'Loading Projects...';
+    } else if (error) {
+        placeholderText = 'Error Loading Projects';
+    } else if (!projectList || projectList.length === 0) {
+        placeholderText = 'No Projects Found';
+    }
+
+    const isRunAnalysisDisabled = selectedRefs.length === 0;
+    const showRunAnalysisButton = currentViewKey === 'experiments';
+
+    // Define the fixed width for the button container
+    const buttonContainerWidth = '450px'; // <<< UPDATED WIDTH
+
+    return (
+        <div
+            style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                width: '100%',
+            }}
+        >
                 // Add other analysis types here if needed
             ],
         },
@@ -4207,7 +3593,6 @@ class ErrorBoundary extends Component<Props, State> {
                                 <p>Sorry, something went wrong while rendering this part of the application.</p>
                                 <p>Please try refreshing the page. If the problem persists, contact support.</p>
 
-
     const handleSelectionChange = useCallback(
         (checkedValues: CheckboxValueType[]) => {
             const stringValues = checkedValues.map(String);
@@ -4216,22 +3601,10 @@ class ErrorBoundary extends Component<Props, State> {
         [dispatch]
     );
 
-    // handleRunAnalysis removed
-
-    // --- Loading State ---
     if (isLoadingList) {
-        return (
-            <div className={styles.viewContainer}>
-                <div className={styles.flexContainer}>
-                    <div className={styles.listArea} style={{ textAlign: 'center', paddingTop: '20px' }}>
-                        <Spin />
-                    </div>
-                </div>
-            </div>
-        );
+        return null;
     }
 
-    // --- Error State ---
     if (listError) {
         const errorMessage =
             typeof listError === 'object' &&
@@ -4240,29 +3613,28 @@ class ErrorBoundary extends Component<Props, State> {
                 ? String(listError.message)
                 : String(listError);
         return (
-            <div className={styles.viewContainer}>
-                <div className={styles.flexContainer}>
-                    <Alert
-                        message="Error Loading Experiments"
-                        description={errorMessage}
-                        type="error"
-                        showIcon
-                        style={{ maxWidth: '450px', margin: '16px auto 0' }}
-                    />
-                </div>
-            </div>
+            <Alert
+                message="Error Loading Experiments"
+                description={errorMessage}
+                type="error"
+                showIcon
+            />
         );
     }
 
-    // --- Determine Empty State ---
     const noDataAvailable =
         isSuccess && (!selectableAnalyses || selectableAnalyses.length === 0);
-    // isRunAnalysisDisabled removed
 
-    // --- Render View (No Button, just list container) ---
+    console.log('[ExperimentListView] Rendering Checkbox.Group with:', {
+        optionsCount: checkboxOptions.length,
+        valueProp: selectedValues,
+    });
+
+
     return (
         <div className={styles.viewContainer}>
             <div className={styles.flexContainer}>
+                <div className={styles.listArea}>
     ] = useAddListMutation();
 
     const [

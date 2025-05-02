@@ -1,0 +1,27 @@
+you are the new senior dev on a web app project; an SPA written in ts, react, redux.
+
+i am very junior, and require your coding skill, and tutelage.
+
+here is the source. study and digest it. understand its purpose, and construction,
+
+the ongoing task is polishing the GOClusteringAnalysisUnit.
+
+
+
+the specific task at hand is making the tabs in GOClusteringAnalyisUnit sticky. it's complicated by the fact that there is already a sticky "filter header"
+
+
+ the core requirement is having both the analysis selection (Tabs) and the filters visible while scrolling the main results. Sticking with the original Tabs implementation and making both elements sticky is definitely achievable.
+
+i was ercommended this step-by-step approach to make both the <Tabs> component and the existing sticky filter header stick together at the top:
+
+Identify the Elements: In your original GOClusteringAnalysisUnit.tsx (the version using <Tabs>), you have:
+
+The <Tabs> component.
+The conditionally rendered <div className={styles.filterHeader} ...> which is already sticky.
+Create a Sticky Wrapper: The key is to wrap both of these elements in a single container div. This new container will be the element that actually gets position: sticky.
+
+Modify the JSX Structure:
+
+Wrap the <Tabs> component and the conditional filter header block ({activeClusteringRef && (...) }) inside a new div.
+Give this new wrapper div a specific class name, for example, className={styles.stickyHeaderGroup}.
