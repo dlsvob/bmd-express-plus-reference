@@ -273,7 +273,7 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                           <Row gutter={[8, 8]}>
                               <Col span={12}>
                                   <CustomLegends
-                                      cardTitle="Clusters"
+                                      cardTitle=" "
                                       colorItems={leftLegendItems}
                                       highlightedLabelsSet={highlightedRefClusterIdsSet}
                                       presentClusterIds={presentClusterIds}
@@ -285,6 +285,7 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                               </Col>
                               <Col span={12}>
                                   <CustomLegends
+                          cardTitle=" "
                                       colorItems={rightLegendItems}
                                       highlightedLabelsSet={highlightedRefClusterIdsSet}
                                       presentClusterIds={presentClusterIds}
