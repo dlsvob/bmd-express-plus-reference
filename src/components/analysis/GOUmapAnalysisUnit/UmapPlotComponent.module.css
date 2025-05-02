@@ -1,16 +1,14 @@
 /* src/components/analysis/GOUmapAnalysisUnit/UmapPlotComponent.module.css */
 
+/* Container style specific to UMAP plot */
 .plotContainer {
     position: relative;
-    /* Needed for absolute positioning of Plotly div */
     width: 100%;
-    /* Take full width of parent Col */
     aspect-ratio: 1 / 1;
     /* Force square aspect ratio */
     overflow: hidden;
-    /* Clip anything going outside */
     background-color: rgba(0, 0, 0, 0);
-    /* Ensure transparent background */
+    /* Transparent background */
 }
 
 /* Target Plotly's generated div within our container */
@@ -19,13 +17,12 @@
     top: 0;
     left: 0;
     width: 100% !important;
-    /* Force fill */
+    /* Fill container width */
     height: 100% !important;
-    /* Force fill */
+    /* Fill container height */
 }
 
-/* --- Modebar Styles --- */
-/* Ensure horizontal layout for the modebar */
+/* --- Modebar Styles for UMAP (Copied from shared for consistency) --- */
 .plotContainer :global(.modebar) {
     display: flex !important;
     flex-direction: row !important;
@@ -34,61 +31,57 @@
     border: none !important;
     box-shadow: none !important;
     padding: 2px !important;
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    z-index: 1001;
 }
 
-/* Target the groups of buttons */
 .plotContainer :global(.modebar-group) {
     display: inline-flex !important;
-    background-color: transparent !important;
+    background-color: rgba(255, 255, 255, 0.8) !important;
+    border-radius: 3px;
     margin-left: 5px !important;
     padding: 0 !important;
-    border: none !important;
-    box-shadow: none !important;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* Style individual buttons */
 .plotContainer :global(.modebar-btn) {
-    padding: 6px !important;
+    padding: 4px !important;
     background: none !important;
     border: none !important;
     cursor: pointer;
     display: inline-block !important;
     vertical-align: middle;
+    line-height: 1;
 }
 
-/* Style the icons (SVGs) */
 .plotContainer :global(.modebar-btn svg) {
     color: rgba(0, 0, 0, 0.65) !important;
-    width: 24px !important;
-    height: 24px !important;
+    width: 18px !important;
+    height: 18px !important;
     display: block !important;
+    vertical-align: middle;
 }
 
 .plotContainer :global(.modebar-btn svg path) {
     fill: currentColor !important;
 }
 
-/* Hover state */
+.plotContainer :global(.modebar-btn:hover) {
+    background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
 .plotContainer :global(.modebar-btn:hover svg) {
     color: #1677ff !important;
 }
 
-.plotContainer :global(.modebar-btn:hover svg path) {
-    fill: currentColor !important;
-}
-
-/* Active state */
 .plotContainer :global(.modebar-btn.active svg),
 .plotContainer :global(.modebar-btn--active svg) {
     color: #0958d9 !important;
 }
 
-.plotContainer :global(.modebar-btn.active svg path),
-.plotContainer :global(.modebar-btn--active svg path) {
-    fill: currentColor !important;
-}
-
-/* Hide the plotly logo button */
-.plotContainer :global(a[data-title="Produced with Plotly"]) {
+.plotContainer :global(a[data-title*='Plotly']) {
     display: none !important;
 }

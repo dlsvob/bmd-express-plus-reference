@@ -1,16 +1,14 @@
-/* src/components/shared/sharedPlotStyles.module.css */
+/* src/components/analysis/shared/sharedPlotStyles.module.css */
 
+/* Base container style for plots like AccumulationPlot */
 .plotContainer {
     position: relative;
-    /* Needed for absolute positioning of Plotly div */
     width: 100%;
-    /* Take full width of parent Col */
-    aspect-ratio: 1 / 1;
-    /* Force square aspect ratio */
+    /* No aspect-ratio here */
     overflow: hidden;
-    /* Clip anything going outside */
     background-color: rgba(0, 0, 0, 0);
-    /* Ensure transparent background */
+    /* Transparent background */
+    /* Explicit height/width applied via inline style from props */
 }
 
 /* Target Plotly's generated div within our container */
@@ -19,13 +17,12 @@
     top: 0;
     left: 0;
     width: 100% !important;
-    /* Force fill */
+    /* Fill container width */
     height: 100% !important;
-    /* Force fill */
+    /* Fill container height */
 }
 
-/* --- Optional: Consistent Modebar Styles --- */
-/* Ensure horizontal layout for the modebar */
+/* --- Optional: Consistent Modebar Styles (If used by AccumulationPlot) --- */
 .plotContainer :global(.modebar) {
     display: flex !important;
     flex-direction: row !important;
@@ -35,12 +32,13 @@
     box-shadow: none !important;
     padding: 2px !important;
     position: absolute;
-    /* Keep it positioned relative to plot */
+    /* Position relative to plot container */
     top: 2px;
     right: 2px;
+    z-index: 1001;
+    /* Ensure it's above plot content */
 }
 
-/* Target the groups of buttons */
 .plotContainer :global(.modebar-group) {
     display: inline-flex !important;
     background-color: rgba(255, 255, 255, 0.8) !important;
@@ -52,10 +50,9 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* Style individual buttons */
 .plotContainer :global(.modebar-btn) {
     padding: 4px !important;
-    /* Slightly smaller padding */
+    /* Smaller padding */
     background: none !important;
     border: none !important;
     cursor: pointer;
@@ -65,11 +62,10 @@
     /* Ensure icon alignment */
 }
 
-/* Style the icons (SVGs) */
 .plotContainer :global(.modebar-btn svg) {
     color: rgba(0, 0, 0, 0.65) !important;
     width: 18px !important;
-    /* Slightly smaller icons */
+    /* Smaller icons */
     height: 18px !important;
     display: block !important;
     vertical-align: middle;
@@ -79,19 +75,20 @@
     fill: currentColor !important;
 }
 
-/* Hover state */
 .plotContainer :global(.modebar-btn:hover) {
     background-color: rgba(0, 0, 0, 0.05) !important;
 }
 
 .plotContainer :global(.modebar-btn:hover svg) {
     color: #1677ff !important;
+    /* Ant Design blue */
 }
 
 /* Active state */
 .plotContainer :global(.modebar-btn.active svg),
 .plotContainer :global(.modebar-btn--active svg) {
     color: #0958d9 !important;
+    /* Darker Ant Design blue */
 }
 
 /* Hide the plotly logo button */

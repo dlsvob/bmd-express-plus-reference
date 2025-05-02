@@ -1,31 +1,52 @@
+// src/components/analysis/GOUmapAnalysisUnit/UmapPlotComponent.tsx
+
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import Plot from 'react-plotly.js';
-import type { Layout, ScatterData, Config } from 'plotly.js';
+import type {
+    Layout,
+    ScatterData,
+    Config,
+    Datum, // Import Datum type
+} from 'plotly.js';
 import type * as Plotly from 'plotly.js';
 import type { UmapAnalysisDataPoint } from '../../../models/applicationModel';
 import type { ReferenceUmapItem } from '../../../data/referenceUmapData';
 import { Alert } from 'antd';
-// Import shared styles
-import sharedStyles from '../shared/sharedPlotStyles.module.css';
+// --- Import SPECIFIC styles for UMAP ---
+import styles from './UmapPlotComponent.module.css'; // Use specific CSS module
+// --- Import Font Constants ---
+import {
+    FONT_SIZE_MULTIPLIER,
+    BASE_PLOT_HOVER_FONT_SIZE_PX
+} from '../../../config/analysisConstants';
+// -----------------------------
 
+
+// Props interface for the component
 interface UmapPlotComponentProps {
+    // Expects ALL styled points, including those potentially hidden by opacity
     data: UmapAnalysisDataPoint[] | null;
     referenceData: ReferenceUmapItem[] | null;
 }
 
-// Define consistent margins (MATCH ACCUMULATION PLOT)
-const PLOT_MARGINS = { l: 60, r: 20, t: 20, b: 50 };
+// Consistent margins
+const PLOT_MARGINS = { l: 20, r: 20, t: 20, b: 20 }; // Minimal margins for UMAP
 
+// ==========================================================================
+// UmapPlotComponent Component
+// ==========================================================================
 const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
-    data = null,
+    data = null, // Default to null if not provided
     referenceData = null,
 }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
 
+    // Reset error if data changes
     useEffect(() => {
         setRenderError(null);
     }, [data, referenceData]);
 
+    // Plotly error handler
     const handlePlotError = useCallback((err: Error) => {
         console.error('[UmapPlotComponent] Plotly rendering error:', err);
         setRenderError(
@@ -33,16 +54,17 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
         );
     }, []);
 
-    // Transform data for Plotly Traces
+    // --- Memoized Plotly Data (Traces) ---
     const plotData = useMemo((): Partial<ScatterData>[] => {
         const traces: Partial<ScatterData>[] = [];
-        // 1. Reference Trace
+
+        // 1. Reference Trace (Background grey points)
         if (referenceData && referenceData.length > 0) {
             const referenceTrace: Partial<ScatterData> = {
                 x: referenceData.map((p) => p.UMAP_1),
                 y: referenceData.map((p) => p.UMAP_2),
                 mode: 'markers',
-                type: 'scattergl', // Use scattergl for performance
+                type: 'scattergl', // Use WebGL for performance
                 name: 'Reference Data',
                 marker: {
                     color: '#d3d3d3', // Lighter grey
@@ -52,38 +74,41 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
                 },
                 hoverinfo: 'text',
                 text: referenceData.map(
-                    (p) =>
-                        `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Cluster: ${p.cluster_id}`
+                    (p) => `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Cluster: ${p.cluster_id}`
                 ),
-                customdata: referenceData.map((p) => [p.go_id]),
+                // Use Datum[] for customdata if needed, ensure it's an array of arrays or objects
+                customdata: referenceData.map((p) => [p.go_id]) as Datum[],
                 showlegend: false,
             };
             traces.push(referenceTrace);
         }
-        // 2. Overlay Trace
+
+        // 2. Overlay Trace (Main analysis data)
+        // Render all points received in `data` prop (should be allStyledPoints)
+        // Rely on finalOpacity for visibility.
         if (data && data.length > 0) {
             const overlayTrace: Partial<ScatterData> = {
                 x: data.map((p) => p.UMAP_1),
                 y: data.map((p) => p.UMAP_2),
                 mode: 'markers',
-                type: 'scattergl', // Use scattergl for performance
+                type: 'scattergl', // Use WebGL
                 name: 'Selected Analysis',
                 marker: {
                     color: data.map((p) => p.finalColor),
-                    size: data.map((p) => p.finalSize ?? 8),
+                    size: data.map((p) => p.finalSize ?? 8), // Use calculated size or default
                     symbol: data.map((p) => p.finalShape),
-                    opacity: data.map((p) => p.finalOpacity),
-                    line: { color: 'rgba(50, 50, 50, 0.6)', width: 0.5 },
+                    opacity: data.map((p) => p.finalOpacity), // Use calculated opacity
+                    line: { color: 'rgba(50, 50, 50, 0.6)', width: 0.5 }, // Slight border
                 },
                 hoverinfo: 'text',
                 text: data.map(
                     (p) =>
                         `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Experiment: ${p.bmdResultName
-                        }<br>UMAP: (${p.UMAP_1?.toFixed(
-                            2
-                        )}, ${p.UMAP_2?.toFixed(2)})<br>Cluster: ${p.cluster_id}`
+                        }<br>UMAP: (${p.UMAP_1?.toFixed(2)}, ${p.UMAP_2?.toFixed(2)
+                        })<br>Cluster: ${p.cluster_id}`
                 ),
-                customdata: data.map((p) => [p.go_id, p.bmdResultRef]),
+                // Use Datum[] for customdata if needed
+                customdata: data.map((p) => [p.go_id, p.bmdResultRef]) as Datum[],
                 showlegend: false,
             };
             traces.push(overlayTrace);
@@ -91,92 +116,98 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
         return traces;
     }, [data, referenceData]);
 
-    // Define Plotly Layout (Updated Margins, No Height)
+    // --- Memoized Plotly Layout ---
     const layout: Partial<Layout> = useMemo(
         () => ({
             xaxis: {
-                visible: false, // Keep axes invisible
+                visible: false, // Hide axis lines and labels
                 autorange: true,
                 zeroline: false,
                 showgrid: false,
             },
             yaxis: {
-                visible: false, // Keep axes invisible
+                visible: false, // Hide axis lines and labels
                 autorange: true,
                 zeroline: false,
                 showgrid: false,
-                // No scaleanchor or scaleratio needed here
+                // No scaleanchor/scaleratio needed here - handled by CSS aspect-ratio
             },
-            plot_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)', // Transparent background
             paper_bgcolor: 'rgba(0,0,0,0)',
-            // height: undefined, // Ensure no height is set here
             hovermode: 'closest',
+            hoverlabel: { // Apply multiplier
+                font: {
+                    size: BASE_PLOT_HOVER_FONT_SIZE_PX * FONT_SIZE_MULTIPLIER,
+                }
+            },
             showlegend: false,
-            margin: PLOT_MARGINS, // Use consistent margins
+            margin: PLOT_MARGINS, // Apply minimal margins
             autosize: true, // Let Plotly resize to container
         }),
-        []
+        [] // FONT_SIZE_MULTIPLIER is constant, no need to add to deps
     );
 
-    // Plotly config
+    // --- Memoized Plotly Config ---
     const plotConfig: Partial<Config> = useMemo(() => ({
-        responsive: true,
-        displaylogo: false,
-        modeBarButtonsToRemove: [
+        responsive: true, // Allow resizing
+        displaylogo: false, // Hide Plotly logo
+        modeBarButtonsToRemove: [ // Remove unnecessary buttons
             'zoom2d', 'pan2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d',
             'autoScale2d', 'resetScale2d', 'hoverClosestCartesian',
             'hoverCompareCartesian', 'toggleSpikelines',
         ],
-        modeBarButtonsToAdd: [
+        modeBarButtonsToAdd: [ // Add useful interactions
             {
                 name: 'Reset View',
                 icon: Plotly.Icons.home,
                 click: (gd) => Plotly.relayout(gd, { 'xaxis.autorange': true, 'yaxis.autorange': true }),
             },
-            {
-                name: 'Lasso Select',
-                icon: Plotly.Icons.lasso,
-                click: (gd) => Plotly.relayout(gd, { dragmode: 'lasso' }),
-            },
-            {
-                name: 'Box Select',
-                icon: Plotly.Icons.select,
-                click: (gd) => Plotly.relayout(gd, { dragmode: 'select' }),
-            },
+            // Add lasso/box select if UMAP interaction is desired later
+            // {
+            //     name: 'Lasso Select',
+            //     icon: Plotly.Icons.lasso,
+            //     click: (gd) => Plotly.relayout(gd, { dragmode: 'lasso' }),
+            // },
+            // {
+            //     name: 'Box Select',
+            //     icon: Plotly.Icons.select,
+            //     click: (gd) => Plotly.relayout(gd, { dragmode: 'select' }),
+            // },
         ],
     }), []);
 
-
-    // Render Logic
+    // --- Render Logic ---
     if (renderError) {
         return (
-            // Use shared style, remove inline height
-            <div className={sharedStyles.plotContainer} style={{ padding: '20px', border: '1px dashed #d9d9d9' }}>
-                <Alert message="Plot Rendering Error" description={renderError} type="error" showIcon />
+            // Use specific CSS class for container
+            <div className={styles.plotContainer} style={{ padding: '20px', border: '1px dashed #d9d9d9' }}>
+                <Alert message="UMAP Plot Error" description={renderError} type="error" showIcon />
             </div>
         );
     }
 
-    if (plotData.length === 0) {
+    // Show message if no overlay data is available to plot (reference might still exist)
+    if ((!data || data.length === 0) && (!referenceData || referenceData.length === 0)) {
+        // If no reference data either, show empty message
         return (
-            // Use shared style, remove inline height
-            <div className={sharedStyles.plotContainer} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', border: '1px dashed #d9d9d9' }}>
-                <p>No data to display.</p>
+            <div className={styles.plotContainer} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', border: '1px dashed #d9d9d9' }}>
+                <p>No UMAP data to display.</p>
             </div>
         );
     }
+    // If only reference data, plotData will contain only reference trace, which is fine
 
+    // Render the plot using the specific CSS class for the container
     return (
-        // Use shared style, remove inline height
-        <div className={sharedStyles.plotContainer}>
+        <div className={styles.plotContainer}>
             <Plot
-                data={plotData as Plotly.Data[]}
+                data={plotData as Plotly.Data[]} // Cast data type for Plotly
                 layout={layout}
                 config={plotConfig}
-                style={{ width: '100%', height: '100%' }} // Plotly div fills container
-                useResizeHandler={true}
+                style={{ width: '100%', height: '100%' }} // Plotly fills the container
+                useResizeHandler={true} // Handles container resize
                 onError={handlePlotError}
-            // Add selection/click handlers if needed for UMAP interactivity
+            // Add selection/click handlers here if needed later
             // onClick={...}
             // onSelected={...}
             // onDoubleClick={...}

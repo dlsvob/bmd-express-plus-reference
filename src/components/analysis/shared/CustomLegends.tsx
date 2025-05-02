@@ -1,7 +1,14 @@
 // src/components/analysis/shared/CustomLegends.tsx
-import React from 'react';
+import React, { useMemo } from 'react'; // Added useMemo
 import { Card, Typography, Tooltip } from 'antd';
 import styles from './CustomLegends.module.css';
+// --- Import Font Constants ---
+import {
+    FONT_SIZE_MULTIPLIER,
+    BASE_LEGEND_LABEL_FONT_SIZE_PX,
+    BASE_LEGEND_SHAPE_FONT_SIZE_PX
+} from '../../../config/analysisConstants';
+// -----------------------------
 
 const { Text } = Typography;
 
@@ -23,26 +30,24 @@ interface CustomLegendsProps {
     highlightedLabelsSet?: Set<string>;
 }
 
-// Define the core component function WITH A NAME
-// Do NOT wrap this definition in React.memo()
 const CustomLegendsComponent: React.FC<CustomLegendsProps> = ({
-    colorItems = [],
-    shapeItems = [],
-    sizeItems = [],
-    hiddenColorLabelsSet = new Set<string>(),
-    hiddenShapeLabelsSet = new Set<string>(),
-    hiddenSizeLabelsSet = new Set<string>(),
-    presentClusterIds,
-    onToggleColorVisibility,
-    onToggleShapeVisibility,
-    onToggleSizeVisibility,
-    showColor = false,
-    showShape = false,
-    showSize = false,
+    colorItems = [], shapeItems = [], sizeItems = [],
+    hiddenColorLabelsSet = new Set<string>(), hiddenShapeLabelsSet = new Set<string>(),
+    hiddenSizeLabelsSet = new Set<string>(), presentClusterIds,
+    onToggleColorVisibility, onToggleShapeVisibility, onToggleSizeVisibility,
+    showColor = false, showShape = false, showSize = false, cardTitle, // Added cardTitle back
     highlightedLabelsSet,
 }) => {
-    const logPrefix = '[CustomLegends]';
-    console.log(`${logPrefix} Rendering. Received hiddenColorLabelsSet:`, hiddenColorLabelsSet);
+
+    // --- Calculate font sizes using useMemo ---
+    const labelStyle: React.CSSProperties = useMemo(() => ({
+        fontSize: `${BASE_LEGEND_LABEL_FONT_SIZE_PX * FONT_SIZE_MULTIPLIER}px`,
+    }), []); // FONT_SIZE_MULTIPLIER is effectively constant
+
+    const shapeStyle: React.CSSProperties = useMemo(() => ({
+        fontSize: `${BASE_LEGEND_SHAPE_FONT_SIZE_PX * FONT_SIZE_MULTIPLIER}px`,
+    }), []); // FONT_SIZE_MULTIPLIER is effectively constant
+    // ------------------------------------------
 
     const renderColorItems = () => {
         if (!showColor || colorItems.length === 0) return null;
@@ -58,10 +63,9 @@ const CustomLegendsComponent: React.FC<CustomLegendsProps> = ({
                     return (
                         <Tooltip title={label} key={`color-${label}`}>
                             <div className={itemClassName} onClick={handleToggle}>
-                                <span className={styles.visualCue}>
-                                    <span className={styles.colorSwatch} style={{ backgroundColor: colorValue }}></span>
-                                </span>
-                                <Text className={styles.label} ellipsis={{ tooltip: label }}>{label}</Text>
+                                <span className={styles.visualCue}><span className={styles.colorSwatch} style={{ backgroundColor: colorValue }}></span></span>
+                                {/* Apply calculated style */}
+                                <Text className={styles.label} style={labelStyle} ellipsis={{ tooltip: label }}>{label}</Text>
                             </div>
                         </Tooltip>
                     );
@@ -72,15 +76,13 @@ const CustomLegendsComponent: React.FC<CustomLegendsProps> = ({
 
     const renderShapeItems = () => {
         if (!showShape || shapeItems.length === 0) return null;
-        const shapeSymbolMap: { [key: string]: string } = { /* ... map ... */ };
-        shapeSymbolMap['circle'] = '●'; shapeSymbolMap['square'] = '■'; shapeSymbolMap['diamond'] = '♦'; shapeSymbolMap['cross'] = '+'; shapeSymbolMap['x'] = '✕';
-        shapeSymbolMap['triangle-up'] = '▲'; shapeSymbolMap['triangle-down'] = '▼'; shapeSymbolMap['star'] = '★'; shapeSymbolMap['pentagon'] = '⬟'; shapeSymbolMap['hexagon'] = '⬢';
+        const shapeSymbolMap: { [key: string]: string } = { 'circle': '●', 'square': '■', 'diamond': '♦', 'cross': '+', 'x': '✕', 'triangle-up': '▲', 'triangle-down': '▼', 'star': '★', 'pentagon': '⬟', 'hexagon': '⬢' };
         return (
             <div className={styles.legendSection}>
                 <Text strong>Shape</Text>
                 {shapeItems.map(([label, shapeValue]) => {
                     const isHidden = hiddenShapeLabelsSet.has(label);
-                    const isPresent = true;
+                    const isPresent = true; // Assuming shapes always present if shown
                     const itemClassName = `${styles.legendItem} ${isHidden || !isPresent ? styles.hidden : ''}`;
                     const displaySymbol = shapeSymbolMap[shapeValue] || '?';
                     const handleToggle = () => { if (isPresent) { onToggleShapeVisibility(label); } };
@@ -88,9 +90,11 @@ const CustomLegendsComponent: React.FC<CustomLegendsProps> = ({
                         <Tooltip title={label} key={`shape-${label}`}>
                             <div className={itemClassName} onClick={handleToggle}>
                                 <span className={styles.visualCue}>
-                                    <span className={styles.shapeText}>{displaySymbol}</span>
+                                    {/* Apply calculated style */}
+                                    <span className={styles.shapeText} style={shapeStyle}>{displaySymbol}</span>
                                 </span>
-                                <Text className={styles.label} ellipsis={{ tooltip: label }}>{label}</Text>
+                                {/* Apply calculated style */}
+                                <Text className={styles.label} style={labelStyle} ellipsis={{ tooltip: label }}>{label}</Text>
                             </div>
                         </Tooltip>
                     );
@@ -103,22 +107,16 @@ const CustomLegendsComponent: React.FC<CustomLegendsProps> = ({
         if (!showSize || sizeItems.length === 0) return null;
         const sortedSizeItems = [...sizeItems].sort((a, b) => a[1] - b[1]);
         const sizeValues = sortedSizeItems.map(item => item[1]);
-        const minSizeVal = Math.min(...sizeValues, 4);
-        const maxSizeVal = Math.max(...sizeValues, 14);
-        const range = maxSizeVal - minSizeVal;
-        const minDisplaySize = 4;
-        const maxDisplaySize = 14;
+        const minSizeVal = Math.min(...sizeValues, 4); const maxSizeVal = Math.max(...sizeValues, 14);
+        const range = maxSizeVal - minSizeVal; const minDisplaySize = 4; const maxDisplaySize = 14;
+
         return (
             <div className={styles.legendSection}>
                 <Text strong>Size</Text>
                 {sortedSizeItems.map(([label, sizeValue]) => {
-                    const isHidden = hiddenSizeLabelsSet.has(label);
-                    const isPresent = true;
+                    const isHidden = hiddenSizeLabelsSet.has(label); const isPresent = true;
                     const itemClassName = `${styles.legendItem} ${isHidden || !isPresent ? styles.hidden : ''}`;
-                    let displaySize = minDisplaySize;
-                    if (range > 0) { displaySize = minDisplaySize + ((sizeValue - minSizeVal) / range) * (maxDisplaySize - minDisplaySize); }
-                    else if (sizeItems.length === 1) { displaySize = (minDisplaySize + maxDisplaySize) / 2; }
-                    displaySize = Math.max(minDisplaySize, Math.min(maxDisplaySize, Math.round(displaySize)));
+                    let displaySize = minDisplaySize; if (range > 0) { displaySize = minDisplaySize + ((sizeValue - minSizeVal) / range) * (maxDisplaySize - minDisplaySize); } else if (sizeItems.length === 1) { displaySize = (minDisplaySize + maxDisplaySize) / 2; } displaySize = Math.max(minDisplaySize, Math.min(maxDisplaySize, Math.round(displaySize)));
                     const handleToggle = () => { if (isPresent) { onToggleSizeVisibility(label); } };
                     return (
                         <Tooltip title={`${label} (${sizeValue.toFixed(0)})`} key={`size-${label}`}>
@@ -126,7 +124,8 @@ const CustomLegendsComponent: React.FC<CustomLegendsProps> = ({
                                 <span className={styles.visualCue} style={{ width: `${maxDisplaySize}px`, height: `${maxDisplaySize}px`, justifyContent: 'center', alignItems: 'center', display: 'inline-flex', }}>
                                     <span className={styles.sizeCircle} style={{ width: `${displaySize}px`, height: `${displaySize}px`, }}></span>
                                 </span>
-                                <Text className={styles.label} ellipsis={{ tooltip: label }}>{label}</Text>
+                                {/* Apply calculated style */}
+                                <Text className={styles.label} style={labelStyle} ellipsis={{ tooltip: label }}>{label}</Text>
                             </div>
                         </Tooltip>
                     );
@@ -135,21 +134,14 @@ const CustomLegendsComponent: React.FC<CustomLegendsProps> = ({
         );
     };
 
-    // --- Conditional Rendering & Card Wrapper ---
     const shouldRenderColor = showColor && colorItems.length > 0;
     const shouldRenderShape = showShape && shapeItems.length > 0;
     const shouldRenderSize = showSize && sizeItems.length > 0;
-
     if (!shouldRenderColor && !shouldRenderShape && !shouldRenderSize) {
-        return (
-            <Card size="small" className={styles.legendCard}>
-                <Text type="secondary" className={styles.noItems}>No legend items to display.</Text>
-            </Card>
-        );
+        return (<Card size="small" className={styles.legendCard} title={cardTitle}><Text type="secondary" className={styles.noItems} style={labelStyle}>No legend items.</Text></Card>);
     }
-
     return (
-        <Card size="small" className={styles.legendCard}>
+        <Card size="small" className={styles.legendCard} title={cardTitle}>
             {shouldRenderColor && renderColorItems()}
             {shouldRenderShape && renderShapeItems()}
             {shouldRenderSize && renderSizeItems()}
@@ -157,7 +149,5 @@ const CustomLegendsComponent: React.FC<CustomLegendsProps> = ({
     );
 };
 
-// --- Wrap the NAMED component in React.memo() for the main export ---
 export const CustomLegends = React.memo(CustomLegendsComponent);
-
 export default CustomLegends;

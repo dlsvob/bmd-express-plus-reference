@@ -11,7 +11,6 @@
 .legendCard :global(.ant-card-head) {
     padding: 6px 10px;
     min-height: auto;
-    font-size: 0.9em;
     font-weight: bold;
     border-bottom: 1px solid #f0f0f0;
 }
@@ -41,34 +40,21 @@
     border-radius: 3px;
     cursor: pointer;
     opacity: 1;
-    /* Default state */
 }
 
-/* Apply dimming to the *entire* hidden item */
 .legendItem.hidden {
     opacity: 0.5 !important;
     cursor: default;
 }
 
-/* Hover effect ONLY for non-hidden items */
 .legendItem:not(.hidden):hover {
     background-color: #f0f2f5;
 }
 
-/* Target the label SPAN *within* the hidden item DIV */
 .legendItem.hidden .label {
     text-decoration: line-through !important;
     color: #888 !important;
-    /* Dim text color as well */
 }
-
-/* Ensure visual cue opacity is also affected (though parent opacity should cover it) */
-/* You might not need this rule if parent opacity works */
-/*
-.legendItem.hidden .visualCue {
-  opacity: 0.5 !important;
-}
-*/
 
 .visualCue {
     margin-right: 6px;
@@ -88,8 +74,8 @@
     flex-shrink: 0;
 }
 
+/* font-size removed */
 .shapeText {
-    font-size: 1.1em;
     color: #555;
     min-width: 20px;
     text-align: center;
@@ -106,8 +92,8 @@
     flex-shrink: 0;
 }
 
+/* font-size removed */
 .label {
-    font-size: 0.85em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -116,16 +102,19 @@
     line-height: 1.2;
     padding-left: 2px;
     color: inherit;
-    /* Inherit color from parent */
     text-decoration: none;
-    /* Default */
     transition: color 0.2s ease-in-out, text-decoration 0.2s ease-in-out;
 }
 
+/* font-size controlled by inline style now */
 .noItems {
     font-style: italic;
     color: #888;
-    font-size: 0.9em;
     padding: 10px;
     text-align: center;
+}
+
+/* Highlighting style */
+.legendItem.highlighted {
+    background-color: #e6f7ff;
 }

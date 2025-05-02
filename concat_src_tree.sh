@@ -1,126 +1,143 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Script to concatenate the content of all files within the 'src' directory,
-# filtering out specific multi-line blocks after the first N occurrences.
+# Script to concatenate non-hidden files in a directory tree,
+# adding a decorative header with the file path before each file's content.
+# Skips hidden files (.*) and hidden directories (./.*, path/to/.*/).
+# Replaces the content of 'referenceUmapData.ts' with predefined literal text.
 
-# Define the source directory
-SOURCE_DIR="src"
-# Define the output file
-OUTPUT_FILE="combined_filtered_src_content.txt"
-# Define the maximum number of blocks to keep
-KEEP_COUNT=3
+# --- Configuration ---
+DEFAULT_OUTPUT_FILE="concatenated_output.txt"
+SEARCH_DIR="." # Default to current directory
+TARGET_FILENAME="referenceUmapData.ts"
 
-# --- Start Pattern ---
-# Matches lines starting with optional whitespace followed by '{'
-# Adjust if your block start is more specific
-START_PATTERN='^[[:space:]]*\{'
-# --- End Pattern ---
-# Matches lines starting with optional whitespace followed by '},'
-# Adjust if your block end is more specific
-END_PATTERN='^[[:space:]]*\},'
+# --- Usage Instructions ---
+usage() {
+  echo "Usage: $0 [<search_directory>] [<output_file>]"
+  echo "  Concatenates all non-hidden files found recursively within <search_directory>."
+  echo "  Skips files and directories starting with '.'."
+  echo "  Replaces the content of '$TARGET_FILENAME' with predefined text."
+  echo "  Each file's content is preceded by a decorative header."
+  echo ""
+  echo "  Arguments:"
+  echo "    <search_directory> : Directory to search (default: '$SEARCH_DIR')"
+  echo "    <output_file>      : File to write the output (default: '$DEFAULT_OUTPUT_FILE')"
+  exit 1
+}
 
-# Check if the source directory exists
-if [[ ! -d "$SOURCE_DIR" ]]; then
-  echo "Error: Directory '$SOURCE_DIR' not found in the current location." >&2
+# --- Argument Parsing ---
+if [ "$#" -ge 1 ]; then
+  if [ "$1" != "-" ]; then
+    SEARCH_DIR="$1"
+  fi
+fi
+if [ "$#" -ge 2 ]; then
+  OUTPUT_FILE="$2"
+else
+  OUTPUT_FILE="$DEFAULT_OUTPUT_FILE"
+fi
+
+# --- Input Validation ---
+if [ ! -d "$SEARCH_DIR" ]; then
+  echo "Error: Search directory '$SEARCH_DIR' not found or is not a directory."
+  usage
+fi
+
+echo "Starting concatenation (skipping hidden files/directories, replacing $TARGET_FILENAME)..."
+echo "Searching in directory: '$SEARCH_DIR'"
+echo "Output will be written to: '$OUTPUT_FILE'"
+
+# --- Main Logic ---
+# Clear the output file first
+> "$OUTPUT_FILE"
+
+# Find files and append to the output file
+find "$SEARCH_DIR" \
+    -type f \
+    -not -path '*/.*' \
+    -not -name '.*' \
+    -exec sh -c '
+    filepath="$1"
+    output_file="$2" # Pass output file path to subshell
+    target_filename="$3" # Pass target filename to subshell
+
+    # Ensure filepath variable is set
+    if [ -z "$filepath" ]; then
+      echo "Warning: Skipping empty filepath." >&2 # Output warning to stderr
+      exit 0 # Skip if filepath is somehow empty
+    fi
+
+    # Get the basename
+    filename=$(basename "$filepath")
+
+    # Append the decorative header to the output file
+    # Use echo for simplicity here, ensure redirection works
+    echo "" >> "$output_file" || { echo "Error: Failed writing newline for $filepath" >&2; exit 1; }
+    echo "*********************** $filepath **********************" >> "$output_file" || { echo "Error: Failed writing header for $filepath" >&2; exit 1; }
+    echo "" >> "$output_file" || { echo "Error: Failed writing newline for $filepath" >&2; exit 1; }
+
+
+    # Check if the current file is the target file
+    if [ "$filename" = "$target_filename" ]; then
+      # Append the predefined literal text for the target file
+      cat << '\''EOF_LITERAL'\'' >> "$output_file" || { echo "Error: Failed writing literal for $filepath" >&2; exit 1; }
+// referenceUmapData.ts
+// Generated from anc2vec_embeddings_umap_projection_coordinates_hdbscan_clusters_40-500.csv on 2025-04-01T21:04:09.073Z
+
+export interface ReferenceUmapItem {
+    UMAP_1: number;
+    UMAP_2: number;
+    go_id: string;
+    go_term: string;
+    cluster_id: number | string;
+}
+
+export const hardcodedReferenceData: ReferenceUmapItem[] = [
+  {
+    UMAP_1: 2.474537,
+    UMAP_2: 3.0138018,
+    go_id: "GO:0000018",
+    go_term: "regulation of DNA recombination",
+    cluster_id: 31
+  },
+  {
+    UMAP_1: 4.9465723,
+    UMAP_2: 8.264491,
+    go_id: "GO:0000041",
+    go_term: "transition metal ion transport",
+    cluster_id: 23
+  },
+  {
+    UMAP_1: 0.70998514,
+    UMAP_2: 6.0801253,
+    go_id: "GO:2001258",
+    go_term: "negative regulation of cation channel activity",
+    cluster_id: 0
+  },
+  {
+    UMAP_1: 0.5749287,
+    UMAP_2: 6.2721424,
+    go_id: "GO:2001259",
+    go_term: "positive regulation of cation channel activity",
+    cluster_id: 0
+  }
+];
+
+console.log(`[referenceUmapData] Loaded ${hardcodedReferenceData.length} hardcoded reference points.`);
+EOF_LITERAL
+    else
+      # Append the actual content for all other files
+      cat "$filepath" >> "$output_file" || { echo "Error: Failed writing content for $filepath" >&2; exit 1; }
+    fi
+' _ {} "$OUTPUT_FILE" "$TARGET_FILENAME" \; # Pass OUTPUT_FILE and TARGET_FILENAME as arguments $2 and $3
+
+# Check the final exit status of find
+find_status=$?
+if [ $find_status -eq 0 ]; then
+  echo "Successfully concatenated non-hidden files to '$OUTPUT_FILE' (replaced $TARGET_FILENAME)."
+else
+  echo "An error occurred during the find/concatenation process (exit status: $find_status)."
+  # Output file might be partially written
   exit 1
 fi
-
-# Check if the source directory is empty of files
-if ! find "$SOURCE_DIR" -type f -print -quit | grep -q .; then
-    echo "Info: No files found in '$SOURCE_DIR'." >&2
-    > "$OUTPUT_FILE" # Create an empty output file
-    exit 0
-fi
-
-echo "Concatenating files from '$SOURCE_DIR', filtering blocks, into '$OUTPUT_FILE'..."
-
-# Find all files, concatenate their content, and pipe through awk for filtering
-find "$SOURCE_DIR" -type f -print0 | while IFS= read -r -d $'\0' file; do
-  if [[ -r "$file" ]]; then
-    cat "$file"
-    # Optional: Add a newline between files if structure might depend on it
-    # echo ""
-  else
-    echo "Warning: Skipping unreadable file '$file'." >&2
-  fi
-done | awk -v start_pattern="$START_PATTERN" \
-           -v end_pattern="$END_PATTERN" \
-           -v keep_count="$KEEP_COUNT" '
-# awk script for filtering blocks:
-#   count: Tracks how many target blocks we have encountered.
-#   in_block: Flag (0 or 1) indicating if we are currently inside a target block.
-#   buffer: Stores the lines of the current block being processed (only if keeping).
-
-# Match the start pattern of the block
-$0 ~ start_pattern {
-    in_block = 1
-    count++
-    if (count <= keep_count) {
-        # Start buffering only if we intend to keep this block
-        buffer = $0
-    }
-    # Always consume the line with "next", regardless of keeping or skipping
-    next
-}
-
-# Match the end pattern of the block
-$0 ~ end_pattern {
-    if (in_block) {
-        # We are ending a block (either one we kept or one we skipped)
-        if (count <= keep_count) {
-            # This was a block we were keeping and buffering
-            buffer = buffer "\n" $0
-            print buffer
-        }
-        # Else (count > keep_count), we were skipping, so do nothing just reset state.
-
-        # Reset state after handling the end of any block
-        in_block = 0
-        buffer = ""
-        next # Consume the end line and skip other rules for this line
-    }
-    # If in_block was false, this end pattern is just regular content.
-    # Fall through to the "!in_block" rule below.
-}
-
-# Process lines while inside a block (but not the start/end lines)
-in_block {
-    if (count <= keep_count) {
-        # Append to buffer only if we are keeping this block
-        buffer = buffer "\n" $0
-    }
-    # Else (count > keep_count), we are skipping, so do nothing with the line.
-
-    # Always consume the line with "next" while in a block
-    next
-}
-
-# Process lines that are *not* inside a block we are tracking/skipping.
-# This rule executes only if "next" was not called by previous rules.
-# It means:
-# 1. The line is outside any block.
-# 2. The line matched end_pattern, but in_block was false.
-!in_block {
-    print $0
-}
-
-# Optional: Handle case where the input ends while inside a block we were keeping
-END {
-    if (in_block && count <= keep_count && buffer != "") {
-         # If we were buffering a block to keep and input ended abruptly
-         print buffer
-    }
-}
-' > "$OUTPUT_FILE" # Redirect the final filtered output from awk to the file
-
-# Check the exit status of the pipe (specifically awk, the last command)
-if [[ $? -ne 0 ]]; then
-    echo "Error: Filtering process (awk) failed." >&2
-    # Optional: remove potentially incomplete output file
-    # rm -f "$OUTPUT_FILE"
-    exit 1 # Exit with failure status
-fi
-
-echo "Concatenation and filtering complete. Output saved to '$OUTPUT_FILE'."
 
 exit 0
