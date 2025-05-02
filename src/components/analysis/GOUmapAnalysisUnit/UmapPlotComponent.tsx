@@ -14,13 +14,14 @@ import type { ReferenceUmapItem } from '../../../data/referenceUmapData';
 import { Alert } from 'antd';
 // --- Import SPECIFIC styles for UMAP ---
 import styles from './UmapPlotComponent.module.css'; // Use specific CSS module
-// --- Import Font Constants ---
+// --- Import Font & Marker Constants ---
 import {
     FONT_SIZE_MULTIPLIER,
-    BASE_PLOT_HOVER_FONT_SIZE_PX
+    BASE_PLOT_HOVER_FONT_SIZE_PX,
+    // Import base marker size for fallback
+    BASE_MARKER_SIZE_PX
 } from '../../../config/analysisConstants';
-// -----------------------------
-
+// -------------------------------------
 
 // Props interface for the component
 interface UmapPlotComponentProps {
@@ -95,7 +96,9 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
                 name: 'Selected Analysis',
                 marker: {
                     color: data.map((p) => p.finalColor),
-                    size: data.map((p) => p.finalSize ?? 8), // Use calculated size or default
+                    // **** Use constant for fallback size ****
+                    size: data.map((p) => p.finalSize ?? BASE_MARKER_SIZE_PX),
+                    // ****************************************
                     symbol: data.map((p) => p.finalShape),
                     opacity: data.map((p) => p.finalOpacity), // Use calculated opacity
                     line: { color: 'rgba(50, 50, 50, 0.6)', width: 0.5 }, // Slight border
@@ -144,7 +147,7 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
             margin: PLOT_MARGINS, // Apply minimal margins
             autosize: true, // Let Plotly resize to container
         }),
-        [] // FONT_SIZE_MULTIPLIER is constant, no need to add to deps
+        [] // FONT_SIZE_MULTIPLIER is constant
     );
 
     // --- Memoized Plotly Config ---
@@ -162,17 +165,16 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
                 icon: Plotly.Icons.home,
                 click: (gd) => Plotly.relayout(gd, { 'xaxis.autorange': true, 'yaxis.autorange': true }),
             },
-            // Add lasso/box select if UMAP interaction is desired later
-            // {
-            //     name: 'Lasso Select',
-            //     icon: Plotly.Icons.lasso,
-            //     click: (gd) => Plotly.relayout(gd, { dragmode: 'lasso' }),
-            // },
-            // {
-            //     name: 'Box Select',
-            //     icon: Plotly.Icons.select,
-            //     click: (gd) => Plotly.relayout(gd, { dragmode: 'select' }),
-            // },
+            {
+                name: 'Lasso Select',
+                icon: Plotly.Icons.lasso,
+                click: (gd) => Plotly.relayout(gd, { dragmode: 'lasso' }),
+            },
+            {
+                name: 'Box Select',
+                icon: Plotly.Icons.select,
+                click: (gd) => Plotly.relayout(gd, { dragmode: 'select' }),
+            },
         ],
     }), []);
 

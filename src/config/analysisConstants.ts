@@ -65,3 +65,10 @@ export const BASE_LEGEND_SHAPE_FONT_SIZE_PX = 13; // For CustomLegends component
 export const BASE_ACCUM_PLOT_TITLE_FONT_SIZE_PX = 12; // For titles above Accumulation plots
 
 // -------------------------
+
+/**
+ * Base marker size in pixels when no specific sizing rule ("Size By: None")
+ * or percentage binning is applied.
+ */
+export const BASE_MARKER_SIZE_PX = 9;
+// -------------
