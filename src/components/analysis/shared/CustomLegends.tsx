@@ -53,7 +53,7 @@ const CustomLegendsComponent: React.FC<CustomLegendsProps> = ({
         if (!showColor || colorItems.length === 0) return null;
         return (
             <div className={styles.legendSection}>
-                <Text strong>Color</Text>
+                {/* <Text strong>Color</Text> */}
                 {colorItems.map(([label, colorValue]) => {
                     const isHighlighted = highlightedLabelsSet?.has(label);
                     const isHidden = hiddenColorLabelsSet.has(label);

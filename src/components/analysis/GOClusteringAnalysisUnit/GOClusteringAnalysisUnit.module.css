@@ -70,6 +70,52 @@
     pointer-events: none;
 }
 
+ /*========================================*/
+ /* <<< ADDED: Two-Column Legend Card Tweaks >>> */
+ /* ======================================== */
+
+ /* Target the Card Header within our legend wrapper */
+ .twoColLegendWrapper :global(.ant-card-head) {
+     min-height: auto;
+     /* Remove default min-height */
+     padding: 4px 8px;
+     /* Reduce padding */
+     border-bottom: none;
+     /* Remove border if title is absent */
+ }
+
+ /* Hide header completely if it's empty (more robust) */
+ .twoColLegendWrapper :global(.ant-card-head-wrapper:empty) {
+     display: none;
+ }
+
+ .twoColLegendWrapper :global(.ant-card-head:has(> .ant-card-head-wrapper:empty)) {
+     display: none;
+ }
+
+
+ /* Target the Card Body within our legend wrapper */
+ .twoColLegendWrapper :global(.ant-card-body) {
+     padding: 6px 8px;
+     /* Slightly reduce body padding */
+     /* Optional: Add overflow handling if needed, but maybe not necessary now */
+     /* overflow-y: auto; */
+     /* max-height: 450px; /* Adjust if you want internal scroll */
+ }
+
+ /* Ensure legend items display correctly */
+ .twoColLegendWrapper :global(.$ {
+         styles.legendItem
+
+     }) {
+     /* Using the class from CustomLegends.module.css */
+     margin-bottom: 1px;
+ }
+
+ /* ======================================== */
+ /* <<< END: Two-Column Legend Card Tweaks >>> */
+ /* ======================================== */
+
 /* Other styles */
 .clusteringRoot {
     /* Styles for the root container if needed */
