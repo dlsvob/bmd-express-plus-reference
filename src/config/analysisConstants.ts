@@ -72,3 +72,41 @@ export const BASE_ACCUM_PLOT_TITLE_FONT_SIZE_PX = 12; // For titles above Accumu
  */
 export const BASE_MARKER_SIZE_PX = 9;
 // -------------
+
+// ========================================================
+// --- ADDED: GO Clustering Scatter Plot Styles ---
+// ========================================================
+
+/** Base opacity for non-highlighted points in the Clustering Scatter Plot. */
+export const CLUSTERING_PLOT_BASE_ALPHA = 0.6;
+/** Opacity for highlighted points in the Clustering Scatter Plot. */
+export const CLUSTERING_PLOT_HIGHLIGHT_ALPHA = 1.0;
+/** Base size for non-highlighted points in the Clustering Scatter Plot. */
+export const CLUSTERING_PLOT_BASE_SIZE = 9;
+/** Size for highlighted points in the Clustering Scatter Plot. */
+export const CLUSTERING_PLOT_HIGHLIGHT_SIZE = 14;
+/** Base marker shape for non-highlighted points in the Clustering Scatter Plot. */
+export const CLUSTERING_PLOT_BASE_MARKER_SHAPE = 'cross'; // <<< ADDED
+/** Marker shape for highlighted points in the Clustering Scatter Plot. */
+export const CLUSTERING_PLOT_HIGHLIGHT_MARKER_SHAPE = 'circle'; // <<< ADDED (Can be different, e.g., 'star')
+
+/** Color for the Y-axis grid lines in the Clustering Scatter Plot. */
+export const CLUSTERING_PLOT_GRID_COLOR = '#cccccc';
+/** Color for the marker border line (highlight trace). */
+export const CLUSTERING_PLOT_MARKER_LINE_COLOR = '#333333'; // Darker grey than black
+/** Width for the marker border line (highlight trace). */
+export const CLUSTERING_PLOT_MARKER_LINE_WIDTH = 0.7;
+/** Background color for Plotly hover labels. */
+export const CLUSTERING_PLOT_HOVER_BG_COLOR = '#FFFFFF'; // White
+/** Border color for the highlighted marker hover label. */
+export const CLUSTERING_PLOT_HIGHLIGHT_HOVER_BORDER_COLOR = '#333333'; // Dark Grey
+
+/** Title for the Clustering Scatter Plot. */
+export const CLUSTERING_PLOT_TITLE = '5th Percentile BMD vs. Cluster Rank';
+/** X-Axis Title for the Clustering Scatter Plot. */
+export const CLUSTERING_PLOT_X_AXIS_TITLE = '5th Percentile BMD (Log Scale)';
+/** Y-Axis Title for the Clustering Scatter Plot. */
+export const CLUSTERING_PLOT_Y_AXIS_TITLE = 'Cluster Rank (by Min BMD)'; // Updated Title
+// ========================================================
+// --- END: GO Clustering Scatter Plot Styles ---
+// ========================================================

@@ -4,24 +4,42 @@ import Plot from 'react-plotly.js';
 import type { Data, Layout, Datum } from 'plotly.js';
 import { Alert } from 'antd';
 import { SummaryRow } from '../../../utils/clusteringUtils';
+// --- Import Font & Plot Styling Constants ---
+import {
+    FONT_SIZE_MULTIPLIER,
+    BASE_PLOT_TITLE_FONT_SIZE_PX,
+    BASE_PLOT_AXIS_TITLE_FONT_SIZE_PX,
+    BASE_PLOT_AXIS_TICK_FONT_SIZE_PX,
+    BASE_PLOT_HOVER_FONT_SIZE_PX,
+    BASE_PLOT_AXIS_TITLE_STANDOFF_PX,
+    // Clustering specific constants
+    CLUSTERING_PLOT_BASE_ALPHA,
+    CLUSTERING_PLOT_HIGHLIGHT_ALPHA,
+    CLUSTERING_PLOT_BASE_SIZE,
+    CLUSTERING_PLOT_HIGHLIGHT_SIZE,
+    CLUSTERING_PLOT_BASE_MARKER_SHAPE,     // <<< IMPORTED
+    CLUSTERING_PLOT_HIGHLIGHT_MARKER_SHAPE, // <<< IMPORTED
+    CLUSTERING_PLOT_GRID_COLOR,
+    CLUSTERING_PLOT_MARKER_LINE_COLOR,
+    CLUSTERING_PLOT_MARKER_LINE_WIDTH,
+    CLUSTERING_PLOT_HOVER_BG_COLOR,
+    CLUSTERING_PLOT_HIGHLIGHT_HOVER_BORDER_COLOR,
+    CLUSTERING_PLOT_TITLE,
+    CLUSTERING_PLOT_X_AXIS_TITLE,
+    CLUSTERING_PLOT_Y_AXIS_TITLE
+} from '../../../config/analysisConstants'; // Adjust path if needed
+// ------------------------------------------
 
 export interface ClusteringScatterPoint {
     goId: string;
     goTerm: string;
     pyodideCluster: string | number;
     referenceClusterId: string | number | null;
-    rank: number;
+    rank: number; // Global category rank
     bmdValue: number;
-    jitteredRank: number | null;
+    jitteredRank: number | null; // Y-axis value (based on cluster rank + jitter)
     color: string;
 }
-
-// --- Define Styling Constants ---
-const BASE_ALPHA = 0.2;
-const HIGHLIGHT_ALPHA = 1.0;
-const BASE_SIZE = 6;
-const HIGHLIGHT_SIZE = 10;
-const GRID_COLOR = '#cccccc';
 
 export interface GOClusteringScatterPlotProps {
     plotData: ClusteringScatterPoint[] | null;
@@ -29,40 +47,36 @@ export interface GOClusteringScatterPlotProps {
     highlightedRefClusterIds: Set<string>;
 }
 
-// --- Define type for the *inner* array of customdata ---
 type ScatterCustomDataItem = [
     string, // goTerm (index 0)
     string, // goId (index 1)
     string | number, // pyodideCluster (index 2)
     string | number | null, // referenceClusterId (index 3)
     number, // bmd (index 4)
-    number  // rank (index 5)
+    number  // rank (index 5) - Global category rank
 ];
-// ------------------------------------------------------
 
 const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
     plotData,
     summaryTableData,
     highlightedRefClusterIds,
 }) => {
-    const logPrefix = '[GOClusteringScatterPlot v11 - CustomData Fix]'; // Version Bump
+    const logPrefix = '[GOClusteringScatterPlot v13 - Shape Constants]'; // Version Bump
 
-    // --- State for internal rendering errors ---
     const [renderError, setRenderError] = useState<string | null>(null);
 
     useEffect(() => {
         setRenderError(null);
     }, [plotData, summaryTableData, highlightedRefClusterIds]);
 
-    // --- Plotly Error Handler ---
-    const handlePlotError = useCallback((err: Error) => { // Use Error type
+    const handlePlotError = useCallback((err: Error) => {
         console.error(`${logPrefix} Plotly rendering error:`, err);
         setRenderError(
-            'Failed to render Clustering plot. This might be due to data issues or browser limitations (e.g., too many WebGL contexts).'
+            'Failed to render Clustering plot. Check console for details.'
         );
     }, [logPrefix]);
 
-    // --- Plot Data Calculation (useMemo) ---
+    // --- Plotly Data Calculation ---
     const plotlyData = useMemo((): Data[] => {
         if (!plotData || plotData.length === 0) {
             return [];
@@ -77,12 +91,10 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             `Pyodide Cluster: %{customdata[2]}<br>` +
             `Ref Cluster: %{customdata[3]}<br>` +
             `BMD (X): %{customdata[4]:.2e}<br>` +
-            `Rank (Y): %{customdata[5]}<extra></extra>`;
+            `Category Rank: %{customdata[5]}<extra></extra>`;
 
-        // --- Customdata type needs to be Datum[][] ---
         const basePoints: { x: number[]; y: (number | null)[]; color: string[]; customdata: Datum[][] } = { x: [], y: [], color: [], customdata: [] };
         const highlightPoints: { x: number[]; y: (number | null)[]; color: string[]; customdata: Datum[][] } = { x: [], y: [], color: [], customdata: [] };
-        // -------------------------------------------------
 
         plotData.forEach((p) => {
             const refClusterIdStr =
@@ -90,17 +102,9 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             const isHighlighted =
                 refClusterIdStr !== null && highlightedRefClusterIds.has(refClusterIdStr);
 
-            // --- Create an *array* of primitives for customdata ---
             const customPtDataArray: ScatterCustomDataItem = [
-                p.goTerm,
-                p.goId,
-                p.pyodideCluster,
-                p.referenceClusterId,
-                p.bmdValue,
-                p.rank,
+                p.goTerm, p.goId, p.pyodideCluster, p.referenceClusterId, p.bmdValue, p.rank,
             ];
-            // ---------------------------------------------------------
-
             const yValue = typeof p.jitteredRank === 'number' && isFinite(p.jitteredRank) ? p.jitteredRank : null;
 
             if (isHighlighted) {
@@ -116,20 +120,20 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             }
         });
 
-        // --- Type annotation for customdata in traces ---
         const baseTrace: Data = {
             x: basePoints.x,
             y: basePoints.y,
             mode: 'markers',
             type: 'scattergl',
             marker: {
-                size: BASE_SIZE,
+                size: CLUSTERING_PLOT_BASE_SIZE,
                 color: basePoints.color,
-                opacity: BASE_ALPHA,
+                opacity: CLUSTERING_PLOT_BASE_ALPHA,
+                symbol: CLUSTERING_PLOT_BASE_MARKER_SHAPE, // <<< USE CONSTANT
             },
-            customdata: basePoints.customdata as Datum[][], // Cast to Datum[][]
+            customdata: basePoints.customdata as Datum[][],
             hovertemplate: hovertemplate,
-            hoverlabel: { bgcolor: '#FFF' },
+            hoverlabel: { bgcolor: CLUSTERING_PLOT_HOVER_BG_COLOR },
             name: 'Other Clusters',
         };
 
@@ -139,13 +143,21 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             mode: 'markers',
             type: 'scattergl',
             marker: {
-                size: HIGHLIGHT_SIZE,
+                size: CLUSTERING_PLOT_HIGHLIGHT_SIZE,
                 color: highlightPoints.color,
-                opacity: HIGHLIGHT_ALPHA,
+                opacity: CLUSTERING_PLOT_HIGHLIGHT_ALPHA,
+                symbol: CLUSTERING_PLOT_HIGHLIGHT_MARKER_SHAPE, // <<< USE CONSTANT
+                line: {
+                    color: CLUSTERING_PLOT_MARKER_LINE_COLOR,
+                    width: CLUSTERING_PLOT_MARKER_LINE_WIDTH
+                }
             },
-            customdata: highlightPoints.customdata as Datum[][], // Cast to Datum[][]
+            customdata: highlightPoints.customdata as Datum[][],
             hovertemplate: hovertemplate,
-            hoverlabel: { bgcolor: '#FFF' },
+            hoverlabel: {
+                bgcolor: CLUSTERING_PLOT_HOVER_BG_COLOR,
+                bordercolor: CLUSTERING_PLOT_HIGHLIGHT_HOVER_BORDER_COLOR
+            },
             name: 'Highlighted Clusters',
         };
 
@@ -156,8 +168,9 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
         return traces;
     }, [plotData, highlightedRefClusterIds]);
 
-    // --- Plot Layout Calculation (useMemo) ---
+    // --- Plotly Layout Calculation ---
     const plotlyLayout = useMemo((): Partial<Layout> => {
+        // ... (tick calculations as before) ...
         let yTickVals: number[] = [];
         let yTickText: string[] = [];
         if (summaryTableData && summaryTableData.length > 0) {
@@ -170,30 +183,56 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
             yTickText = sortedSummary.map((item) => String(item.cluster));
         }
 
+        // Calculate font sizes using the multiplier
+        const titleFontSize = BASE_PLOT_TITLE_FONT_SIZE_PX * FONT_SIZE_MULTIPLIER;
+        const axisTitleFontSize = BASE_PLOT_AXIS_TITLE_FONT_SIZE_PX * FONT_SIZE_MULTIPLIER;
+        const axisTickFontSize = BASE_PLOT_AXIS_TICK_FONT_SIZE_PX * FONT_SIZE_MULTIPLIER;
+        const hoverLabelFontSize = BASE_PLOT_HOVER_FONT_SIZE_PX * FONT_SIZE_MULTIPLIER;
+        const axisTitleStandoff = BASE_PLOT_AXIS_TITLE_STANDOFF_PX * FONT_SIZE_MULTIPLIER;
+
         return {
-            title: '5th Percentile BMD vs. Cluster Rank',
+            title: {
+                text: CLUSTERING_PLOT_TITLE,
+                font: { size: titleFontSize }
+            },
             xaxis: {
-                title: '5th Percentile BMD',
+                title: {
+                    text: CLUSTERING_PLOT_X_AXIS_TITLE,
+                    font: { size: axisTitleFontSize },
+                    standoff: axisTitleStandoff
+                },
+                tickfont: { size: axisTickFontSize },
                 type: 'log',
                 showgrid: false,
                 side: 'bottom',
             },
             yaxis: {
-                title: 'Pyodide Cluster ID (Ordered by Rank)',
+                title: {
+                    text: CLUSTERING_PLOT_Y_AXIS_TITLE,
+                    font: { size: axisTitleFontSize },
+                    standoff: axisTitleStandoff
+                },
+                tickfont: { size: axisTickFontSize },
                 autorange: 'reversed',
                 type: 'linear',
                 tickmode: 'array',
                 tickvals: yTickVals.length > 0 ? yTickVals : undefined,
                 ticktext: yTickText.length > 0 ? yTickText : undefined,
                 showgrid: true,
-                gridcolor: GRID_COLOR,
+                gridcolor: CLUSTERING_PLOT_GRID_COLOR,
                 gridwidth: 1,
+                zeroline: false
             },
             height: 500,
             margin: { l: 80, r: 30, t: 50, b: 50 },
             hovermode: 'closest',
+            hoverlabel: {
+                font: { size: hoverLabelFontSize }
+            },
             showlegend: false,
             autosize: true,
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            paper_bgcolor: 'rgba(0,0,0,0)',
         };
     }, [summaryTableData]);
 
@@ -218,7 +257,6 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
         return <div>No valid data points to plot.</div>;
     }
     console.log(`${logPrefix} Rendering plot with ${plotlyData.length} trace(s).`);
-
     return (
         <Plot
             data={plotlyData}
