@@ -1,211 +1,153 @@
 // src/hooks/useProcessedClusteringData.ts
 import { useMemo } from 'react';
 import {
-    parseLabelToObject, // Parses the label string from Python
-    prepareClusteringDetails, // Calculates gene counts
-    calculateSummaries, // Calculates cluster summaries
-    CategoryRow, // Type for the detailed category table rows
-    SummaryRow, // Type for the summary table rows
-} from '../utils/clusteringUtils'; // Adjust path if needed
+    parseLabelToObject,
+    prepareClusteringDetails,
+    calculateSummaries,
+    CategoryRow as InputCategoryRow, // Rename original import
+    SummaryRow,
+} from '../utils/clusteringUtils';
+import { PyodideClusteringResult } from './usePyodideClustering';
 
-// Import the type definition for the result object coming directly from the Pyodide hook
-import { PyodideClusteringResult } from './usePyodideClustering'; // Adjust path if needed
+// Add rank property to the CategoryRow type for this hook's output
+export type RankedCategoryRow = InputCategoryRow & {
+    rank: number | null; // Global rank based on Cluster BMD
+};
 
-/**
- * Defines the structure returned by this hook.
- */
+// Define the structure returned by this hook including ranks
 export interface UseProcessedClusteringDataResult {
-    /** Processed data ready for the detailed category table. */
-    categoryTableData: CategoryRow[];
-    /** Processed data ready for the cluster summary table. */
+    categoryTableData: RankedCategoryRow[]; // Use ranked type
     summaryTableData: SummaryRow[];
-    /** Any error encountered during the processing stages within this hook. */
     processingError: Error | null;
+    minRank: number; // Add min rank
+    maxRank: number; // Add max rank
 }
 
 /**
  * Custom hook that takes the direct, parsed result from the Pyodide clustering
- * execution (and any error from that execution) and processes it into
- * structured data suitable for display in category details and summary tables.
- *
- * @param clusters - An array containing zero or one PyodideClusteringResult objects, or null.
- *                   This comes from the `usePyodideClustering` hook.
- * @param pyodideHookError - Any error string passed from the `usePyodideClustering` hook.
- * @returns An object containing processed table data and any processing errors.
+ * execution, processes it into structured data, calculates ranks based on
+ * Cluster BMD (ascending), and returns data suitable for display.
  */
 export function useProcessedClusteringData(
     clusters: PyodideClusteringResult[] | null,
-    pyodideHookError: string | null // Accept the error string from the Pyodide hook
+    pyodideHookError: string | null
 ): UseProcessedClusteringDataResult {
     const result = useMemo<UseProcessedClusteringDataResult>(() => {
-        const hookLogPrefix = '[useProcessedClusteringData - Debug Parse]';
+        const hookLogPrefix = '[useProcessedClusteringData v2 - Ranked]';
+        // Default return includes rank fields
+        const defaultReturn: UseProcessedClusteringDataResult = {
+            categoryTableData: [], summaryTableData: [], processingError: null, minRank: 0, maxRank: 0
+        };
 
-        // --- Handle errors passed from the upstream Pyodide hook first ---
         if (pyodideHookError) {
-            console.error(
-                `${hookLogPrefix} Received error from Pyodide hook:`,
-                pyodideHookError
-            );
-            return {
-                categoryTableData: [],
-                summaryTableData: [],
-                processingError: new Error(pyodideHookError),
-            };
+            console.error(`${hookLogPrefix} Received error from Pyodide hook:`, pyodideHookError);
+            return { ...defaultReturn, processingError: new Error(pyodideHookError) };
         }
-
-        // --- Handle null or empty input cluster array ---
         if (!clusters || clusters.length === 0) {
-            console.log(
-                `${hookLogPrefix} No cluster data provided or processing yielded no results.`
-            );
-            return {
-                categoryTableData: [],
-                summaryTableData: [],
-                processingError: null,
-            };
+            console.log(`${hookLogPrefix} No cluster data provided.`);
+            return defaultReturn;
         }
 
-        // --- Process the valid cluster data ---
         try {
-            console.log(
-                `${hookLogPrefix} Processing cluster data:`,
-                clusters // Log the raw cluster result object
-            );
-            // --- Flatten results, parse labels, prepare details ---
-            const initialCategoryRows: CategoryRow[] = clusters.flatMap(
-                (clusterResult: PyodideClusteringResult, clusterIndex: number) => { // Added clusterIndex for logging
-                    if (
-                        !clusterResult ||
-                        !Array.isArray(clusterResult.orderedLabels) ||
-                        !Array.isArray(clusterResult.orderedClusters) ||
-                        clusterResult.orderedLabels.length !==
-                        clusterResult.orderedClusters.length
-                    ) {
-                        console.warn(
-                            `${hookLogPrefix} Skipping malformed cluster result index ${clusterIndex}:`,
-                            clusterResult
-                        );
+            console.log(`${hookLogPrefix} Processing cluster data:`, clusters);
+            // Flatten results, parse labels, prepare details
+            const initialCategoryRows: InputCategoryRow[] = clusters.flatMap(
+                (clusterResult: PyodideClusteringResult, clusterIndex: number) => {
+                    if (!clusterResult || !Array.isArray(clusterResult.orderedLabels) || !Array.isArray(clusterResult.orderedClusters) || clusterResult.orderedLabels.length !== clusterResult.orderedClusters.length) {
+                        console.warn(`${hookLogPrefix} Skipping malformed cluster result index ${clusterIndex}:`, clusterResult);
                         return [];
                     }
-
-                    // Map over the labels/clusters within the single result object
-                    return clusterResult.orderedLabels.map(
-                        (label: string, i: number) => {
-                            // --- <<< LOGGING >>> ---
-                            if (i < 5) { // Log only first 5 labels per cluster result
-                                console.log(`${hookLogPrefix} Processing label ${i}: "${label}"`);
-                            }
-
-                            const parsedLabelData = parseLabelToObject(label);
-
-                            // --- <<< LOGGING >>> ---
-                            if (i < 5) {
-                                console.log(`${hookLogPrefix} Parsed label data ${i}:`, parsedLabelData);
-                                console.log(`${hookLogPrefix}   - Genes Up string:`, parsedLabelData['Genes Up']);
-                                console.log(`${hookLogPrefix}   - Genes Down string:`, parsedLabelData['Genes Down']);
-                            }
-
-                            const clusterString = (
-                                clusterResult.orderedClusters?.[i] ?? ''
-                            )
-                                .toString()
-                                .trim();
-                            const clusterValue = parseFloat(clusterString);
-
-                            // Create partial row using data parsed from the label string.
-                            const partialRow: Omit<
-                                CategoryRow,
-                                'allGenesSize' | 'upGenesSize' | 'downGenesSize' | 'groupSize'
-                            > = {
-                                key:
-                                    parsedLabelData['Category ID'] ||
-                                    `missing-key-${i}-${Date.now()}`,
-                                categoryId: parsedLabelData['Category ID'] || '',
-                                categoryTitle: parsedLabelData['Category Title'] || '',
-                                clusterBMD: parsedLabelData['Cluster BMD'] || '',
-                                // --- Use the potentially extracted gene strings ---
-                                upGenes: parsedLabelData['Genes Up'] || '', // Default to empty string if not found
-                                downGenes: parsedLabelData['Genes Down'] || '', // Default to empty string if not found
-                                allGenes: parsedLabelData['All Genes'] || '', // Default to empty string if not found
-                                // -------------------------------------------------
-                                cluster: clusterString,
-                                clusterValue: isNaN(clusterValue) ? -1 : clusterValue,
-                            };
-
-                            // Calculate gene sizes and return the complete CategoryRow
-                            return prepareClusteringDetails(partialRow);
-                        }
-                    ); // End of inner .map
+                    return clusterResult.orderedLabels.map((label: string, i: number) => {
+                        const parsedLabelData = parseLabelToObject(label);
+                        const clusterString = (clusterResult.orderedClusters?.[i] ?? '').toString().trim();
+                        const clusterValue = parseFloat(clusterString);
+                        // Create partial row using data parsed from the label string.
+                        const partialRow: Omit<InputCategoryRow, 'allGenesSize' | 'upGenesSize' | 'downGenesSize' | 'groupSize'> = {
+                            key: parsedLabelData['Category ID'] || `missing-key-${i}-${Date.now()}`,
+                            categoryId: parsedLabelData['Category ID'] || '',
+                            categoryTitle: parsedLabelData['Category Title'] || '',
+                            clusterBMD: parsedLabelData['Cluster BMD'] || '', // Keep original string
+                            upGenes: parsedLabelData['Genes Up'] || '',
+                            downGenes: parsedLabelData['Genes Down'] || '',
+                            allGenes: parsedLabelData['All Genes'] || '',
+                            cluster: clusterString,
+                            clusterValue: isNaN(clusterValue) ? -1 : clusterValue,
+                        };
+                        // Calculate gene sizes and return the complete CategoryRow
+                        return prepareClusteringDetails(partialRow);
+                    });
                 }
-            ); // End of .flatMap
-
-            console.log(
-                `${hookLogPrefix} Initial Category Rows created (sample):`,
-                initialCategoryRows.slice(0, 5) // Log sample rows
             );
 
-            const groupedByCluster = initialCategoryRows.reduce(
-                (acc: { [key: string]: CategoryRow[] }, curr: CategoryRow) => {
-                    const clusterKey = curr.cluster;
-                    if (
-                        clusterKey === null ||
-                        clusterKey === undefined ||
-                        clusterKey === ''
-                    ) {
-                        console.warn(
-                            `${hookLogPrefix} Skipping row with invalid cluster key:`,
-                            curr
-                        );
-                        return acc;
-                    }
-                    if (!acc[clusterKey]) {
-                        acc[clusterKey] = [];
-                    }
-                    acc[clusterKey].push(curr);
-                    return acc;
-                },
-                {}
-            );
+            if (initialCategoryRows.length === 0) {
+                console.log(`${hookLogPrefix} No category rows generated after initial processing.`);
+                return defaultReturn;
+            }
 
-            console.log(
-                `${hookLogPrefix} Rows grouped by cluster (keys):`,
-                Object.keys(groupedByCluster)
-            );
-
-            const categoryTableDataWithGroupSize: CategoryRow[] =
-                initialCategoryRows.map((row: CategoryRow) => ({
+            // Calculate Global Rank based on Cluster BMD (ascending)
+            // Handle potential non-numeric or missing BMD values
+            const rowsWithBMD = initialCategoryRows
+                .map(row => ({
                     ...row,
-                    groupSize: groupedByCluster[row.cluster]?.length || 0,
+                    numericBMD: parseFloat(row.clusterBMD), // Attempt to parse
+                }))
+                .map(row => ({
+                    ...row,
+                    // Treat non-numbers (NaN) as Infinity for sorting (put them last)
+                    numericBMD: isNaN(row.numericBMD) ? Infinity : row.numericBMD
                 }));
 
-            console.log(
-                `${hookLogPrefix} Category Rows with groupSize (sample):`,
-                categoryTableDataWithGroupSize.slice(0, 5)
+            // Sort by the numeric BMD value
+            rowsWithBMD.sort((a, b) => a.numericBMD - b.numericBMD);
+
+            // Assign 1-based rank after sorting
+            const rankedCategoryRows: RankedCategoryRow[] = rowsWithBMD.map((row, index) => ({
+                ...row, // Spread properties from rowWithBMD
+                rank: index + 1, // Assign rank
+            }));
+
+            // Group by cluster (using ranked rows)
+            const groupedByCluster = rankedCategoryRows.reduce(
+                (acc: { [key: string]: RankedCategoryRow[] }, curr) => {
+                    const clusterKey = curr.cluster;
+                    // Skip rows with invalid cluster keys
+                    if (clusterKey === null || clusterKey === undefined || clusterKey === '') {
+                        console.warn(`${hookLogPrefix} Skipping row with invalid cluster key during grouping:`, curr);
+                        return acc;
+                    }
+                    if (!acc[clusterKey]) { acc[clusterKey] = []; }
+                    acc[clusterKey].push(curr);
+                    return acc;
+                }, {}
             );
 
+            // Add groupSize back to ranked rows
+            const finalCategoryTableData: RankedCategoryRow[] = rankedCategoryRows.map(row => ({
+                ...row,
+                groupSize: groupedByCluster[row.cluster]?.length || 0,
+            }));
+
+            // Calculate summaries using the grouped data
             const finalSummaryRows = calculateSummaries(groupedByCluster);
 
-            console.log(
-                `${hookLogPrefix} Final Summary Rows (count):`,
-                finalSummaryRows.length
-            );
+            // Determine min/max ranks
+            const calculatedMaxRank = finalCategoryTableData.length;
+            const calculatedMinRank = calculatedMaxRank > 0 ? 1 : 0;
+
+            console.log(`${hookLogPrefix} Final Category Rows (Ranked): ${finalCategoryTableData.length}, MinRank: ${calculatedMinRank}, MaxRank: ${calculatedMaxRank}`);
+            console.log(`${hookLogPrefix} Final Summary Rows: ${finalSummaryRows.length}`);
+
             return {
-                categoryTableData: categoryTableDataWithGroupSize,
+                categoryTableData: finalCategoryTableData,
                 summaryTableData: finalSummaryRows,
                 processingError: null,
+                minRank: calculatedMinRank,
+                maxRank: calculatedMaxRank,
             };
         } catch (e) {
-            console.error(
-                `${hookLogPrefix} Error processing clustering data:`,
-                e
-            );
-            return {
-                categoryTableData: [],
-                summaryTableData: [],
-                processingError: e instanceof Error ? e : new Error(String(e)),
-            };
+            console.error(`${hookLogPrefix} Error processing clustering data:`, e);
+            return { ...defaultReturn, processingError: e instanceof Error ? e : new Error(String(e)), };
         }
-        
     }, [clusters, pyodideHookError]);
 
     return result;

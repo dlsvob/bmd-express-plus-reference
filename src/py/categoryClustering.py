@@ -6,6 +6,7 @@ from scipy.spatial.distance import squareform
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 import js # Use js.console.log/error for debugging in Pyodide
 # import traceback # Uncomment for detailed tracebacks if needed
+import json
 
 print("=== categoryClustering.py LOADED (v3 - Include Gene Strings in Label) ===") # Version Bump
 

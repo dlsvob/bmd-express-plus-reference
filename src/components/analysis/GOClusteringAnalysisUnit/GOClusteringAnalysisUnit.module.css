@@ -23,3 +23,93 @@
 .innerSectionCard:last-child {
     margin-bottom: 0;
 }
+
+/* src/components/analysis/GOClusteringAnalysisUnit/GOClusteringAnalysisUnit.module.css */
+
+/* --- Styles for the Filter Header (Sticky/Collapsible) --- */
+/* (Copied from GOUmapAnalysisUnit.module.css) */
+.filterHeader {
+    position: sticky;
+    /* Make it sticky */
+    top: 0;
+    /* Stick to the top of its scrolling container */
+    z-index: 20;
+    /* Ensure it's above content below */
+    background-color: #f0f2f5;
+    /* Match theme - light grey */
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.3s ease-in-out;
+    /* Margin applied via inline style in component */
+}
+
+/* Add border only when expanded for visual cue */
+.filterHeader.expanded {
+    border-bottom-color: #d9d9d9;
+}
+
+.filterHeaderToolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    border-bottom: 1px solid #d9d9d9;
+    position: relative;
+    z-index: 21;
+    /* Above controls */
+    background-color: inherit;
+    /* Match header background */
+    cursor: pointer;
+    /* Indicate clickable area */
+}
+
+.filterHeaderControls {
+    /* Default (Expanded) State */
+    max-height: 600px;
+    /* Allow space for controls */
+    opacity: 1;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
+    padding: 16px;
+    background-color: inherit;
+}
+
+/* Collapsed State */
+.filterHeader.collapsed .filterHeaderControls {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+    /* Important */
+    transition: max-height 0.3s ease-in, opacity 0.2s ease-in, padding 0.3s ease-in;
+    pointer-events: none;
+    /* Prevent interaction when hidden */
+}
+
+/* Remove the hover effect for now unless specifically desired */
+/*
+.filterHeader.collapsed:hover .filterHeaderControls,
+.filterHeader.collapsed:focus-within .filterHeaderControls {
+   ... hover styles ...
+}
+*/
+
+/* Optional: Style for inner cards if needed */
+.innerSectionCard {
+    margin-bottom: 16px;
+    /* Space between inner cards */
+    /* Use AntD Card's bordered prop instead of CSS border */
+    /* border-color: #adc6ff; */
+    /* Lighter blue for inner borders */
+}
+
+.innerSectionCard:last-child {
+    margin-bottom: 0;
+}
+
+/* --- Style for the main container (Optional) --- */
+/* Add specific styles for the root div if needed */
+.clusteringRoot {
+    /* Example: */
+    /* padding-top: 1px; // May help with margin collapse */
+}
