@@ -102,11 +102,11 @@ export const CLUSTERING_PLOT_HOVER_BG_COLOR = '#FFFFFF'; // White
 export const CLUSTERING_PLOT_HIGHLIGHT_HOVER_BORDER_COLOR = '#333333'; // Dark Grey
 
 /** Title for the Clustering Scatter Plot. */
-export const CLUSTERING_PLOT_TITLE = '5th Percentile BMD vs. Cluster Rank';
+export const CLUSTERING_PLOT_TITLE = '';
 /** X-Axis Title for the Clustering Scatter Plot. */
-export const CLUSTERING_PLOT_X_AXIS_TITLE = '5th Percentile BMD (Log Scale)';
+export const CLUSTERING_PLOT_X_AXIS_TITLE = '5th Percentile BMD All Genes';
 /** Y-Axis Title for the Clustering Scatter Plot. */
-export const CLUSTERING_PLOT_Y_AXIS_TITLE = 'Cluster Rank (by Min BMD)'; // Updated Title
+export const CLUSTERING_PLOT_Y_AXIS_TITLE = 'Cluster'; // Updated Title
 // ========================================================
 // --- END: GO Clustering Scatter Plot Styles ---
 // ========================================================

@@ -192,7 +192,7 @@ const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
 
         return {
             title: {
-                text: CLUSTERING_PLOT_TITLE,
+                //text: CLUSTERING_PLOT_TITLE,
                 font: { size: titleFontSize }
             },
             xaxis: {

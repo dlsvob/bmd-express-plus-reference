@@ -49,7 +49,7 @@ const GOClusteringSummaryTable: React.FC<GOClusteringSummaryTableProps> = React.
 
         return (
             <Table<SummaryRow>
-                title={() => 'Cluster Summary'}
+                /*title={() => 'Cluster Summary'}*/
                 dataSource={hasData ? dataSource : []}
                 columns={summaryColumns}
                 rowKey="key"

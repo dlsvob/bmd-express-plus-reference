@@ -288,9 +288,9 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                   <Space direction="vertical" size="large" style={{ width: '100%' }}>
                     {/* Plot/Summary Card */}
                     <Card size="small" bordered={false} className={styles.innerSectionCard}>
-                      <Row gutter={[16, 16]}>
+                      <Row gutter={[16, 16]} style={{ border: '1px solid #f0f0f0', borderRadius: '4px', padding: '8px', }}>
                         <Col xs={24} lg={14}>
-                          <div style={{ minHeight: `500px`, border: '1px solid #f0f0f0', borderRadius: '4px', padding: '8px', position: 'relative' }}>
+                          <div style={{ minHeight: `500px`, position: 'relative' }}>
                             {filteredScatterPlotData && filteredScatterPlotData.length > 0 ? (
                               <GOClusteringScatterPlot plotData={filteredScatterPlotData} summaryTableData={summaryTableData} highlightedRefClusterIds={highlightedRefClusterIdsSet} />
                             ) : (
