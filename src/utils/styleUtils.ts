@@ -109,7 +109,8 @@ export function calculateOverlayStyles(
 
   rankedBaseGroupedData.forEach((basePoints, refStringKey) => {
     const styledPoints = basePoints
-      .map((basePoint, index) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      .map((basePoint, _index) => {
         const goIdSource = basePoint.go_id;
         const lookupKey = typeof goIdSource === 'string' ? goIdSource.trim().toUpperCase() : null;
         const refDataItem = lookupKey ? referenceMap.get(lookupKey) : undefined;

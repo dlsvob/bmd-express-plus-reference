@@ -1,6 +1,6 @@
 // src/components/analysis/GOClusteringAnalysisUnit/GOClusteringAnalysisUnit.tsx
 import React, { useMemo, useCallback, useEffect, useState, useRef } from 'react';
-import { Card, Spin, Alert, Empty, Row, Col, Tabs, message, Space, Typography, Button } from 'antd';
+import { Card, Spin, Alert, Empty, Row, Col, Tabs, message, Space, Typography, Button, type RadioChangeEvent } from 'antd';
 import { UpOutlined, DownOutlined } from '@ant-design/icons';
 import debounce from 'lodash.debounce';
 import { useAppSelector, useAppDispatch } from '../../../store/hooks';
@@ -15,11 +15,10 @@ import {
 } from '../../../store/slices/analysisUISlice';
 import { selectReferenceDataMap, selectReferenceData } from '../../../store/selectors/referenceDataSelector';
 import { useGetRawAnalysisDataQuery } from '../../../store/apis/experimentsApi';
-import { ApiClusteringInputItem, SummaryRow, CategoryRow as InputCategoryRow } from '../../../utils/clusteringUtils';
+import { ApiClusteringInputItem } from '../../../utils/clusteringUtils';
 import { usePyodideClustering } from '../../../hooks/usePyodideClustering';
-import { useProcessedClusteringData, RankedCategoryRow } from '../../../hooks/useProcessedClusteringData';
+import { useProcessedClusteringData } from '../../../hooks/useProcessedClusteringData';
 import { useClusteringVisualizationData } from '../../../hooks/useClusteringVisualizationData';
-import GOClusteringScatterPlot, { ClusteringScatterPoint } from './GOClusteringScatterPlot';
 import GOClusteringSummaryTable from './GOClusteringSummaryTable';
 import GOClusteringDetailsTable from './GOClusteringDetailsTable';
 import CustomLegends from '../shared/CustomLegends';
@@ -27,6 +26,7 @@ import AnalysisControls from '../controls/AnalysisControls';
 import GeneEnrichmentAnalysis from './GeneEnrichmentAnalysis';
 import SlidingWindowFilter from '../controls/SlidingWindowFilter';
 import GoIdFilterUI from '../controls/GoUIdFilterUI';
+import GOClusteringScatterPlot from './GOClusteringScatterPlot';
 import styles from './GOClusteringAnalysisUnit.module.css';
 
 const { Title } = Typography;
@@ -41,9 +41,6 @@ const getErrorMessage = (error: unknown): string => {
 
 // Interface
 interface ClusterOption { value: string; label: string; }
-
-// Style constant
-const verticalSpacingStyle: React.CSSProperties = { marginBottom: '16px' };
 
 // Base style for sticky legend wrapper (No flex centering)
 const stickyLegendBaseStyle: React.CSSProperties = {
@@ -118,8 +115,8 @@ const GOClusteringAnalysisUnit: React.FC = () => {
     const headerElement = stickyHeaderGroupRef.current;
     if (headerElement) {
       const resizeObserver = new ResizeObserver(entries => {
-        for (let entry of entries) {
-          const height = entry.target.offsetHeight;
+        for (const entry of entries) {
+          const height = (entry.target as HTMLElement).offsetHeight;
           if (height > 0) { setStickyHeaderHeight(prevHeight => (prevHeight !== height) ? height : prevHeight); }
         }
       });
@@ -256,7 +253,6 @@ const GOClusteringAnalysisUnit: React.FC = () => {
                         <CustomLegends
                           // Pass empty string to ensure Card doesn't render its own title space
                           cardTitle=" "
-                          styles="marginLeft: "
                           colorItems={leftLegendItems}
                           highlightedLabelsSet={highlightedRefClusterIdsSet}
                           presentClusterIds={presentClusterIds}

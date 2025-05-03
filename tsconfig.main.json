@@ -1,31 +1,31 @@
 // tsconfig.main.json
 {
     "compilerOptions": {
-        "target": "ES2022",
-        "module": "ESNext",
-        "moduleResolution": "Bundler",
+        "target": "ES2020",           // <<< Match preload/safe target
+        "module": "CommonJS",        // <<< CHANGE HERE
+        "moduleResolution": "Node", // <<< CHANGE HERE (for CommonJS)
         "outDir": "./dist-electron",
         "rootDir": "./electron",
         "strict": true,
-        "esModuleInterop": true,
+        "esModuleInterop": true,       // <<< Keep true
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
         "composite": true,
         "tsBuildInfoFile": "./dist-electron/.tsbuildinfo.main",
         "sourceMap": true,
         "types": ["node", "electron"],
-            "typeRoots": [
-                "./node_modules/@types",
-                "./src/types"
-            ]
+        "typeRoots": [
+            "./node_modules/@types",
+            "./src/types"
+        ]
     },
-"include": [
-    "electron/main.ts",
-    "src/types/**/*.d.ts"
-],
-"exclude": [
-    "node_modules",
-    "dist",
-    "electron/preload.ts"
-]
+    "include": [
+        "electron/main.ts",
+        "src/types/**/*.d.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "electron/preload.ts"
+    ]
 }

@@ -3,15 +3,21 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "main": "dist-electron/main.js",
+  "main": "dist-electron/main.cjs",
   "scripts": {
     "dev": "vite",
-    "dev:electron": "concurrently \"npm:dev:vite-server\" \"npm:dev:electron-start\"",
+
+    "build:electron": "node scripts/build-electron.cjs",
+
     "dev:vite-server": "cross-env VITE_DEV_SERVER_URL=http://localhost:5173 vite",
-    "dev:electron-start": "wait-on tcp:5173 && npm run build:electron && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
-    "build": "npm run build:electron && npm run build:vite",
+
+    "dev:electron-start": "npm run build:electron && wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 ELECTRON_ENABLE_LOGGING=1 electron .",
+
+    "dev:electron": "concurrently \"npm:dev:vite-server\" \"npm:dev:electron-start\"",
+
     "build:vite": "vite build --config vite.config.ts",
-    "build:electron": "npx tsc --build",
+    "build": "npm run build:electron && npm run build:vite",
+
     "build:singlefile": "cross-env BUILD_TARGET=singlefile vite build --config vite.config.ts",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -42,7 +48,6 @@
       "node_modules/**/*",
       "package.json"
     ],
-    "afterPack": "./scripts/afterPackHook.js",
     "mac": {
       "target": [
         "dmg",
@@ -128,6 +133,7 @@
     "eslint-plugin-react-hooks": "5.2.0",
     "eslint-plugin-react-refresh": "0.4.19",
     "globals": "^15.15.0",
+    "shx": "0.4.0",
     "typescript": "^5.4.5",
     "typescript-eslint": "^8.24.1",
     "vite": "6.3.2",

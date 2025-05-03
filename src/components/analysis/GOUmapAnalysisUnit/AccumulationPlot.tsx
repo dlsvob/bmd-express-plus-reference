@@ -1,15 +1,8 @@
 // src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx
 
 import React, { useMemo, useCallback } from 'react';
-import type {
-    Data,
-    Layout,
-    PlotMouseEvent,
-    PlotSelectionEvent,
-    Config,
-    Datum,
-} from 'plotly.js';
-import type * as Plotly from 'plotly.js';
+
+import * as Plotly from 'plotly.js';
 import { Spin } from 'antd';
 import { UmapAnalysisDataPoint } from '../../../models/applicationModel';
 import Plot from 'react-plotly.js';
@@ -114,20 +107,20 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
         }, [isCombinedOverlayPlot, styledPointsForPlot]);
 
         // --- Generate Plotly Traces ---
-        const plotData = useMemo((): Data[] | null => {
-            const goIdsToShowMarkers = new Set<string>([...(highlightMode !== 'NONE' ? highlightGoIdsList : []), ...selectedAccumGoIdsSet, ...(tableSelectedGoId ? [tableSelectedGoId] : [])]);
-            let traces: Data[] = []; let markerPointsData: { x: number | null; y: number | null; go_id: string; text: string; color: string; shape: string; size: number; opacity: number; }[] = [];
+        const plotData = useMemo((): Plotly.Data[] | null => {
+            const goIdsToShowMarkers = new Set<string>([...((highlightMode as string) !== 'none' ? highlightGoIdsList : []), ...selectedAccumGoIdsSet, ...(tableSelectedGoId ? [tableSelectedGoId] : [])]);
+            const traces: Plotly.Data[] = []; const markerPointsData: { x: number | null; y: number | null; go_id: string; text: string; color: string; shape: string; size: number; opacity: number; }[] = [];
             if (isCombinedOverlayPlot) {
-                if (!combinedOverlayData) return null; for (const [, groupData] of combinedOverlayData.processedGroups.entries()) { traces.push({ x: groupData.sortedPoints.map(p => p.bmdFifthPercentileTotalGenes ?? null), y: groupData.cumulativeCounts, type: 'scattergl', mode: 'lines', name: groupData.name, line: { color: groupData.color, width: 2 }, customdata: groupData.sortedPoints.map(p => p.go_id) as Datum[], hoverinfo: 'name+x+y', legendgroup: groupData.name, }); } const pointsForMarkers = (styledPointsForPlot || []).filter(p => p.go_id && goIdsToShowMarkers.has(p.go_id) && p.bmdFifthPercentileTotalGenes != null && !isNaN(p.bmdFifthPercentileTotalGenes) && isFinite(p.bmdFifthPercentileTotalGenes) && p.bmdFifthPercentileTotalGenes > 0 && p.bmdResultRef != null); pointsForMarkers.forEach(p => { const groupData = combinedOverlayData.processedGroups.get(p.bmdResultRef!); if (!groupData || !p.go_id) return; const rank = groupData.goIdToRankMap.get(p.go_id); if (rank == null) return; const yValue = groupData.cumulativeCounts[rank - 1] ?? null; if (yValue === null) return; markerPointsData.push({ x: p.bmdFifthPercentileTotalGenes, y: yValue, go_id: p.go_id, text: `Exp: ${groupData.name}<br>Rank: ${rank}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term}<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(2)}`, color: p.finalColor, shape: p.finalShape, size: p.finalSize, opacity: p.finalOpacity, }); });
+                if (!combinedOverlayData) return null; for (const [, groupData] of combinedOverlayData.processedGroups.entries()) { traces.push({ x: groupData.sortedPoints.map(p => p.bmdFifthPercentileTotalGenes ?? null), y: groupData.cumulativeCounts, type: 'scattergl', mode: 'lines', name: groupData.name, line: { color: groupData.color, width: 2 }, customdata: groupData.sortedPoints.map(p => p.go_id) as Plotly.Datum[], hoverinfo: 'none', legendgroup: groupData.name, }); } const pointsForMarkers = (styledPointsForPlot || []).filter(p => p.go_id && goIdsToShowMarkers.has(p.go_id) && p.bmdFifthPercentileTotalGenes != null && !isNaN(p.bmdFifthPercentileTotalGenes) && isFinite(p.bmdFifthPercentileTotalGenes) && p.bmdFifthPercentileTotalGenes > 0 && p.bmdResultRef != null); pointsForMarkers.forEach(p => { const groupData = combinedOverlayData.processedGroups.get(p.bmdResultRef!); if (!groupData || !p.go_id) return; const rank = groupData.goIdToRankMap.get(p.go_id); if (rank == null) return; const yValue = groupData.cumulativeCounts[rank - 1] ?? null; if (yValue === null) return; markerPointsData.push({ x: p.bmdFifthPercentileTotalGenes ?? null, y: yValue, go_id: p.go_id, text: `Exp: ${groupData.name}<br>Rank: ${rank}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term}<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(2)}`, color: p.finalColor, shape: p.finalShape, size: p.finalSize, opacity: p.finalOpacity, }); });
             } else {
-                if (!singlePlotData) return null; traces.push({ x: singlePlotData.sortedPoints.map(p => p.bmdFifthPercentileTotalGenes ?? null), y: singlePlotData.cumulativeCounts, type: 'scattergl', mode: 'lines', name: 'Cumulative Count', line: { color: defaultPlotColors[0], width: 2 }, customdata: singlePlotData.sortedPoints.map(p => p.go_id) as Datum[], text: singlePlotData.sortedPoints.map((p, i) => `Rank: ${i + 1}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term}<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(2)}<br>Count: ${singlePlotData.cumulativeCounts[i]}`), hoverinfo: 'text', hoverlabel: { bgcolor: '#FFF', bordercolor: defaultPlotColors[0] }, showlegend: false, }); const pointsForMarkers = (styledPointsForPlot || []).filter(p => p.finalOpacity > 0 && p.bmdFifthPercentileTotalGenes != null && !isNaN(p.bmdFifthPercentileTotalGenes) && isFinite(p.bmdFifthPercentileTotalGenes) && p.bmdFifthPercentileTotalGenes > 0 && p.go_id); pointsForMarkers.forEach(p => { if (!p.go_id || !singlePlotData.goIdToRankMap) return; const rank = singlePlotData.goIdToRankMap.get(p.go_id); if (rank == null) return; const yValue = singlePlotData.cumulativeCounts[rank - 1] ?? null; if (yValue === null) return; markerPointsData.push({ x: p.bmdFifthPercentileTotalGenes, y: yValue, go_id: p.go_id, text: `Rank: ${rank}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term}<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(2)}<br>Source: ${p.bmdResultName}`, color: p.finalColor, shape: p.finalShape, size: p.finalSize, opacity: p.finalOpacity, }); });
-            } if (markerPointsData.length > 0) { traces.push({ x: markerPointsData.map(d => d.x), y: markerPointsData.map(d => d.y), customdata: markerPointsData.map(d => d.go_id) as Datum[], text: markerPointsData.map(d => d.text), type: 'scattergl', mode: 'markers', name: 'Selected/Highlighted', marker: { color: markerPointsData.map(d => d.color), symbol: markerPointsData.map(d => d.shape), size: markerPointsData.map(d => d.size), opacity: markerPointsData.map(d => d.opacity), line: { color: 'black', width: 0.5 }, }, hoverinfo: 'text', hoverlabel: { bgcolor: '#FFF', bordercolor: '#333' }, showlegend: isCombinedOverlayPlot && goIdsToShowMarkers.size > 0 && markerPointsData.length > 0, legendgroup: 'markers', }); }
+                if (!singlePlotData) return null; traces.push({ x: singlePlotData.sortedPoints.map(p => p.bmdFifthPercentileTotalGenes ?? null), y: singlePlotData.cumulativeCounts, type: 'scattergl', mode: 'lines', name: 'Cumulative Count', line: { color: defaultPlotColors[0], width: 2 }, customdata: singlePlotData.sortedPoints.map(p => p.go_id) as Plotly.Datum[], text: singlePlotData.sortedPoints.map((p, i) => `Rank: ${i + 1}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term}<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(2)}<br>Count: ${singlePlotData.cumulativeCounts[i]}`), hoverinfo: 'text', hoverlabel: { bgcolor: '#FFF', bordercolor: defaultPlotColors[0] }, showlegend: false, }); const pointsForMarkers = (styledPointsForPlot || []).filter(p => p.finalOpacity > 0 && p.bmdFifthPercentileTotalGenes != null && !isNaN(p.bmdFifthPercentileTotalGenes) && isFinite(p.bmdFifthPercentileTotalGenes) && p.bmdFifthPercentileTotalGenes > 0 && p.go_id); pointsForMarkers.forEach(p => { if (!p.go_id || !singlePlotData.goIdToRankMap) return; const rank = singlePlotData.goIdToRankMap.get(p.go_id); if (rank == null) return; const yValue = singlePlotData.cumulativeCounts[rank - 1] ?? null; if (yValue === null) return; markerPointsData.push({ x: p.bmdFifthPercentileTotalGenes ?? null, y: yValue, go_id: p.go_id, text: `Rank: ${rank}<br>GO ID: ${p.go_id}<br>Term: ${p.go_term}<br>5th Perc. BMD: ${p.bmdFifthPercentileTotalGenes?.toExponential(2)}<br>Source: ${p.bmdResultName}`, color: p.finalColor, shape: p.finalShape, size: p.finalSize, opacity: p.finalOpacity, }); });
+            } if (markerPointsData.length > 0) { traces.push({ x: markerPointsData.map(d => d.x), y: markerPointsData.map(d => d.y), customdata: markerPointsData.map(d => d.go_id) as Plotly.Datum[], text: markerPointsData.map(d => d.text), type: 'scattergl', mode: 'markers', name: 'Selected/Highlighted', marker: { color: markerPointsData.map(d => d.color), symbol: markerPointsData.map(d => d.shape), size: markerPointsData.map(d => d.size), opacity: markerPointsData.map(d => d.opacity), line: { color: 'black', width: 0.5 }, }, hoverinfo: 'text', hoverlabel: { bgcolor: '#FFF', bordercolor: '#333' }, showlegend: isCombinedOverlayPlot && goIdsToShowMarkers.size > 0 && markerPointsData.length > 0, legendgroup: 'markers', }); }
             return traces.length > 0 ? traces : null;
         }, [isCombinedOverlayPlot, combinedOverlayData, singlePlotData, styledPointsForPlot, logPrefix, highlightMode, highlightGoIdsList, selectedAccumGoIdsSet, tableSelectedGoId]);
 
 
         // --- Layout Calculation (Apply Multiplier) ---
-        const plotLayout = useMemo((): Partial<Layout> | null => {
+        const plotLayout = useMemo((): Partial<Plotly.Layout> | null => {
             let minXVal: number | undefined, maxXVal: number | undefined, maxYVal: number | undefined;
             if (isCombinedOverlayPlot) { if (!combinedOverlayData) return null; minXVal = combinedOverlayData.overallMinX; maxXVal = combinedOverlayData.overallMaxX; maxYVal = combinedOverlayData.overallMaxY; }
             else { if (!singlePlotData) return null; minXVal = singlePlotData.minXValue; maxXVal = singlePlotData.maxXValue; maxYVal = singlePlotData.maxYValue; }
@@ -179,17 +172,60 @@ const AccumulationPlot: React.FC<AccumulationPlotProps> = React.memo(
         }, [isCombinedOverlayPlot, combinedOverlayData, singlePlotData]); // FONT_SIZE_MULTIPLIER is constant
 
         // --- Event Handlers ---
-        const handleSelection = useCallback((event: Readonly<PlotSelectionEvent> | undefined) => { const ids = event?.points?.map(p => p.customdata as string).filter(Boolean) || []; dispatch(setAccumulationPlotSelection(ids)); }, [dispatch]);
-        const handleClick = useCallback((event: Readonly<PlotMouseEvent>) => { const id = event.points[0]?.customdata as string; dispatch(setAccumulationPlotSelection(id ? [id] : [])); }, [dispatch]);
+        const handleSelection = useCallback((event: Readonly<Plotly.PlotSelectionEvent> | undefined) => { const ids = event?.points?.map(p => p.customdata as string).filter(Boolean) || []; dispatch(setAccumulationPlotSelection(ids)); }, [dispatch]);
+        const handleClick = useCallback((event: Readonly<Plotly.PlotMouseEvent>) => { const id = event.points[0]?.customdata as string; dispatch(setAccumulationPlotSelection(id ? [id] : [])); }, [dispatch]);
         const handleDoubleClick = useCallback(() => { dispatch(setAccumulationPlotSelection([])); }, [dispatch]);
 
         // --- Plotly Config ---
-        const plotConfig: Partial<Config> = useMemo(() => ({ responsive: true, displaylogo: false, modeBarButtonsToRemove: ['zoom2d', 'pan2d', 'select2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d', 'hoverClosestCartesian', 'hoverCompareCartesian', 'toggleSpikelines'], modeBarButtonsToAdd: [{ name: 'Reset View', icon: Plotly.Icons.home, click: (gd) => { Plotly.relayout(gd, { 'xaxis.autorange': true, 'yaxis.autorange': true }); dispatch(setAccumulationPlotSelection([])); } }, { name: 'Lasso Select', icon: Plotly.Icons.lasso, click: (gd) => Plotly.relayout(gd, { dragmode: 'lasso' }) }, { name: 'Box Select', icon: Plotly.Icons.select, click: (gd) => Plotly.relayout(gd, { dragmode: 'select' }) }, { name: 'Pan', icon: Plotly.Icons.pan, click: (gd) => Plotly.relayout(gd, { dragmode: 'pan' }) }, { name: 'Zoom', icon: Plotly.Icons.zoom, click: (gd) => Plotly.relayout(gd, { dragmode: 'zoom' }) },] }), [dispatch]);
+        // Around Line 187 
+
+const plotConfig: Partial<Plotly.Config> = useMemo(() => ({
+    responsive: true,
+    displaylogo: false,
+    modeBarButtonsToRemove: [
+        'zoom2d', 'pan2d', 'select2d', 'zoomIn2d', 'zoomOut2d',
+        'autoScale2d', 'resetScale2d', 'hoverClosestCartesian',
+        'hoverCompareCartesian', 'toggleSpikelines'
+    ],
+    modeBarButtonsToAdd: [
+        // --- Add BOTH name and title to each button ---
+        {
+            name: 'Reset View',  // Keep name
+            title: 'Reset View', // Add title (matching name)
+            icon: Plotly.Icons.home,
+            click: (gd) => { Plotly.relayout(gd, { 'xaxis.autorange': true, 'yaxis.autorange': true }); dispatch(setAccumulationPlotSelection([])); }
+        },
+        {
+            name: 'Lasso Select', // Keep name
+            title: 'Lasso Select', // Add title
+            icon: Plotly.Icons.lasso,
+            click: (gd) => Plotly.relayout(gd, { dragmode: 'lasso' })
+        },
+        {
+            name: 'Box Select', // Keep name
+            title: 'Box Select', // Add title
+            icon: Plotly.Icons.selectbox, // Use corrected icon
+            click: (gd) => Plotly.relayout(gd, { dragmode: 'select' })
+        },
+        {
+            name: 'Pan', // Keep name
+            title: 'Pan', // Add title
+            icon: Plotly.Icons.pan,
+            click: (gd) => Plotly.relayout(gd, { dragmode: 'pan' })
+        },
+        {
+            name: 'Zoom', // Keep name
+            title: 'Zoom', // Add title
+            icon: Plotly.Icons.zoombox, // Use corrected icon
+            click: (gd) => Plotly.relayout(gd, { dragmode: 'zoom' })
+        },
+    ]
+}), [dispatch]);
 
         // --- Render Logic ---
         const spinTip = styledPointsForPlot === null ? <>Processing plot data...</> : undefined;
-        if (styledPointsForPlot === null) { return <div className={sharedStyles.plotContainer} style={{ height, width, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spin tip={spinTip} /></div>; }
-        if (!plotData || !plotLayout) { return <div className={sharedStyles.plotContainer} style={{ height, width, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed lightgrey', fontSize: '0.9em', color: '#888', padding: '10px', textAlign: 'center' }}><span>No valid data for accumulation plot.</span></div>; }
+        if (styledPointsForPlot === null) { return <div className={sharedStyles.plotContainer} style={{ height: height ?? undefined, width: width ?? undefined, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spin tip={spinTip} /></div>; }
+        if (!plotData || !plotLayout) { return <div className={sharedStyles.plotContainer} style={{ height: height ?? undefined, width: width ?? undefined, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed lightgrey', fontSize: '0.9em', color: '#888', padding: '10px', textAlign: 'center' }}><span>No valid data for accumulation plot.</span></div>; }
 
         return (
             <div className={sharedStyles.plotContainer} style={{ width: width ?? undefined, height: height ?? undefined }} >

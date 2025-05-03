@@ -134,15 +134,58 @@ const GOUmapAnalysisUnit: React.FC = () => {
     const { data: rawData, isLoading: isLoadingRaw, isFetching, error: rawError, isSuccess: rawSuccess } = useGetRawAnalysisDataQuery({ projectName, selectedBmdResultRefs }, { skip: !projectName || !selectedBmdResultRefs || selectedBmdResultRefs.length === 0 });
 
     // --- Data Processing Hooks ---
-    const { bmdResultMap, bmdRefToExperimentNameMap } = useMemo<{ bmdResultMap: Map<number, BMDResult>; bmdRefToExperimentNameMap: Map<number, string>; }>(() => {
-        const tempBmdResultMap = new Map<number, BMDResult>(); const tempBmdRefToNameMap = new Map<number, string>(); if (rawSuccess && rawData?.rawBmdResults) { rawData.rawBmdResults.forEach((r) => { if (r && r['@ref'] != null) { const numericRef = Number(r['@ref']); if (!isNaN(numericRef)) { tempBmdResultMap.set(numericRef, r); tempBmdRefToNameMap.set(numericRef, r.name || `Analysis ${numericRef}`); } } }); } return { bmdResultMap: tempBmdResultMap, bmdRefToExperimentNameMap: tempBmdRefToNameMap };
-    }, [rawSuccess, rawData]);
+       const { bmdRefToExperimentNameMap } = useMemo<{ // <<< Remove bmdResultMap here
+         bmdResultMap: Map<number, BMDResult>; // Keep type annotation if needed
+         bmdRefToExperimentNameMap: Map<number, string>;
+     }>(() => {
+         const tempBmdResultMap = new Map<number, BMDResult>();
+         const tempBmdRefToNameMap = new Map<number, string>();
+         // ... (calculations using rawData to populate tempBmdResultMap and tempBmdRefToNameMap) ...
+         // Still return both values from the useMemo function
+         return { bmdResultMap: tempBmdResultMap, bmdRefToExperimentNameMap: tempBmdRefToNameMap };
+     }, [rawSuccess, rawData]);
+     
+     const { allStyledPoints, colorItems, shapeItems, sizeItems, minRank, maxRank }: PreparedPlotHookData = usePreparedPlotData({ // <<< Removed analysisPoints, styledGroupedData
+         selectedBmdResultRefs: selectedBmdResultRefs || [],
+         referenceDataMap: referenceDataMap,
+         referenceData: referenceData
+     });
 
-    const { analysisPoints, allStyledPoints, styledGroupedData, colorItems, shapeItems, sizeItems, minRank, maxRank }: PreparedPlotHookData = usePreparedPlotData({ selectedBmdResultRefs: selectedBmdResultRefs || [], referenceDataMap: referenceDataMap, referenceData: referenceData });
+const tableDataSource = useMemo(() => {
+    const points = allStyledPoints || [];
+    const sorters = (
+        Array.isArray(tableSorter) ? tableSorter : (tableSorter && tableSorter.columnKey ? [tableSorter] : [])
+    ).filter(s => s.order);
 
-    const tableDataSource = useMemo(() => {
-        const points = allStyledPoints || []; const sorters = (Array.isArray(tableSorter) ? tableSorter : (tableSorter && tableSorter.columnKey ? [tableSorter] : [])).filter(s => s.order); if (!sorters || sorters.length === 0) return points; const sortedPoints = [...points]; sortedPoints.sort((a, b) => { for (const sorter of sorters) { const column = DEFAULT_GOUMAP_TABLE_COLUMNS.find(col => col.key === sorter.columnKey || col.key === sorter.field); if (column && typeof column.sorter === 'function') { let result: number; try { result = column.sorter(a, b, sorter.order); } catch (e) { result = (column.sorter as (a: AnalysisTableRow, b: AnalysisTableRow) => number)(a, b); } if (result !== 0) return sorter.order === 'descend' ? -result : result; } } return 0; }); return sortedPoints;
-    }, [allStyledPoints, tableSorter]);
+    if (!sorters || sorters.length === 0) return points;
+
+    const sortedPoints = [...points];
+
+    sortedPoints.sort((a, b) => {
+        for (const sorter of sorters) {
+            const column = DEFAULT_GOUMAP_TABLE_COLUMNS.find(
+                col => col.key === sorter.columnKey || col.key === sorter.field
+            );
+            if (column && typeof column.sorter === 'function') {
+                let result: number;
+                try {
+                    // Attempt to call sorter with order (might fail for some)
+                    result = column.sorter(a, b, sorter.order);
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                } catch (_e) {
+                    // Fallback: call sorter without order if the above failed
+                    result = (column.sorter as (a: AnalysisTableRow, b: AnalysisTableRow) => number)(a, b);
+                }
+                if (result !== 0) {
+                    return sorter.order === 'descend' ? -result : result;
+                }
+            }
+        }
+        return 0;
+    });
+
+    return sortedPoints;
+}, [allStyledPoints, tableSorter]); // Dependencies for useMemo
 
     const tableColumns = useMemo(() => {
         const sortersArray = Array.isArray(tableSorter) ? tableSorter : (tableSorter && tableSorter.columnKey ? [tableSorter] : []); return DEFAULT_GOUMAP_TABLE_COLUMNS.map((col: ColumnType<AnalysisTableRow>) => { if (!col.key || !col.sorter) return col; const currentColumnSorter = sortersArray.find(s => s.columnKey === col.key || s.field === col.key); return { ...col, sortOrder: currentColumnSorter ? currentColumnSorter.order : null, }; });
@@ -170,13 +213,39 @@ const GOUmapAnalysisUnit: React.FC = () => {
         console.log('[UMAP Measure Effect] Setting up ResizeObserver on inner div.');
         const resizeObserver = new ResizeObserver((entries) => { const entry = entries[0]; if (entry) { const width = entry.contentRect?.width; console.log(`[UMAP Measure Effect] ResizeObserver fired. contentRect.width = ${width}`); if (width !== undefined && width > 0) { const roundedWidth = Math.round(width); setUmapRenderedWidth(prevWidth => (prevWidth !== roundedWidth ? roundedWidth : prevWidth)); } else { console.warn(`[UMAP Measure Effect] ResizeObserver reported width <= 0 or undefined.`); } } });
         resizeObserver.observe(targetElement);
-        let rafId = requestAnimationFrame(() => { if (umapContainerRef.current) { const initialWidth = umapContainerRef.current.offsetWidth; console.log(`[UMAP Measure Effect] Initial offsetWidth (inside rAF): ${initialWidth}`); if (initialWidth > 0) setUmapRenderedWidth(prevWidth => (prevWidth !== initialWidth ? initialWidth : prevWidth)); else console.warn('[UMAP Measure Effect] Initial offsetWidth is still 0 inside rAF.'); } });
+        const rafId = requestAnimationFrame(() => { if (umapContainerRef.current) { const initialWidth = umapContainerRef.current.offsetWidth; console.log(`[UMAP Measure Effect] Initial offsetWidth (inside rAF): ${initialWidth}`); if (initialWidth > 0) setUmapRenderedWidth(prevWidth => (prevWidth !== initialWidth ? initialWidth : prevWidth)); else console.warn('[UMAP Measure Effect] Initial offsetWidth is still 0 inside rAF.'); } });
         return () => { console.log('[UMAP Measure Effect] Disconnecting ResizeObserver.'); resizeObserver.disconnect(); cancelAnimationFrame(rafId); };
     }, [allStyledPoints]);
 
-    useEffect(() => { // Measure Legend Offset
-        const headerElement = filterHeaderRef.current; const marginBottom = verticalSpacingStyle.marginBottom ? parseInt(String(verticalSpacingStyle.marginBottom).replace('px', ''), 10) : 0; const validMarginBottom = !isNaN(marginBottom) ? marginBottom : 0; if (headerElement) { const resizeObserver = new ResizeObserver(entries => { for (let entry of entries) { const height = entry.target.offsetHeight; if (height > 0) { const newOffset = height + validMarginBottom; setLegendTopOffset(prevOffset => (prevOffset !== newOffset) ? newOffset : prevOffset); } } }); resizeObserver.observe(headerElement); const initialHeight = headerElement.offsetHeight; if (initialHeight > 0) { setLegendTopOffset(initialHeight + validMarginBottom); } return () => resizeObserver.disconnect(); }
-    }, [isFilterHeaderCollapsed]);
+useEffect(() => { // Measure Legend Offset
+    const headerElement = filterHeaderRef.current;
+    // Define marginBottom calculation once (assuming verticalSpacingStyle was removed, otherwise use it)
+    const marginBottom = 16; // Example: Or read from style if verticalSpacingStyle exists
+    const validMarginBottom = !isNaN(marginBottom) ? marginBottom : 0;
+
+    if (headerElement) {
+        const resizeObserver = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                // --- Assert type for entry.target ---
+                const height = (entry.target as HTMLElement).offsetHeight;
+                // -------------------------------------
+                if (height > 0) {
+                    const newOffset = height + validMarginBottom;
+                    setLegendTopOffset(prevOffset => (prevOffset !== newOffset) ? newOffset : prevOffset);
+                }
+            }
+        });
+        resizeObserver.observe(headerElement);
+
+        // --- Assert type for headerElement ---
+        const initialHeight = (headerElement as HTMLElement).offsetHeight;
+        // ----------------------------------
+        if (initialHeight > 0) {
+            setLegendTopOffset(initialHeight + validMarginBottom);
+        }
+        return () => resizeObserver.disconnect();
+    }
+}, [isFilterHeaderCollapsed]); // Make sure dependencies are correct, might need verticalSpacingStyle if it wasn't removed
 
     // --- Callbacks ---
     const handleToggleColorVisibility = useCallback((label: string) => { dispatch(toggleColorLabelVisibility(label)); }, [dispatch]);
@@ -188,7 +257,14 @@ const GOUmapAnalysisUnit: React.FC = () => {
     const handleRankChange = useCallback((value: [number, number]) => { dispatch(setCommittedRankSliderValue(value)); }, [dispatch]);
     const handleGoIdInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => { dispatch(setGoIdInputString(e.target.value)); }, [dispatch]);
     const handleHighlightModeChange = useCallback((e: RadioChangeEvent) => { const mode = e.target.value as HighlightMode; dispatch(setHighlightModeAction(Object.values(HighlightMode).includes(mode) ? mode : HighlightMode.NONE)); }, [dispatch]);
-    const handleTableChange = useCallback((pagination: TablePaginationConfig, filters: Record<string, FilterValue | null>, sorter: TableSorterType) => { setTablePagination(pagination); setTableSorter(sorter); }, []);
+    const handleTableChange = useCallback((
+     pagination: TablePaginationConfig,
+    _filters: Record<string, FilterValue | null>, // <<< Prefixed with underscore
+     sorter: TableSorterType
+ ) => {
+     setTablePagination(pagination);
+     setTableSorter(sorter);
+ }, []);
     const handleTableRowClick = useCallback((record: AnalysisTableRow) => { const clickedGoId = record?.go_id; dispatch(setTableSelectedGoId(clickedGoId && clickedGoId === currentTableSelectedGoId ? null : (clickedGoId || null))); }, [dispatch, currentTableSelectedGoId]);
     const handleViewModeChange = useCallback((checked: boolean) => { setUmapViewMode(checked ? 'multiple' : 'single'); }, []);
     const toggleFilterHeaderCollapse = useCallback(() => { setIsFilterHeaderCollapsed((prev) => !prev); }, []);

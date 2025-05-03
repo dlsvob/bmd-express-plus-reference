@@ -6,7 +6,6 @@ import type {
     Layout,
     ScatterData,
     Config,
-    Datum, // Import Datum type
 } from 'plotly.js';
 import type * as Plotly from 'plotly.js';
 import type { UmapAnalysisDataPoint } from '../../../models/applicationModel';
@@ -78,7 +77,7 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
                     (p) => `<b>${p.go_term}</b><br>GO ID: ${p.go_id}<br>Cluster: ${p.cluster_id}`
                 ),
                 // Use Datum[] for customdata if needed, ensure it's an array of arrays or objects
-                customdata: referenceData.map((p) => [p.go_id]) as Datum[],
+                customdata: referenceData.map((p) => [p.go_id]),
                 showlegend: false,
             };
             traces.push(referenceTrace);
@@ -111,7 +110,7 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
                         })<br>Cluster: ${p.cluster_id}`
                 ),
                 // Use Datum[] for customdata if needed
-                customdata: data.map((p) => [p.go_id, p.bmdResultRef]) as Datum[],
+                customdata: data.map((p) => [p.go_id, p.bmdResultRef]),
                 showlegend: false,
             };
             traces.push(overlayTrace);
@@ -151,32 +150,18 @@ const UmapPlotComponent: React.FC<UmapPlotComponentProps> = ({
     );
 
     // --- Memoized Plotly Config ---
-    const plotConfig: Partial<Config> = useMemo(() => ({
-        responsive: true, // Allow resizing
-        displaylogo: false, // Hide Plotly logo
-        modeBarButtonsToRemove: [ // Remove unnecessary buttons
-            'zoom2d', 'pan2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d',
-            'autoScale2d', 'resetScale2d', 'hoverClosestCartesian',
-            'hoverCompareCartesian', 'toggleSpikelines',
-        ],
-        modeBarButtonsToAdd: [ // Add useful interactions
-            {
-                name: 'Reset View',
-                icon: Plotly.Icons.home,
-                click: (gd) => Plotly.relayout(gd, { 'xaxis.autorange': true, 'yaxis.autorange': true }),
-            },
-            {
-                name: 'Lasso Select',
-                icon: Plotly.Icons.lasso,
-                click: (gd) => Plotly.relayout(gd, { dragmode: 'lasso' }),
-            },
-            {
-                name: 'Box Select',
-                icon: Plotly.Icons.select,
-                click: (gd) => Plotly.relayout(gd, { dragmode: 'select' }),
-            },
-        ],
-    }), []);
+
+
+const plotConfig: Partial<Config> = useMemo(() => ({ // Use Config type directly
+    responsive: true, // Allow resizing
+    displaylogo: false, // Hide Plotly logo
+    modeBarButtonsToRemove: [ // Remove unnecessary buttons
+        'zoom2d', 'pan2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d',
+        'autoScale2d', 'resetScale2d', 'hoverClosestCartesian',
+        'hoverCompareCartesian', 'toggleSpikelines',
+    ],
+    // modeBarButtonsToAdd: [ ... ], // <<< The entire modeBarButtonsToAdd array is deleted
+}), []); // No dependencies needed anymore for this part
 
     // --- Render Logic ---
     if (renderError) {

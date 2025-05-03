@@ -1,0 +1,62 @@
+
+> bmdx_plus@0.0.1 build:electron
+> npx tsc --build
+
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(118,61): error TS2367: This comparison appears to be unintentional because the types 'HighlightMode' and '"NONE"' have no overlap.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(121,419): error TS2322: Type '"name+x+y"' is not assignable to type '"none" | "x" | "name" | "y" | "z" | "text" | "all" | "skip" | "x+text" | "x+name" | "x+y" | "x+y+text" | "x+y+name" | "x+y+z" | "x+y+z+text" | "x+y+z+name" | "y+name" | "y+x" | "y+text" | ... 17 more ... | undefined'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(121,1114): error TS2322: Type 'number | null | undefined' is not assignable to type 'number | null'.
+  Type 'undefined' is not assignable to type 'number | null'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(123,1250): error TS2322: Type 'number | null | undefined' is not assignable to type 'number | null'.
+  Type 'undefined' is not assignable to type 'number | null'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(187,15): error TS2322: Type '{ responsive: true; displaylogo: false; modeBarButtonsToRemove: ("select2d" | "zoom2d" | "pan2d" | "zoomIn2d" | "zoomOut2d" | "autoScale2d" | "resetScale2d" | "hoverClosestCartesian" | "hoverCompareCartesian" | "toggleSpikelines")[]; modeBarButtonsToAdd: ({ ...; } | { ...; })[]; }' is not assignable to type 'Partial<Config>'.
+  Types of property 'modeBarButtonsToAdd' are incompatible.
+    Type '({ name: string; icon: Icon; click: (gd: PlotlyHTMLElement) => void; } | { name: string; icon: any; click: (gd: PlotlyHTMLElement) => Promise<PlotlyHTMLElement>; })[]' is not assignable to type 'ModeBarButtonAny[]'.
+      Type '{ name: string; icon: Icon; click: (gd: PlotlyHTMLElement) => void; } | { name: string; icon: any; click: (gd: PlotlyHTMLElement) => Promise<PlotlyHTMLElement>; }' is not assignable to type 'ModeBarButtonAny'.
+        Type '{ name: string; icon: Icon; click: (gd: PlotlyHTMLElement) => void; }' is not assignable to type 'ModeBarButtonAny'.
+          Property 'title' is missing in type '{ name: string; icon: Icon; click: (gd: PlotlyHTMLElement) => void; }' but required in type 'ModeBarButton'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(187,333): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(187,369): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(187,523): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(187,558): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(187,632): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(187,645): error TS2339: Property 'select' does not exist on type '{ undo: Icon; home: Icon; "camera-retro": Icon; zoombox: Icon; pan: Icon; zoom_plus: Icon; zoom_minus: Icon; autoscale: Icon; tooltip_basic: Icon; ... 18 more ...; newplotlylogo: Icon; }'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(187,668): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(187,736): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(187,769): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(187,835): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(187,848): error TS2339: Property 'zoom' does not exist on type '{ undo: Icon; home: Icon; "camera-retro": Icon; zoombox: Icon; pan: Icon; zoom_plus: Icon; zoom_minus: Icon; autoscale: Icon; tooltip_basic: Icon; ... 18 more ...; newplotlylogo: Icon; }'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(187,869): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(191,105): error TS2322: Type 'string | number | null' is not assignable to type 'Height<string | number> | undefined'.
+  Type 'null' is not assignable to type 'Height<string | number> | undefined'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(191,113): error TS2322: Type 'string | number | null' is not assignable to type 'Width<string | number> | undefined'.
+  Type 'null' is not assignable to type 'Width<string | number> | undefined'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(192,101): error TS2322: Type 'string | number | null' is not assignable to type 'Height<string | number> | undefined'.
+  Type 'null' is not assignable to type 'Height<string | number> | undefined'.
+src/components/analysis/GOUmapAnalysisUnit/AccumulationPlot.tsx(192,109): error TS2322: Type 'string | number | null' is not assignable to type 'Width<string | number> | undefined'.
+  Type 'null' is not assignable to type 'Width<string | number> | undefined'.
+src/components/analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit.tsx(137,13): error TS6133: 'bmdResultMap' is declared but its value is never read.
+src/components/analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit.tsx(141,13): error TS6133: 'analysisPoints' is declared but its value is never read.
+src/components/analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit.tsx(141,46): error TS6133: 'styledGroupedData' is declared but its value is never read.
+src/components/analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit.tsx(178,392): error TS2339: Property 'offsetHeight' does not exist on type 'Element'.
+src/components/analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit.tsx(191,79): error TS6133: 'filters' is declared but its value is never read.
+src/components/analysis/GOUmapAnalysisUnit/UmapPlotComponent.tsx(81,29): error TS2352: Conversion of type 'string[][]' to type 'Datum[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'string[]' is not comparable to type 'Datum'.
+    Type 'string[]' is missing the following properties from type 'Date': toDateString, toTimeString, toLocaleDateString, toLocaleTimeString, and 37 more.
+src/components/analysis/GOUmapAnalysisUnit/UmapPlotComponent.tsx(114,29): error TS2352: Conversion of type '(string | number)[][]' to type 'Datum[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '(string | number)[]' is not comparable to type 'Datum'.
+    Type '(string | number)[]' is missing the following properties from type 'Date': toDateString, toTimeString, toLocaleDateString, toLocaleTimeString, and 37 more.
+src/components/analysis/GOUmapAnalysisUnit/UmapPlotComponent.tsx(154,11): error TS2322: Type '{ responsive: true; displaylogo: false; modeBarButtonsToRemove: ("lasso2d" | "select2d" | "zoom2d" | "pan2d" | "zoomIn2d" | "zoomOut2d" | "autoScale2d" | "resetScale2d" | "hoverClosestCartesian" | "hoverCompareCartesian" | "toggleSpikelines")[]; modeBarButtonsToAdd: { ...; }[]; }' is not assignable to type 'Partial<Config>'.
+  Types of property 'modeBarButtonsToAdd' are incompatible.
+    Type '{ name: string; icon: any; click: (gd: PlotlyHTMLElement) => Promise<PlotlyHTMLElement>; }[]' is not assignable to type 'ModeBarButtonAny[]'.
+      Type '{ name: string; icon: any; click: (gd: PlotlyHTMLElement) => Promise<PlotlyHTMLElement>; }' is not assignable to type 'ModeBarButtonAny'.
+        Property 'title' is missing in type '{ name: string; icon: any; click: (gd: PlotlyHTMLElement) => Promise<PlotlyHTMLElement>; }' but required in type 'ModeBarButton'.
+src/components/analysis/GOUmapAnalysisUnit/UmapPlotComponent.tsx(165,23): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/components/analysis/GOUmapAnalysisUnit/UmapPlotComponent.tsx(166,32): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/components/analysis/GOUmapAnalysisUnit/UmapPlotComponent.tsx(170,23): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/components/analysis/GOUmapAnalysisUnit/UmapPlotComponent.tsx(171,32): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/components/analysis/GOUmapAnalysisUnit/UmapPlotComponent.tsx(175,23): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/components/analysis/GOUmapAnalysisUnit/UmapPlotComponent.tsx(175,36): error TS2339: Property 'select' does not exist on type '{ undo: Icon; home: Icon; "camera-retro": Icon; zoombox: Icon; pan: Icon; zoom_plus: Icon; zoom_minus: Icon; autoscale: Icon; tooltip_basic: Icon; ... 18 more ...; newplotlylogo: Icon; }'.
+src/components/analysis/GOUmapAnalysisUnit/UmapPlotComponent.tsx(176,32): error TS1361: 'Plotly' cannot be used as a value because it was imported using 'import type'.
+src/hooks/useClusteringVisualizationData.ts(4,10): error TS2305: Module '"../utils/clusteringUtils"' has no exported member 'RankedCategoryRow'.
+src/utils/styleUtils.ts(112,24): error TS6133: 'index' is declared but its value is never read.
+error TS18003: No inputs were found in config file '/Users/svobodadl/Dev/Projects/bmdx_plus_componentized_042225/tsconfig.node.json'. Specified 'include' paths were '["vite.config.ts"]' and 'exclude' paths were '[]'.

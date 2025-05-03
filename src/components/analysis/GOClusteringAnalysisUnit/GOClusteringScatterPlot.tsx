@@ -24,7 +24,6 @@ import {
     CLUSTERING_PLOT_MARKER_LINE_WIDTH,
     CLUSTERING_PLOT_HOVER_BG_COLOR,
     CLUSTERING_PLOT_HIGHLIGHT_HOVER_BORDER_COLOR,
-    CLUSTERING_PLOT_TITLE,
     CLUSTERING_PLOT_X_AXIS_TITLE,
     CLUSTERING_PLOT_Y_AXIS_TITLE
 } from '../../../config/analysisConstants'; // Adjust path if needed
@@ -35,7 +34,7 @@ export interface ClusteringScatterPoint {
     goTerm: string;
     pyodideCluster: string | number;
     referenceClusterId: string | number | null;
-    rank: number; // Global category rank
+    rank: number | null; // Global category rank
     bmdValue: number;
     jitteredRank: number | null; // Y-axis value (based on cluster rank + jitter)
     color: string;
@@ -53,7 +52,7 @@ type ScatterCustomDataItem = [
     string | number, // pyodideCluster (index 2)
     string | number | null, // referenceClusterId (index 3)
     number, // bmd (index 4)
-    number  // rank (index 5) - Global category rank
+    number | null // rank (index 5) - Global category rank
 ];
 
 const GOClusteringScatterPlot: React.FC<GOClusteringScatterPlotProps> = ({
