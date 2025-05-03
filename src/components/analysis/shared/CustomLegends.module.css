@@ -1,26 +1,58 @@
 /* src/components/analysis/shared/CustomLegends.module.css */
 
+/* Styles for when rendered as an AntD Card (with title) */
 .legendCard {
     height: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    border: 1px solid #f0f0f0;
+    /* <<< REMOVED default Card border >>> */
+    border: none !important;
+    /* <<< Use background for visual separation if needed >>> */
+    background-color: #ffffff;
+    /* Optional: remove default shadow if card has one */
+    box-shadow: none !important;
 }
 
+/* Styles for the Card Header (keep padding/min-height reduction) */
+/* These might not have much effect now if border is none, but harmless */
 .legendCard :global(.ant-card-head) {
     padding: 6px 10px;
     min-height: auto;
     font-weight: bold;
-    border-bottom: 1px solid #f0f0f0;
+    /* Remove bottom border WITHIN the card header if it exists */
+    border-bottom: none !important;
 }
 
+/* Styles for the Card Body (keep padding reduction) */
 .legendCard :global(.ant-card-body) {
     padding: 8px 10px;
+    /* Default padding when Card is used */
     flex-grow: 1;
     overflow-y: auto;
+    /* Allow scroll ONLY if Card is used and content overflows */
     min-height: 0;
 }
+
+/* Styles for Simple Container (no title) */
+.legendContainerSimple {
+    height: 100%;
+    /* Try to fill container */
+    /* <<< REMOVED border definition >>> */
+    /* border: 1px solid #f0f0f0; */
+    border-radius: 8px;
+    /* Keep radius if desired, or remove */
+    padding: 8px 10px;
+    /* Provide padding similar to Card body */
+    background-color: #ffffff;
+    /* Ensure background */
+    overflow: hidden;
+    /* Prevent content spilling out */
+    box-sizing: border-box;
+}
+
+
+/* --- Styles applicable to both Card and Simple Container --- */
 
 .legendSection {
     margin-bottom: 10px;
@@ -35,6 +67,7 @@
     align-items: center;
     margin-bottom: 1px;
     padding: 2px 4px;
+    /* Default padding for items */
     transition: opacity 0.2s ease-in-out, background-color 0.1s ease-in-out;
     width: 100%;
     border-radius: 3px;
@@ -49,6 +82,7 @@
 
 .legendItem:not(.hidden):hover {
     background-color: #f0f2f5;
+    /* Light background on hover */
 }
 
 .legendItem.hidden .label {
@@ -58,63 +92,76 @@
 
 .visualCue {
     margin-right: 6px;
+    /* Space between visual cue and label */
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     min-width: 16px;
+    /* Ensure consistent alignment */
 }
 
 .colorSwatch {
     width: 12px;
     height: 12px;
     border: 1px solid #ccc;
+    /* Faint border around swatch */
     display: inline-block;
     vertical-align: middle;
     flex-shrink: 0;
 }
 
-/* font-size removed */
 .shapeText {
     color: #555;
+    /* Color for shape symbols */
     min-width: 20px;
     text-align: center;
     flex-shrink: 0;
     line-height: 1;
+    /* Prevent extra vertical space */
+    /* font-size controlled by inline style in component */
 }
 
 .sizeCircle {
     background-color: #888;
+    /* Color for size circles */
     border-radius: 50%;
     display: inline-block;
     vertical-align: middle;
     border: 1px solid #555;
+    /* Border for size circle */
     flex-shrink: 0;
 }
 
-/* font-size removed */
 .label {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    /* Show ... for long labels */
     flex-grow: 1;
+    /* Allow label to take remaining space */
     min-width: 0;
+    /* Prevent long labels pushing things out */
     line-height: 1.2;
     padding-left: 2px;
+    /* Small space before label text */
     color: inherit;
+    /* Inherit text color */
     text-decoration: none;
     transition: color 0.2s ease-in-out, text-decoration 0.2s ease-in-out;
+    /* font-size controlled by inline style in component */
 }
 
-/* font-size controlled by inline style now */
 .noItems {
     font-style: italic;
     color: #888;
     padding: 10px;
     text-align: center;
+    /* font-size controlled by inline style in component */
 }
 
 /* Highlighting style */
 .legendItem.highlighted {
     background-color: #e6f7ff;
+    /* Light blue highlight */
 }

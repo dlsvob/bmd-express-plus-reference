@@ -25,3 +25,7 @@ Modify the JSX Structure:
 
 Wrap the <Tabs> component and the conditional filter header block ({activeClusteringRef && (...) }) inside a new div.
 Give this new wrapper div a specific class name, for example, className={styles.stickyHeaderGroup}.
+
+
+
+what i need is zero space between the left side of the custom legend contents and the left of its container

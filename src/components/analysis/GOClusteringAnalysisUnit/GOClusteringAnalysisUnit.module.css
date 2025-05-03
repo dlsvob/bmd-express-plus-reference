@@ -4,34 +4,22 @@
 .stickyHeaderGroup {
     position: sticky;
     top: 0;
-    /* Adjust this if you have a main app header above */
     z-index: 30;
-    /* Higher z-index than individual filter header */
     background-color: #ffffff;
-    /* Give it a solid background to prevent content showing through */
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    /* Optional: Add a subtle shadow */
-    /* Add padding or margin-bottom if needed to space from content below */
-    /* margin-bottom: 16px; */
 }
 
 
 /* --- Styles for the Filter Header (Sticky/Collapsible) --- */
 .filterHeader {
-    /* REMOVED: position: sticky; */
-    /* REMOVED: top: 0; */
     z-index: 20;
-    /* Lower z-index now, as parent handles overall stickiness */
     background-color: #f0f2f5;
-    /* Light grey background */
     border-bottom: 1px solid transparent;
     transition: border-color 0.3s ease-in-out;
-    /* Margin applied via inline style in component */
 }
 
 .filterHeader.expanded {
     border-bottom-color: #d9d9d9;
-    /* Add border when expanded */
 }
 
 .filterHeaderToolbar {
@@ -42,24 +30,19 @@
     border-bottom: 1px solid #d9d9d9;
     position: relative;
     z-index: 21;
-    /* Above controls div */
     background-color: inherit;
     cursor: pointer;
 }
 
 .filterHeaderControls {
-    /* Default (Expanded) State */
     max-height: 600px;
-    /* Adjust as needed */
     opacity: 1;
     overflow: hidden;
     transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
     padding: 16px;
-    /* Padding for content inside */
     background-color: inherit;
 }
 
-/* Collapsed State */
 .filterHeader.collapsed .filterHeaderControls {
     max-height: 0;
     opacity: 0;
@@ -70,63 +53,78 @@
     pointer-events: none;
 }
 
- /*========================================*/
- /* <<< ADDED: Two-Column Legend Card Tweaks >>> */
- /* ======================================== */
 
- /* Target the Card Header within our legend wrapper */
- .twoColLegendWrapper :global(.ant-card-head) {
-     min-height: auto;
-     /* Remove default min-height */
-     padding: 4px 8px;
-     /* Reduce padding */
-     border-bottom: none;
-     /* Remove border if title is absent */
- }
+/* ======================================== */
+/* <<< Two-Column Legend Card Tweaks >>> */
+/* ======================================== */
 
- /* Hide header completely if it's empty (more robust) */
- .twoColLegendWrapper :global(.ant-card-head-wrapper:empty) {
-     display: none;
- }
+/* Target the Card Header within our legend wrapper */
+.twoColLegendWrapper :global(.ant-card-head) {
+    min-height: auto;
+    padding: 0px 8px;
+    /* Reduce padding, maybe zero vertical */
+    border-bottom: none;
+}
 
- .twoColLegendWrapper :global(.ant-card-head:has(> .ant-card-head-wrapper:empty)) {
-     display: none;
- }
+/* Hide header if it's actually empty */
+.twoColLegendWrapper :global(.ant-card-head-wrapper:empty) {
+    display: none;
+}
+
+.twoColLegendWrapper :global(.ant-card-head:has(> .ant-card-head-wrapper:empty)) {
+    display: none;
+}
 
 
- /* Target the Card Body within our legend wrapper */
- .twoColLegendWrapper :global(.ant-card-body) {
-     padding: 6px 8px;
-     /* Slightly reduce body padding */
-     /* Optional: Add overflow handling if needed, but maybe not necessary now */
-     /* overflow-y: auto; */
-     /* max-height: 450px; /* Adjust if you want internal scroll */
- }
+/* Target the Card Body within our legend wrapper */
+.twoColLegendWrapper :global(.ant-card-body) {
+    /* <<< Force zero left/right padding >>> */
+    padding-left: 0px !important;
+    padding-right: 4px !important;
+    /* Keep a little right padding */
+    /* Keep vertical padding */
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
 
- /* Ensure legend items display correctly */
- .twoColLegendWrapper :global(.$ {
-         styles.legendItem
+/* Target individual legend items */
+/* Use :global(.${styles.legendItem}) if legendItem class is local to CustomLegends.module.css */
+.twoColLegendWrapper :global(.legendItem),
+/* If legendItem is global */
+.twoColLegendWrapper :global(.$ {
+        styles.legendItem
+    })
 
-     }) {
-     /* Using the class from CustomLegends.module.css */
-     margin-bottom: 1px;
- }
+/* If legendItem is local */
+    {
+    /* <<< Force zero left padding on the item itself >>> */
+    padding-left: 0px !important;
+    /* Adjust right padding if needed, maybe less than default 4px */
+    padding-right: 4px !important;
+    /* Keep vertical padding and margin */
+    padding-top: 1px;
+    padding-bottom: 1px;
+    margin-bottom: 1px;
+}
 
- /* ======================================== */
- /* <<< END: Two-Column Legend Card Tweaks >>> */
- /* ======================================== */
+/* <<< Optional: Target the visual cue if needed >>> */
+/* This controls space AFTER the swatch, probably okay */
+/* .twoColLegendWrapper :global(.visualCue) {
+  margin-right: 4px; // Reduce space after swatch
+} */
+
+/* ======================================== */
+/* <<< END: Two-Column Legend Card Tweaks >>> */
+/* ======================================== */
+
 
 /* Other styles */
 .clusteringRoot {
-    /* Styles for the root container if needed */
+    /* ... */
 }
 
-/* Style for cards below the header */
 .innerSectionCard {
     margin-bottom: 16px;
-    /* Space between inner cards, use AntD Space instead? */
-    /* Use AntD bordered prop for consistency */
-    /* border-color: #adc6ff; */
 }
 
 .innerSectionCard:last-child {

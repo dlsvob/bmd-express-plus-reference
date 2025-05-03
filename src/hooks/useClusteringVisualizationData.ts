@@ -112,9 +112,53 @@ export function useClusteringVisualizationData({
     }, [categoryTableData, summaryTableData, referenceDataMap, clusterColorMap, jitterMap]); // Added summaryTableData dependency back
 
     // legendColorItems useMemo (as before)
-    const legendColorItems = useMemo((): [string, string][] => { /* ... */
-        const legendLogPrefix = `${hookLogPrefix} [LegendItems]`; if (!clusterColorMap || clusterColorMap.size === 0) { console.log(`${legendLogPrefix} No clusterColorMap available.`); return []; } console.log(`${legendLogPrefix} Generating legend items from color map...`); const items: [string, string][] = []; const sortedClusterIds = Array.from(clusterColorMap.keys()).filter((id) => String(id) !== '-1').sort((a, b) => { const numA = Number(a); const numB = Number(b); if (!isNaN(numA) && !isNaN(numB)) return numA - numB; return String(a).localeCompare(String(b)); }); sortedClusterIds.forEach((clusterId) => { const color = clusterColorMap.get(clusterId); if (color) { items.push([String(clusterId), color]); } }); if (clusterColorMap.has('-1')) { items.push(['-1', UNCLUSTERED_COLOR]); } console.log(`${legendLogPrefix} Generated ${items.length} legend items.`); return items;
-    }, [clusterColorMap]);
+    const legendColorItems = useMemo((): [string, string][] => {
+        const legendLogPrefix = `${hookLogPrefix} [LegendItems]`;
+
+        // Guard clause: Exit early if no color map exists or it's empty.
+        if (!clusterColorMap || clusterColorMap.size === 0) {
+            console.log(`${legendLogPrefix} No clusterColorMap available.`);
+            return []; // Return empty array
+        }
+
+        console.log(`${legendLogPrefix} Generating legend items from color map...`);
+        const items: [string, string][] = [];
+
+        // Get cluster IDs, filter out '-1', and sort them.
+        const sortedClusterIds = Array.from(clusterColorMap.keys())
+            .filter((id) => String(id) !== '-1') // Exclude '-1' for now
+            .sort((a, b) => {
+                const numA = Number(a); // Attempt numeric conversion
+                const numB = Number(b);
+                // If both are valid numbers, sort numerically
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    return numA - numB;
+                }
+                // Otherwise, fall back to string locale comparison
+                return String(a).localeCompare(String(b));
+            });
+
+        // Add items for sorted numeric/string cluster IDs
+        sortedClusterIds.forEach((clusterId) => {
+            const color = clusterColorMap.get(clusterId);
+            if (color) {
+                // Use the raw clusterId as the label for now
+                // Change this to `Cluster ${clusterId}` if needed later
+                items.push([String(clusterId), color]);
+            }
+        });
+
+        // Specifically handle the '-1' cluster if it exists
+        if (clusterColorMap.has('-1')) {
+            // Use '-1' as the label for now
+            // Change this to 'Unclustered' if needed later
+            items.push(['-1', UNCLUSTERED_COLOR]);
+        }
+
+        console.log(`${legendLogPrefix} Generated ${items.length} legend items.`);
+        return items; // Return the final array of [label, color] tuples
+
+    }, [clusterColorMap]); // Dependency array for useMemo
 
     return {
         clusterColorMap,
