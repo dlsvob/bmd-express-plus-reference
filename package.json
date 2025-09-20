@@ -6,18 +6,12 @@
   "main": "dist-electron/main.cjs",
   "scripts": {
     "dev": "vite",
-
     "build:electron": "node scripts/build-electron.cjs",
-
     "dev:vite-server": "cross-env VITE_DEV_SERVER_URL=http://localhost:5173 vite",
-
     "dev:electron-start": "npm run build:electron && wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 ELECTRON_ENABLE_LOGGING=1 electron .",
-
     "dev:electron": "concurrently \"npm:dev:vite-server\" \"npm:dev:electron-start\"",
-
     "build:vite": "vite build --config vite.config.ts",
     "build": "npm run build:electron && npm run build:vite",
-
     "build:singlefile": "cross-env BUILD_TARGET=singlefile vite build --config vite.config.ts",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -80,12 +74,14 @@
     "@bokeh/bokehjs": "3.7.1",
     "@reduxjs/toolkit": "^2.6.1",
     "antd": "5.24.5",
+    "bmd-express-data-service": "*",
     "buffer": "6.0.3",
     "cytoscape": "3.31.2",
     "dexie": "^4.0.11",
     "electron-squirrel-startup": "^1.0.1",
     "events": "3.3.0",
     "idb": "8.0.2",
+    "java-object-serialization": "0.1.2",
     "lodash.debounce": "4.0.8",
     "oboe": "^2.1.7",
     "plotly.js": "3.0.1",
@@ -95,6 +91,7 @@
     "react-plotly.js": "2.6.0",
     "react-redux": "^9.2.0",
     "react-router-dom": "^6.23.1",
+    "shared-types": "*",
     "stream-browserify": "3.0.0",
     "zustand": "^5.0.3"
   },
@@ -134,6 +131,7 @@
     "eslint-plugin-react-refresh": "0.4.19",
     "globals": "^15.15.0",
     "shx": "0.4.0",
+    "tsx": "4.19.4",
     "typescript": "^5.4.5",
     "typescript-eslint": "^8.24.1",
     "vite": "6.3.2",

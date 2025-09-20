@@ -1,0 +1,12 @@
+{
+    "https://rstudio.niehs.nih.gov": {
+        "server_url": "https://rstudio.niehs.nih.gov",
+        "filename": "/Users/svobodadl/Dev/Projects/bmdx_plus_componentized_042225/bmd-express-plus",
+        "app_url": "https://rstudio.niehs.nih.gov/content/515435e0-7a29-4f46-8d0b-e4e86a143b33/",
+        "app_id": "515435e0-7a29-4f46-8d0b-e4e86a143b33",
+        "app_guid": "515435e0-7a29-4f46-8d0b-e4e86a143b33",
+        "title": "bmd-express-plus",
+        "app_mode": "python-api",
+        "app_store_version": 1
+    }
+}

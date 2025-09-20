@@ -24,6 +24,9 @@ export interface ProjectState {
     errorAvailable: string | null;
     selectedProjectName: string | null;
     activeProjectId?: string | null;
+    isDuckDbInitializing: boolean;
+    isDuckDbReady: boolean;
+    duckDbInitializationError: string | null;
 }
 
 export interface NavigationState {

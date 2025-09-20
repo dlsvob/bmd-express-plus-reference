@@ -1,5 +1,5 @@
 // src/components/layout/AppLayoutController.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Layout, Drawer, Menu, Spin, Alert, Typography, Button, Space } from 'antd'; // Added Space
 import {
     ExperimentOutlined,
@@ -10,8 +10,7 @@ import {
 import type { MenuProps } from 'antd';
 import type { MenuInfo } from 'rc-menu/lib/interface';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { useGetProjectsQuery } from '../../store/apis/projectsApi';
-import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
+import { fetchAvailableProjects, setActiveProject, initializeDuckDbProject, selectAvailableProjects, selectIsLoadingAvailableProjects, selectAvailableProjectsError, selectSelectedProjectName } from '../../store/slices/projectSlice';
 import {
     selectCurrentView,
     setActiveView,
@@ -194,22 +193,11 @@ const AppLayoutController: React.FC = () => {
     // Hooks for state and data
     const { isLoading: pyodideLoading, error: pyodideError } = usePyodide();
     const selectedProjectName = useAppSelector(selectSelectedProjectName);
+    const availableProjects = useAppSelector(selectAvailableProjects);
+    const isLoadingAvailableProjects = useAppSelector(selectIsLoadingAvailableProjects);
+    const availableProjectsError = useAppSelector(selectAvailableProjectsError);
     const currentViewKey = useAppSelector(selectCurrentView);
     const isProjectSelected = !!selectedProjectName;
-    const {
-        data: projectsData,
-        isLoading: isLoadingProjects,
-        error: projectsError,
-    } = useGetProjectsQuery();
-
-    // Format potential error object for display
-    const formattedProjectsError = projectsError
-        ? typeof projectsError === 'object' &&
-            projectsError !== null &&
-            'message' in projectsError
-            ? String(projectsError.message)
-            : String(projectsError)
-        : null;
 
     // Drawer callbacks
     const showDrawer = useCallback(() => { setIsDrawerOpen(true); }, []);
@@ -224,6 +212,13 @@ const AppLayoutController: React.FC = () => {
         },
         [dispatch, closeDrawer] // Dependencies for useCallback
     );
+
+    // Fetch available projects on mount
+    useEffect(() => {
+        console.log('[AppLayoutController] Fetching available projects on mount...');
+        dispatch(fetchAvailableProjects());
+    }, [dispatch]);
+
 
     // Loading indicator text
     const pyodideSpinTip = pyodideLoading ? (
@@ -264,9 +259,9 @@ const AppLayoutController: React.FC = () => {
                 }}
             >
                 <AppHeader
-                    projectList={projectsData}
-                    isLoading={isLoadingProjects}
-                    error={formattedProjectsError}
+                    projectList={availableProjects}
+                    isLoading={isLoadingAvailableProjects}
+                    error={availableProjectsError}
                     disabled={!!pyodideError} // Disable header controls if Pyodide fails
                     projectSelected={isProjectSelected}
                     onMenuClick={showDrawer} // Pass handler to open drawer

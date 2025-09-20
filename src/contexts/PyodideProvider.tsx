@@ -21,7 +21,12 @@ export const PyodideProvider = ({ children }: { children: ReactNode }) => {
     const [error, setError] = useState<Error | null>(null);
 
     useEffect(() => {
-        console.log('[PyodideProvider.tsx] useEffect running...');
+        console.log('[PyodideProvider.tsx] useEffect running - DISABLED FOR TESTING...');
+        // Temporarily disable Pyodide to test DuckDB worker
+        setIsLoading(false);
+        setError(null);
+        return;
+
         const init = async () => {
             console.log('[PyodideProvider.tsx] init() function called...');
             if (pyodideInstance || error) return;

@@ -7,17 +7,17 @@ export interface Project {
 
 const projectsBaseQuery: BaseQueryFn<void, Project[], string> = async () => {
     try {
-        let dbList: { name?: string; version?: number }[] = [];
-        if (indexedDB.databases) {
-            dbList = await indexedDB.databases();
-        } else {
-            return { error: 'Browser does not support indexedDB.databases()' };
-        }
-        const projects: Project[] = dbList
-            .filter((db) => !!db.name && !db.name.startsWith('_'))
-            .map((db) => ({
-                name: db.name!,
-            }));
+        // Return hard-coded DuckDB project instead of scanning IndexedDB
+        console.log('[projectsApi] Returning hard-coded DuckDB project');
+        const projects: Project[] = [
+            {
+                name: 'Test BMD Analysis (DuckDB)',
+            }
+        ];
+
+        // Add a small delay to simulate loading
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         return { data: projects };
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);

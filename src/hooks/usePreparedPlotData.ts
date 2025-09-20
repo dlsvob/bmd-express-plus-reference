@@ -1,7 +1,7 @@
 // src/hooks/usePreparedPlotData.ts
 import { useMemo } from 'react';
 import { useAppSelector } from '../store/hooks';
-import { useGetRawAnalysisDataQuery } from '../store/apis/experimentsApi';
+import { useCategoryAnalysisDataService } from './useCategoryAnalysisDataService';
 import { UmapAnalysisDataPoint, BaseCategoryAnalysisDataPoint, PreparedPlotHookData } from '../models/applicationModel';
 import { selectColorBy, selectShapeBy, selectSizeBy, selectHiddenColorLabelsSet, selectHiddenShapeLabelsSet, selectHiddenSizeLabelsSet, selectGoIdFilterList, selectHighlightMode, selectAccumulationPlotSelectedGoIdsSet, selectCommittedSlidingWindowValue } from '../store/slices/analysisUISlice';
 import {
@@ -15,7 +15,7 @@ import { SHAPE_PALETTE, DEFAULT_PLOT_COLORS } from '../config/analysisConstants'
 import { DEFAULT_SHAPE_LABEL, DEFAULT_SIZE_LABEL, DEFAULT_MARKER_COLOR, DEFAULT_MARKER_SHAPE, DEFAULT_MARKER_SIZE } from '../utils/legendUtils';
 // --------------------------------------------
 import { prepareGroupedOverlayData } from '../utils/analysisUtils';
-import { selectSelectedProjectName } from '../store/selectors/projectSelectors';
+import { selectSelectedProjectName } from '../store/slices/projectSlice';
 
 export interface UsePreparedPlotDataArgs {
   selectedBmdResultRefs: string[];
@@ -101,10 +101,7 @@ export const usePreparedPlotData = ({
     isLoading: isLoadingRaw,
     error: rawError,
     isSuccess: rawSuccess,
-  } = useGetRawAnalysisDataQuery(
-    { projectName, selectedBmdResultRefs },
-    { skip: !projectName || !selectedBmdResultRefs || selectedBmdResultRefs.length === 0 }
-  );
+  } = useCategoryAnalysisDataService(projectName, selectedBmdResultRefs);
 
   const canProcess = useMemo(() => {
     return !isLoadingRaw && !rawError && rawSuccess && !!rawData && !!referenceDataMap && selectedBmdResultRefs && selectedBmdResultRefs.length > 0;

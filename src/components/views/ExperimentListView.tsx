@@ -1,7 +1,7 @@
 import React, { useMemo, useCallback } from 'react';
 // Removed Button, BarChartOutlined
 import { Checkbox, Spin, Alert, Empty, Tooltip } from 'antd';
-import { useGetSelectableAnalysesQuery } from '../../store/apis/experimentsApi';
+import { useAvailableAnalysesService } from '../../hooks/useAvailableAnalysesService';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import {
     setSelectedAnalysisRefs,
@@ -27,7 +27,7 @@ const ExperimentListView: React.FC<ExperimentListViewProps> = ({
         isLoading: isLoadingList,
         error: listError,
         isSuccess,
-    } = useGetSelectableAnalysesQuery({ projectName }, { skip: !projectName });
+    } = useAvailableAnalysesService(projectName);
 
     // Keep selector for checkbox values
     const selectedValues = useAppSelector(selectSelectedAnalysisRefs);

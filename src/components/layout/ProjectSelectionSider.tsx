@@ -4,7 +4,7 @@ import { Layout, Select, Button, Space, Typography, Tooltip, Spin } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setActiveProject } from '../../store/slices/projectSlice';
-import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
+import { selectSelectedProjectName } from '../../store/slices/projectSlice';
 
 const { Sider } = Layout;
 const { Option } = Select;

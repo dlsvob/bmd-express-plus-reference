@@ -4,7 +4,7 @@ import { Card, Spin, Alert, Empty, Row, Col, Tabs, message, Space, Typography, B
 import { UpOutlined, DownOutlined } from '@ant-design/icons';
 import debounce from 'lodash.debounce';
 import { useAppSelector, useAppDispatch } from '../../../store/hooks';
-import { selectSelectedProjectName } from '../../../store/selectors/projectSelectors';
+import { selectSelectedProjectName } from '../../../store/slices/projectSlice';
 import { selectSelectedAnalysisRefs } from '../../../store/slices/selectedAnalysisSlice';
 import {
   selectActiveClusteringRef, setActiveClusteringRef,
@@ -14,7 +14,7 @@ import {
   setGoIdInputString, setHighlightMode as setHighlightModeAction
 } from '../../../store/slices/analysisUISlice';
 import { selectReferenceDataMap, selectReferenceData } from '../../../store/selectors/referenceDataSelector';
-import { useGetRawAnalysisDataQuery } from '../../../store/apis/experimentsApi';
+import { useCategoryAnalysisDataService } from '../../../hooks/useCategoryAnalysisDataService';
 import { ApiClusteringInputItem } from '../../../utils/clusteringUtils';
 import { usePyodideClustering } from '../../../hooks/usePyodideClustering';
 import { useProcessedClusteringData } from '../../../hooks/useProcessedClusteringData';
@@ -79,7 +79,7 @@ const GOClusteringAnalysisUnit: React.FC = () => {
   const highlightMode = useAppSelector(selectHighlightMode);
 
   // --- Data Fetching & Processing Hooks ---
-  const { data: rawData, isLoading: isLoadingRaw, error: rawError, isSuccess: rawSuccess } = useGetRawAnalysisDataQuery({ projectName, selectedBmdResultRefs }, { skip: !projectName || !selectedBmdResultRefs || selectedBmdResultRefs.length === 0 });
+  const { data: rawData, isLoading: isLoadingRaw, error: rawError, isSuccess: rawSuccess } = useCategoryAnalysisDataService(projectName, selectedBmdResultRefs);
   const bmdRefToExperimentNameMap = useMemo(() => {
     const tempMap = new Map<number, string>(); if (rawSuccess && rawData?.rawBmdResults) { rawData.rawBmdResults.forEach((r) => { if (r && r['@ref'] != null) { const numericRef = Number(r['@ref']); if (!isNaN(numericRef)) { tempMap.set(numericRef, r.name || `BMD Result ${numericRef}`); } } }); } return tempMap;
   }, [rawSuccess, rawData]);

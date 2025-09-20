@@ -1,21 +1,21 @@
-import React from 'react'; // Removed useCallback
-import { Select, Button, Space, Typography, Tooltip } from 'antd';
-import { PlusOutlined, MenuOutlined } from '@ant-design/icons'; // Removed BarChartOutlined
+// src/components/layout/AppHeader.tsx
+import React, { useState } from 'react'; // Added useState
+import { Select, Button, Space, Typography, Tooltip, Upload, message } from 'antd'; // Added Upload, message
+import { PlusOutlined, MenuOutlined } from '@ant-design/icons';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { setActiveProject } from '../../store/slices/projectSlice';
-import { selectSelectedProjectName } from '../../store/selectors/projectSelectors';
+import { setActiveProject, fetchAvailableProjects, initializeDuckDbProject } from '../../store/slices/projectSlice'; // Added initializeDuckDbProject
+import { selectSelectedProjectName } from '../../store/slices/projectSlice';
 import {
     setActiveView,
-    // selectCurrentView // No longer needed here
 } from '../../store/slices/navigationSlice';
 import {
     clearSelectedAnalyses,
-    // selectSelectedAnalysisRefs // No longer needed here
 } from '../../store/slices/selectedAnalysisSlice';
 import {
     setActiveClusteringRef,
     setGoIdInputString,
 } from '../../store/slices/analysisUISlice';
+import { processFileThunk } from '../../store/thunks/fileProcessingThunk'; // Added
 import styles from './AppHeader.module.css';
 
 const { Option } = Select;
@@ -44,10 +44,9 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 }) => {
     const dispatch = useAppDispatch();
     const activeProjectName = useAppSelector(selectSelectedProjectName);
-    // const currentViewKey = useAppSelector(selectCurrentView); // Removed
-    // const selectedRefs = useAppSelector(selectSelectedAnalysisRefs); // Removed
+    const [isUploading, setIsUploading] = useState(false); // State for upload loading
 
-    console.log(`[AppHeader] Rendering. activeProjectName: ${activeProjectName}`); // Simplified log
+    console.log(`[AppHeader] Rendering. activeProjectName: ${activeProjectName}`);
 
     const handleProjectChange = (value: string | null) => {
         if (value !== activeProjectName) {
@@ -55,11 +54,16 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 `[AppHeader] Project CHANGED. Dispatching actions to switch project TO: ${value || 'None'}`
             );
             dispatch(setActiveProject(value));
-            // Always go to experiments view on project change
             dispatch(setActiveView('experiments'));
             dispatch(clearSelectedAnalyses());
             dispatch(setActiveClusteringRef(null));
             dispatch(setGoIdInputString(''));
+
+            // Initialize DuckDB when a project is selected
+            if (value) {
+                console.log(`[AppHeader] 🚀 Dispatching DuckDB initialization for project: ${value}`);
+                dispatch(initializeDuckDbProject(value));
+            }
         } else {
             console.log(
                 `[AppHeader] handleProjectChange called with SAME value: ${value}. No state change needed.`
@@ -67,12 +71,31 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         }
     };
 
-    const handleAddNewProject = () => {
-        console.log('Import Project button clicked - Implement me!');
-        // TODO: Implement project import functionality
-    };
+    const handleFileUpload = async (file: File): Promise<boolean> => {
+        setIsUploading(true);
+        message.loading({ content: `Importing ${file.name}...`, key: 'uploadStatus', duration: 0 });
 
-    // handleRunAnalysis removed
+        try {
+            const resultAction = await dispatch(processFileThunk(file));
+            if (processFileThunk.fulfilled.match(resultAction)) {
+                const newProjectName = resultAction.payload;
+                message.success({ content: `Project "${newProjectName}" imported successfully!`, key: 'uploadStatus', duration: 3 });
+                await dispatch(fetchAvailableProjects()); // Refresh project list
+                // Optionally, automatically select the new project
+                // dispatch(setActiveProject(newProjectName));
+                // dispatch(setActiveView('experiments'));
+            } else if (processFileThunk.rejected.match(resultAction)) {
+                message.error({ content: `Failed to import project: ${resultAction.payload || 'Unknown error'}`, key: 'uploadStatus', duration: 5 });
+                console.error("File processing thunk rejected:", resultAction.payload);
+            }
+        } catch (uploadError: any) {
+            message.error({ content: `Upload error: ${uploadError.message || 'An unexpected error occurred.'}`, key: 'uploadStatus', duration: 5 });
+            console.error("Error dispatching processFileThunk:", uploadError);
+        } finally {
+            setIsUploading(false);
+        }
+        return false; // Prevent default Upload component behavior
+    };
 
     let placeholderText = 'Select Project...';
     if (isLoading) {
@@ -83,9 +106,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         placeholderText = 'No Projects Found';
     }
 
-    // isRunAnalysisDisabled removed
-    // showRunAnalysisButton removed
-
     return (
         <div
             style={{
@@ -95,7 +115,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 width: '100%',
             }}
         >
-            {/* --- Left Section (Unchanged) --- */}
+            {/* --- Left Section --- */}
             <Space align="center" style={{ flexShrink: 0 }}>
                 <Button
                     type="text"
@@ -139,26 +159,31 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                         </Option>
                     ))}
                 </Select>
-                <Tooltip title="Import Project">
-                    <Button
-                        type="primary"
-                        icon={<PlusOutlined />}
-                        onClick={handleAddNewProject}
-                        disabled={disabled || isLoading || !!error}
-                    >
-                        Import Project
-                    </Button>
-                </Tooltip>
+                <Upload
+                    accept=".json"
+                    beforeUpload={handleFileUpload}
+                    showUploadList={false}
+                    disabled={disabled || isLoading || !!error || isUploading}
+                >
+                    <Tooltip title="Import Project JSON File">
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            loading={isUploading} // Show loading state on button
+                            disabled={disabled || isLoading || !!error} // Keep original disabled conditions
+                        >
+                            Import Project
+                        </Button>
+                    </Tooltip>
+                </Upload>
             </Space>
 
             {/* --- Center Section (REMOVED Run Analysis Button) --- */}
-            <div style={{ flexGrow: 1 }}>{/* Empty or add other header items here */}</div>
+            <div style={{ flexGrow: 1 }}></div>
 
 
             {/* --- Right Section (Placeholder - Unchanged) --- */}
-            {/* This was likely just for layout balancing, keep it hidden */}
             <Space align="center" style={{ visibility: 'hidden', flexShrink: 0 }}>
-                {/* Content here mirrors left side for spacing */}
                 <Button type="text" icon={<MenuOutlined />} style={{ fontSize: '20px' }} />
                 <Text strong style={{ fontSize: '1.4em', marginLeft: '8px', marginRight: '24px', whiteSpace: 'nowrap' }}>
                     BMD Express...Plus!
