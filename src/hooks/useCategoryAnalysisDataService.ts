@@ -9,6 +9,7 @@ import {
   initNewDatabase,
   connectToOpfsDuckDb
 } from 'bmd-express-data-service';
+
 import { useAppSelector } from '../store/hooks';
 import {
   selectIsDuckDbInitializing,
@@ -54,7 +55,8 @@ export interface UseCategoryAnalysisDataServiceResult {
 
 export function useCategoryAnalysisDataService(
   projectName: string | null,
-  selectedBmdResultRefs: string[]
+  selectedBmdResultRefs: string[],
+  fieldSelections?: string[]
 ): UseCategoryAnalysisDataServiceResult {
   const [data, setData] = useState<CategoryAnalysisData | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
@@ -155,77 +157,44 @@ export function useCategoryAnalysisDataService(
         const testResult = await rpc.exec('SELECT COUNT(*) as table_count FROM information_schema.tables');
         console.log('[useCategoryAnalysisDataService] DuckDB test query result:', testResult);
 
-        // Transform selected refs to numbers for SQL query
-        const selectedBmdResultRefsNumbers = selectedBmdResultRefs.map(ref => parseInt(ref, 10));
+        // Transform selected refs to numbers - these are analysis set IDs
+        const selectedAnalysisSetIds = selectedBmdResultRefs.map(ref => parseInt(ref, 10));
 
-        // Execute direct query filtered by selected BMD result refs
-        console.log('[useCategoryAnalysisDataService] Executing query for selected BMD results:', selectedBmdResultRefsNumbers);
-        const mainQuery = `
-          SELECT
-            cars.id as set_id,
-            cars.name as set_name,
-            cars.bmdResultId,
-            cars.sex,
-            cars.organ,
-            cars.species,
-            cars.dataType,
-            cars.platform,
-            car.id as result_id,
-            car.categoryIdentifierId,
-            car.modelType,
-            car.geneAllCount,
-            car.percentage,
-            car.genesThatPassedAllFilters,
-            car.bmdFifthPercentileTotalGenes,
-            ci.id as category_id,
-            ci.title as category_title,
-            ci.modelType as category_model_type,
-            br.name as bmd_result_name,
-            br.organ as bmd_organ,
-            br.species as bmd_species,
-            br.dataType as bmd_dataType,
-            br.platform as bmd_platform,
-            br.bmdMethod,
-            br.wAUC,
-            br.logwAUC,
-            dre.id as experiment_id,
-            dre.name as experiment_name,
-            dre.chipId,
-            dre.logTransformation,
-            dre.columnHeader2,
-            dre.chipCreationDate
-          FROM categoryAnalysisResultsSets cars
-          JOIN categoryAnalysisResults car ON cars.id = car.categoryAnalysisResultsId
-          JOIN categoryIdentifiers ci ON car.categoryIdentifierId = ci.id
-          JOIN bmdResults br ON cars.bmdResultId = br.id
-          JOIN doseResponseExperiments dre ON br.doseResponseExperimentId = dre.id
-          WHERE ci.modelType = 'go'
-            AND cars.bmdResultId IN (${selectedBmdResultRefsNumbers.join(',')})
-            AND car.percentage >= 5
-            AND car.geneAllCount BETWEEN 40 AND 500
-            AND car.genesThatPassedAllFilters >= 3
-          ORDER BY cars.name, car.percentage DESC
-          LIMIT 1000;
-        `;
+        // Create CategoryAnalysisQueryService instance with existing RPC
+        const categoryAnalysisQueryService = new CategoryAnalysisQueryService(rpc.exec.bind(rpc));
 
-        const mainResult = await rpc.exec(mainQuery);
-        console.log('[useCategoryAnalysisDataService] Main query results:', {
-          rowCount: mainResult.rows?.length || 0,
-          schema: mainResult.schema
+        // Use service method with only the fields we need
+        console.log('[useCategoryAnalysisDataService] Getting category analysis results for analysis sets:', selectedAnalysisSetIds);
+
+        const mainResult = await categoryAnalysisQueryService.getSelectedCategoryAnalysisResults({
+          select: fieldSelections,
+          filters: {
+            categoryAnalysisResultsId: selectedAnalysisSetIds
+          }
         });
+
+        console.log('[useCategoryAnalysisDataService] Service method results:', {
+          rowCount: mainResult.rowCount,
+          sample: mainResult.rows?.slice(0, 3)
+        });
+
+        // DEBUG: Let's see the actual structure of mainResult
+        console.log('[useCategoryAnalysisDataService] Full mainResult structure:', mainResult);
+        console.log('[useCategoryAnalysisDataService] mainResult.rows sample:', mainResult.rows?.slice(0, 2));
 
         if (cancelled) return;
 
         const filteredMainResults = mainResult.rows || [];
 
         // Extract unique BMD results for the rawBmdResults array
+        // Use the actual field: categoryAnalysisResultsId (which is the analysis set ID)
         const uniqueBmdResults = filteredMainResults.reduce((acc, result) => {
-          const key = result.bmdResultId;
-          if (!acc.has(key) && selectedBmdResultRefsNumbers.includes(result.bmdResultId)) {
+          const key = result.categoryAnalysisResultsId;
+          if (!acc.has(key) && selectedAnalysisSetIds.includes(result.categoryAnalysisResultsId)) {
             acc.set(key, {
-              '@ref': result.bmdResultId,
-              name: result.bmd_result_name,
-              doseResponseExperiment: result.experiment_id
+              '@ref': result.categoryAnalysisResultsId,
+              name: `Analysis Set ${result.categoryAnalysisResultsId}`, // We don't have the actual name in this data
+              doseResponseExperiment: result.categoryAnalysisResultsId
             });
           }
           return acc;
@@ -233,27 +202,27 @@ export function useCategoryAnalysisDataService(
 
         // Transform category analysis results to legacy format
         const rawCategoryAnalysisItems = filteredMainResults.map(result => ({
-          bmdResultRef: result.bmdResultId,
+          bmdResultRef: result.categoryAnalysisResultsId, // Use actual field name
           item: {
-            '@ref': result.result_id,
+            '@ref': result.id, // Use actual field name
             '@type': 'CategoryAnalysisResult',
             categoryIdentifier: {
               id: result.categoryIdentifierId,
-              title: result.category_title
+              title: result.categoryIdentifierId // Use categoryIdentifierId as title since no separate title field
             },
             geneAllCount: result.geneAllCount,
             percentage: result.percentage,
             genesThatPassedAllFilters: result.genesThatPassedAllFilters,
             bmdFifthPercentileTotalGenes: result.bmdFifthPercentileTotalGenes,
-            categoryId: result.category_id,
-            categoryTitle: result.category_title,
-            experimentName: result.experiment_name,
-            bmdResultName: result.bmd_result_name
+            categoryId: result.categoryIdentifierId, // Use categoryIdentifierId as categoryId
+            categoryTitle: result.categoryIdentifierId, // Use categoryIdentifierId as title
+            experimentName: `Analysis Set ${result.categoryAnalysisResultsId}`, // Generate experiment name
+            bmdResultName: `Analysis Set ${result.categoryAnalysisResultsId}` // Generate BMD result name
           }
         }));
 
         // Transform reference UMAP data for the categories we have
-        const categoryIds = new Set(filteredMainResults.map(r => r.category_id));
+        const categoryIds = new Set(filteredMainResults.map(r => r.categoryIdentifierId));
         const filteredUmapClusters = referenceUmapData?.filter(refData =>
           categoryIds.has(refData.go_id)
         ).map(refData => ({
@@ -266,7 +235,7 @@ export function useCategoryAnalysisDataService(
         const transformedData: CategoryAnalysisData = {
           rawBmdResults: Array.from(uniqueBmdResults.values()),
           rawCategoryAnalysisItems,
-          selectedBmdResultRefs: selectedBmdResultRefsNumbers,
+          selectedBmdResultRefs: selectedAnalysisSetIds,
           umapClusters: filteredUmapClusters
         };
 
@@ -298,7 +267,7 @@ export function useCategoryAnalysisDataService(
     return () => {
       cancelled = true;
     };
-  }, [selectedBmdResultRefs.join(','), isDuckDbInitializing, isDuckDbReady, duckDbInitializationError]);
+  }, [selectedBmdResultRefs.join(','), isDuckDbInitializing, isDuckDbReady, duckDbInitializationError, fieldSelections?.join(',') || '']);
 
   return {
     data,

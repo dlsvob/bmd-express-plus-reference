@@ -1,14 +1,17 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 // Removed Button, BarChartOutlined
-import { Checkbox, Spin, Alert, Empty, Tooltip } from 'antd';
+import { Checkbox, Spin, Alert, Empty, Tooltip, Button, Card } from 'antd';
 import { useAvailableAnalysesService } from '../../hooks/useAvailableAnalysesService';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { MODEL_TYPES } from '../../constants/modelTypes';
 import {
     setSelectedAnalysisRefs,
     selectSelectedAnalysisRefs,
 } from '../../store/slices/selectedAnalysisSlice';
 // Removed setActiveView
 import styles from './ExperimentListView.module.css';
+
+const MODEL_TYPE = MODEL_TYPES.GO_ANALYSIS;
 
 type CheckboxValueType = string | number;
 
@@ -20,6 +23,7 @@ interface ExperimentListViewProps {
 const ExperimentListView: React.FC<ExperimentListViewProps> = ({
     projectName,
 }) => {
+    console.log('[ExperimentListView] Rendering with projectName:', projectName);
     const dispatch = useAppDispatch();
 
     const {
@@ -27,7 +31,7 @@ const ExperimentListView: React.FC<ExperimentListViewProps> = ({
         isLoading: isLoadingList,
         error: listError,
         isSuccess,
-    } = useAvailableAnalysesService(projectName);
+    } = useAvailableAnalysesService(projectName, MODEL_TYPE);
 
     // Keep selector for checkbox values
     const selectedValues = useAppSelector(selectSelectedAnalysisRefs);
@@ -38,7 +42,7 @@ const ExperimentListView: React.FC<ExperimentListViewProps> = ({
         const sortedData = [...currentList].sort((a, b) =>
             (a.bmdResultName ?? '').localeCompare(b.bmdResultName ?? '')
         );
-        return sortedData.map((item) => {
+        const options = sortedData.map((item) => {
             const labelText = item.bmdResultName || `Analysis ${item.bmdResultRef}`;
             return {
                 label: (
@@ -47,9 +51,10 @@ const ExperimentListView: React.FC<ExperimentListViewProps> = ({
                         <span>{labelText}</span>
                     </Tooltip>
                 ),
-                value: String(item.bmdResultRef),
+                value: String(item.id),  // FIXED: Use unique analysis set ID instead of bmdResultRef
             };
         });
+        return options;
     }, [selectableAnalyses]);
 
 
@@ -60,6 +65,7 @@ const ExperimentListView: React.FC<ExperimentListViewProps> = ({
         },
         [dispatch]
     );
+
 
     // handleRunAnalysis removed
 
@@ -108,6 +114,23 @@ const ExperimentListView: React.FC<ExperimentListViewProps> = ({
     return (
         <div className={styles.viewContainer}>
             <div className={styles.flexContainer}>
+                {/* Debug Info Section */}
+                <Card
+                    title="Database Debug Information"
+                    size="small"
+                    style={{ marginBottom: '16px' }}
+                >
+                    <div style={{ fontSize: '12px' }}>
+                        <p><strong>Project:</strong> {projectName}</p>
+                        <p><strong>Loading:</strong> {isLoadingList ? 'Yes' : 'No'}</p>
+                        <p><strong>Analysis Sets Count:</strong> {selectableAnalyses?.length || 0}</p>
+                        <p><strong>Error:</strong> {listError ? String(listError) : 'None'}</p>
+                        <p style={{ color: '#666', fontSize: '11px', marginTop: '8px' }}>
+                            Check browser console for detailed test query results including available modelTypes.
+                        </p>
+                    </div>
+                </Card>
+
                 {/* listArea no longer scrolls or has max-height */}
                 <div className={styles.listArea}>
                     {noDataAvailable ? (

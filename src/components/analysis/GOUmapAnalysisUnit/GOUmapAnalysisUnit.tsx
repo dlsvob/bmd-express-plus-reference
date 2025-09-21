@@ -27,6 +27,7 @@ import AccumulationPlot from './AccumulationPlot';
 import { useAppSelector, useAppDispatch } from '../../../store/hooks';
 // Import the hook that provides the plot data
 import { usePreparedPlotData } from '../../../hooks/usePreparedPlotData';
+
 // Import *types* used in this component
 import type {
     AnalysisTableRow,
@@ -66,6 +67,7 @@ import {
 } from '../../../store/slices/analysisUISlice';
 import { selectSelectedProjectName } from '../../../store/slices/projectSlice';
 import { useCategoryAnalysisDataService } from '../../../hooks/useCategoryAnalysisDataService';
+import { FIELD_SELECTIONS } from '../../../constants/categoryAnalysisFields';
 import { GOUmapAnalysisTable } from './GOUmapAnalysisTable';
 import { DEFAULT_GOUMAP_TABLE_COLUMNS } from '../../../config/tableColumnDefinitions';
 import type {
@@ -141,7 +143,7 @@ const GOUmapAnalysisUnit: React.FC = () => {
     const currentTableSelectedGoId = useAppSelector(selectTableSelectedGoId);
 
     // --- Data Fetching ---
-    const { data: rawData, isLoading: isLoadingRaw, isFetching, error: rawError, isSuccess: rawSuccess } = useCategoryAnalysisDataService(projectName, selectedBmdResultRefs || []);
+    const { data: rawData, isLoading: isLoadingRaw, isFetching, error: rawError, isSuccess: rawSuccess } = useCategoryAnalysisDataService(projectName, selectedBmdResultRefs || [], FIELD_SELECTIONS.BASIC_ANALYSIS);
 
     // --- Data Processing Hooks ---
     // Only need name map here
