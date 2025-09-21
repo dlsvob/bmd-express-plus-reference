@@ -83,18 +83,9 @@ export function useCategoryAnalysisDataService(
       return;
     }
 
-    console.log('[useCategoryAnalysisDataService] Effect triggered for:', {
-      selectedBmdResultRefs,
-      isDuckDbInitializing,
-      isDuckDbReady,
-      duckDbInitializationError,
-      isDuckDbEnabled: isDuckDbEnabled(),
-      rpcAvailable: !!getDuckDbRpc()
-    });
 
     // If DuckDB initialization failed, show error immediately
     if (duckDbInitializationError) {
-      console.log('[useCategoryAnalysisDataService] DuckDB initialization failed:', duckDbInitializationError);
       setIsLoading(false);
       setIsFetching(false);
       setError(`Database initialization failed: ${duckDbInitializationError}`);
@@ -105,7 +96,6 @@ export function useCategoryAnalysisDataService(
 
     // If DuckDB is still initializing, show loading state
     if (isDuckDbInitializing) {
-      console.log('[useCategoryAnalysisDataService] DuckDB is still initializing, waiting...');
       setIsLoading(true);
       setIsFetching(true);
       setError(null);
@@ -115,7 +105,6 @@ export function useCategoryAnalysisDataService(
 
     // If DuckDB is not ready yet, wait
     if (!isDuckDbReady) {
-      console.log('[useCategoryAnalysisDataService] DuckDB not ready yet, waiting for initialization...');
       setIsLoading(false);
       setIsFetching(false);
       setError(null);
@@ -125,7 +114,6 @@ export function useCategoryAnalysisDataService(
 
     // Additional check: even if Redux says ready, verify actual DuckDB state
     if (!isDuckDbEnabled() || !getDuckDbRpc()) {
-      console.log('[useCategoryAnalysisDataService] Redux says ready but DuckDB not actually available, waiting...');
       setIsLoading(false);
       setIsFetching(false);
       setError(null);
@@ -142,7 +130,6 @@ export function useCategoryAnalysisDataService(
       setIsSuccess(false);
 
       try {
-        console.log('[useCategoryAnalysisDataService] Fetching data for:', { selectedBmdResultRefs });
 
         // DuckDB should be ready now, get the RPC client
         const rpc = getDuckDbRpc();
@@ -150,12 +137,7 @@ export function useCategoryAnalysisDataService(
           throw new Error('DuckDB RPC not available despite ready state. This is a timing issue.');
         }
 
-        console.log('[useCategoryAnalysisDataService] ✅ DuckDB connection established');
 
-        // Test DuckDB connectivity
-        console.log('[useCategoryAnalysisDataService] Testing DuckDB connectivity...');
-        const testResult = await rpc.exec('SELECT COUNT(*) as table_count FROM information_schema.tables');
-        console.log('[useCategoryAnalysisDataService] DuckDB test query result:', testResult);
 
         // Transform selected refs to numbers - these are analysis set IDs
         const selectedAnalysisSetIds = selectedBmdResultRefs.map(ref => parseInt(ref, 10));
@@ -164,7 +146,6 @@ export function useCategoryAnalysisDataService(
         const categoryAnalysisQueryService = new CategoryAnalysisQueryService(rpc.exec.bind(rpc));
 
         // Use service method with only the fields we need
-        console.log('[useCategoryAnalysisDataService] Getting category analysis results for analysis sets:', selectedAnalysisSetIds);
 
         const mainResult = await categoryAnalysisQueryService.getSelectedCategoryAnalysisResults({
           select: fieldSelections,
@@ -173,14 +154,7 @@ export function useCategoryAnalysisDataService(
           }
         });
 
-        console.log('[useCategoryAnalysisDataService] Service method results:', {
-          rowCount: mainResult.rowCount,
-          sample: mainResult.rows?.slice(0, 3)
-        });
 
-        // DEBUG: Let's see the actual structure of mainResult
-        console.log('[useCategoryAnalysisDataService] Full mainResult structure:', mainResult);
-        console.log('[useCategoryAnalysisDataService] mainResult.rows sample:', mainResult.rows?.slice(0, 2));
 
         if (cancelled) return;
 
@@ -243,13 +217,11 @@ export function useCategoryAnalysisDataService(
           setData(transformedData);
           setIsSuccess(true);
           setError(null);
-          console.log('[useCategoryAnalysisDataService] Data fetched successfully:', transformedData);
         }
 
       } catch (err) {
         if (!cancelled) {
           const errorMessage = err instanceof Error ? err.message : String(err);
-          console.error('[useCategoryAnalysisDataService] Error fetching data:', err);
           setError(errorMessage);
           setData(undefined);
           setIsSuccess(false);

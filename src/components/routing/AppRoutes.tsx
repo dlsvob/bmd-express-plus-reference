@@ -14,7 +14,6 @@ const AppRoutes: React.FC = () => {
     const selectedProjectName = useAppSelector(selectSelectedProjectName);
     const isProjectSelected = !!selectedProjectName;
 
-    console.log('[AppRoutes] Rendering - selectedProjectName:', selectedProjectName, 'isProjectSelected:', isProjectSelected);
 
     // If no project is selected, show project selection prompt
     if (!isProjectSelected) {

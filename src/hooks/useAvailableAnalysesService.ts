@@ -1,6 +1,7 @@
 // src/hooks/useAvailableAnalysesService.ts
 import { useState, useEffect } from 'react';
 import {
+  CategoryAnalysisQueryService,
   getDuckDbRpc,
   isDuckDbEnabled,
 } from 'bmd-express-data-service';
@@ -11,51 +12,23 @@ import {
   selectDuckDbInitializationError,
 } from '../store/slices/projectSlice';
 
-// Debug function for browser console
-(window as any).debugDuckDbTables = async () => {
-  try {
-    const rpc = getDuckDbRpc();
-    if (!rpc?.exec) {
-      console.log('DuckDB RPC not available');
-      return;
-    }
-
-    console.log('=== DEBUGGING DUCKDB TABLES ===');
-
-    // List all tables
-    const tablesResult = await rpc.exec(`
-      SELECT table_name
-      FROM information_schema.tables
-      WHERE table_schema = 'main'
-      ORDER BY table_name;
-    `);
-    console.log('Available tables:', tablesResult.rows);
-
-    // Check categoryAnalysisResultsSets
-    const carsResult = await rpc.exec(`
-      SELECT id, name, bmdResultId, organ, sex, species
-      FROM categoryAnalysisResultsSets
-      LIMIT 5;
-    `);
-    console.log('categoryAnalysisResultsSets sample:', carsResult.rows);
-
-    // Check count
-    const countResult = await rpc.exec(`
-      SELECT COUNT(*) as count
-      FROM categoryAnalysisResultsSets;
-    `);
-    console.log('categoryAnalysisResultsSets count:', countResult.rows);
-
-  } catch (error) {
-    console.error('Debug error:', error);
-  }
-};
+// NOTE: Using bmd-express-data-service for clean data access
+// The service provides CategoryAnalysisQueryService.getCategoryAnalysisSetsWithModelType()
+// which resolves the duplicate key issue by using unique analysis set IDs
 
 export interface SelectableAnalysisInfo {
-  bmdResultRef: number;
+  id: number;                          // NEW: Use categoryAnalysisResultsSets.id (unique)
+  bmdResultRef: number;                // KEEP: For backwards compatibility
   bmdResultName: string;
   doseResponseExperimentRef: string;
   doseResponseExperimentName: string;
+  // Additional fields from the data service
+  name: string;                        // Analysis set name
+  sex?: string;
+  organ?: string;
+  species?: string;
+  dataType?: string;
+  platform?: string;
 }
 
 export interface UseAvailableAnalysesServiceResult {
@@ -70,7 +43,8 @@ export interface UseAvailableAnalysesServiceResult {
  * Replaces the mock data with real database queries.
  */
 export function useAvailableAnalysesService(
-  projectName: string | null
+  projectName: string | null,
+  modelType: string
 ): UseAvailableAnalysesServiceResult {
   const [data, setData] = useState<SelectableAnalysisInfo[] | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
@@ -91,12 +65,10 @@ export function useAvailableAnalysesService(
       return;
     }
 
-    console.log('[useAvailableAnalysesService] ==> HOOK TRIGGERED for project:', projectName);
-
+  
     // If DuckDB initialization failed, show error immediately
     if (duckDbInitializationError) {
-      console.log('[useAvailableAnalysesService] DuckDB initialization failed:', duckDbInitializationError);
-      setIsLoading(false);
+        setIsLoading(false);
       setError(`Database initialization failed: ${duckDbInitializationError}`);
       setData(undefined);
       setIsSuccess(false);
@@ -105,8 +77,7 @@ export function useAvailableAnalysesService(
 
     // If DuckDB is still initializing, show loading state
     if (isDuckDbInitializing) {
-      console.log('[useAvailableAnalysesService] DuckDB is still initializing, waiting...');
-      setIsLoading(true);
+        setIsLoading(true);
       setError(null);
       setIsSuccess(false);
       return;
@@ -114,8 +85,7 @@ export function useAvailableAnalysesService(
 
     // If DuckDB is not ready yet, wait
     if (!isDuckDbReady) {
-      console.log('[useAvailableAnalysesService] DuckDB not ready yet, waiting for initialization...');
-      setIsLoading(false); // Don't show loading since we're waiting for Redux state change
+        setIsLoading(false); // Don't show loading since we're waiting for Redux state change
       setError(null);
       setIsSuccess(false);
       return;
@@ -129,70 +99,37 @@ export function useAvailableAnalysesService(
       setIsSuccess(false);
 
       try {
-        console.log('[useAvailableAnalysesService] Fetching available analyses for project:', projectName);
-
-        // DuckDB should be ready now, get the RPC client
+  
+        // Create CategoryAnalysisQueryService instance directly
         const rpc = getDuckDbRpc();
-        if (!isDuckDbEnabled() || !rpc?.exec) {
-          throw new Error('DuckDB RPC not available despite ready state. This is a timing issue.');
+        const categoryAnalysisQueryService = new CategoryAnalysisQueryService(rpc.exec.bind(rpc));
+
+        if (!isDuckDbEnabled()) {
+          throw new Error('DuckDB not available');
         }
 
-        console.log('[useAvailableAnalysesService] ✅ DuckDB connection established');
+  
+        // Run test queries to debug and understand the database structure
+  
+        const analysisSets = await categoryAnalysisQueryService.getCategoryAnalysisSetsWithModelType(modelType);
 
-        // First, let's see what tables are available and what's in categoryAnalysisResultsSets
-        console.log('[useAvailableAnalysesService] Checking available tables...');
-        const tablesResult = await rpc.exec(`
-          SELECT table_name
-          FROM information_schema.tables
-          WHERE table_schema = 'main'
-          ORDER BY table_name;
-        `);
-        console.log('[useAvailableAnalysesService] Available tables:', tablesResult.rows);
 
-        // Let's try a simple query first to see what's in categoryAnalysisResultsSets with modelType from correct join
-        console.log('[useAvailableAnalysesService] Checking categoryAnalysisResultsSets content...');
-        const simpleQuery = `
-          SELECT cars.id, cars.name, cars.bmdResultId, cars.organ, cars.sex, cars.species, ci.modelType
-          FROM categoryAnalysisResultsSets cars
-          LEFT JOIN categoryAnalysisResults car ON cars.id = car.categoryAnalysisResultsId
-          LEFT JOIN categoryIdentifiers ci ON car.categoryIdentifierId = ci.id
-          LIMIT 10;
-        `;
-        const simpleResult = await rpc.exec(simpleQuery);
-        console.log('[useAvailableAnalysesService] Sample categoryAnalysisResultsSets data:', simpleResult.rows);
-
-        // Now try the main query with GO filter to avoid duplicates
-        const query = `
-          SELECT DISTINCT
-            cars.bmdResultId as bmdResultRef,
-            cars.name as bmdResultName,
-            COALESCE(dre.id, 0) as doseResponseExperimentRef,
-            COALESCE(dre.name, 'Unknown Experiment') as doseResponseExperimentName
-          FROM categoryAnalysisResultsSets cars
-          JOIN categoryAnalysisResults car ON cars.id = car.categoryAnalysisResultsId
-          JOIN categoryIdentifiers ci ON car.categoryIdentifierId = ci.id
-          LEFT JOIN bmdResults br ON cars.bmdResultId = br.id
-          LEFT JOIN doseResponseExperiments dre ON br.doseResponseExperimentId = dre.id
-          WHERE ci.modelType = 'go'
-          ORDER BY cars.bmdResultId
-          LIMIT 20;
-        `;
-
-        console.log('[useAvailableAnalysesService] Executing query to get available analyses...');
-        const result = await rpc.exec(query);
-        console.log('[useAvailableAnalysesService] Query result:', {
-          rowCount: result.rows?.length || 0,
-          schema: result.schema
-        });
 
         if (cancelled) return;
 
         // Transform the results to match the expected interface
-        const analyses: SelectableAnalysisInfo[] = (result.rows || []).map(row => ({
-          bmdResultRef: row.bmdResultRef,
-          bmdResultName: row.bmdResultName || `Analysis ${row.bmdResultRef}`,
-          doseResponseExperimentRef: String(row.doseResponseExperimentRef),
-          doseResponseExperimentName: row.doseResponseExperimentName || `Experiment ${row.doseResponseExperimentRef}`
+        const analyses: SelectableAnalysisInfo[] = analysisSets.map(set => ({
+          id: set.id,                                    // NEW: Use unique primary key
+          bmdResultRef: set.bmdResultId,                 // Keep for compatibility
+          bmdResultName: set.name || `Analysis ${set.bmdResultId}`,
+          doseResponseExperimentRef: String(set.bmdResultId), // Use bmdResultId as experiment ref
+          doseResponseExperimentName: `Experiment ${set.bmdResultId}`,
+          name: set.name,
+          sex: set.sex,
+          organ: set.organ,
+          species: set.species,
+          dataType: set.dataType,
+          platform: set.platform
         }));
 
         // If no results found, provide some mock data for now
@@ -203,16 +140,20 @@ export function useAvailableAnalysesService(
 
           finalAnalyses = [
             {
+              id: 999,
               bmdResultRef: 1,
               bmdResultName: 'Mock Analysis 1 (No DB Data Found)',
               doseResponseExperimentRef: '1',
-              doseResponseExperimentName: 'Mock Experiment 1'
+              doseResponseExperimentName: 'Mock Experiment 1',
+              name: 'Mock Analysis 1'
             },
             {
+              id: 998,
               bmdResultRef: 2,
               bmdResultName: 'Mock Analysis 2 (No DB Data Found)',
               doseResponseExperimentRef: '2',
-              doseResponseExperimentName: 'Mock Experiment 2'
+              doseResponseExperimentName: 'Mock Experiment 2',
+              name: 'Mock Analysis 2'
             }
           ];
         }
@@ -220,8 +161,7 @@ export function useAvailableAnalysesService(
         setData(finalAnalyses);
         setIsSuccess(true);
         setError(null);
-        console.log('[useAvailableAnalysesService] Successfully loaded analyses:', finalAnalyses);
-
+  
       } catch (err) {
         if (!cancelled) {
           const errorMessage = err instanceof Error ? err.message : String(err);
@@ -242,7 +182,7 @@ export function useAvailableAnalysesService(
     return () => {
       cancelled = true;
     };
-  }, [projectName, isDuckDbInitializing, isDuckDbReady, duckDbInitializationError]);
+  }, [projectName, modelType, isDuckDbInitializing, isDuckDbReady, duckDbInitializationError]);
 
   return {
     data,

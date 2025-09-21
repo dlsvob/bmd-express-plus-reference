@@ -3,8 +3,8 @@ import React, { useState } from 'react'; // Added useState
 import { Select, Button, Space, Typography, Tooltip, Upload, message } from 'antd'; // Added Upload, message
 import { PlusOutlined, MenuOutlined } from '@ant-design/icons';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { setActiveProject, fetchAvailableProjects, initializeDuckDbProject } from '../../store/slices/projectSlice'; // Added initializeDuckDbProject
-import { selectSelectedProjectName } from '../../store/slices/projectSlice';
+import { fetchAvailableProjects, initializeDuckDbProject, setSelectedProjectName } from '../../store/slices/projectSlice'; // Added initializeDuckDbProject
+import { selectSelectedProjectName, selectIsDuckDbInitializing, selectIsDuckDbReady } from '../../store/slices/projectSlice';
 import {
     setActiveView,
 } from '../../store/slices/navigationSlice';
@@ -15,7 +15,7 @@ import {
     setActiveClusteringRef,
     setGoIdInputString,
 } from '../../store/slices/analysisUISlice';
-import { processFileThunk } from '../../store/thunks/fileProcessingThunk'; // Added
+// REMOVED: import { processFileThunk } from '../../store/thunks/fileProcessingThunk'; // Legacy IndexedDB system
 import styles from './AppHeader.module.css';
 
 const { Option } = Select;
@@ -44,56 +44,107 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 }) => {
     const dispatch = useAppDispatch();
     const activeProjectName = useAppSelector(selectSelectedProjectName);
+    const isDuckDbInitializing = useAppSelector(selectIsDuckDbInitializing);
+    const isDuckDbReady = useAppSelector(selectIsDuckDbReady);
     const [isUploading, setIsUploading] = useState(false); // State for upload loading
 
     console.log(`[AppHeader] Rendering. activeProjectName: ${activeProjectName}`);
 
-    const handleProjectChange = (value: string | null) => {
-        if (value !== activeProjectName) {
-            console.log(
-                `[AppHeader] Project CHANGED. Dispatching actions to switch project TO: ${value || 'None'}`
-            );
-            dispatch(setActiveProject(value));
-            dispatch(setActiveView('experiments'));
-            dispatch(clearSelectedAnalyses());
-            dispatch(setActiveClusteringRef(null));
-            dispatch(setGoIdInputString(''));
+    const handleProjectChange = async (value: string | null) => {
+        if (!value) {
+            console.log('[AppHeader] Project cleared');
+            return;
+        }
 
-            // Initialize DuckDB when a project is selected
-            if (value) {
-                console.log(`[AppHeader] 🚀 Dispatching DuckDB initialization for project: ${value}`);
-                dispatch(initializeDuckDbProject(value));
+        console.log(`[AppHeader] Project selected: ${value}`);
+        message.loading({ content: `Connecting to project: ${value}...`, key: 'projectStatus', duration: 0 });
+
+        try {
+            // Set the selected project name in Redux first
+            console.log(`[AppHeader] Setting selected project: ${value}`);
+            dispatch(setSelectedProjectName(value));
+
+            // PROPER GUARD: Only initialize if not already in progress or ready
+            if (isDuckDbInitializing) {
+                console.log(`[AppHeader] DuckDB already initializing for another project, waiting...`);
+                message.info({
+                    content: `DuckDB is initializing, please wait...`,
+                    key: 'projectStatus',
+                    duration: 3
+                });
+                return;
             }
-        } else {
-            console.log(
-                `[AppHeader] handleProjectChange called with SAME value: ${value}. No state change needed.`
-            );
+
+            if (isDuckDbReady) {
+                console.log(`[AppHeader] DuckDB already ready, skipping initialization`);
+                message.success({
+                    content: `Already connected to project: ${value}`,
+                    key: 'projectStatus',
+                    duration: 2
+                });
+                return;
+            }
+
+            // Initialize DuckDB connection to the selected project
+            console.log(`[AppHeader] Initializing DuckDB project: ${value}`);
+            const result = await dispatch(initializeDuckDbProject(value));
+
+            if (initializeDuckDbProject.fulfilled.match(result)) {
+                console.log(`[AppHeader] ✅ Successfully connected to project: ${value}`);
+
+                message.success({
+                    content: `Connected to project: ${value}`,
+                    key: 'projectStatus',
+                    duration: 3
+                });
+            } else {
+                throw new Error(result.payload || 'Failed to initialize project');
+            }
+
+        } catch (error: any) {
+            console.error(`[AppHeader] ❌ Failed to connect to project ${value}:`, error);
+            message.error({
+                content: `Failed to connect to project: ${error.message || 'Unknown error'}`,
+                key: 'projectStatus',
+                duration: 5
+            });
         }
     };
 
-    const handleFileUpload = async (file: File): Promise<boolean> => {
+    const handleDuckDbUpload = async (file: File): Promise<boolean> => {
         setIsUploading(true);
-        message.loading({ content: `Importing ${file.name}...`, key: 'uploadStatus', duration: 0 });
+        message.loading({ content: `Uploading ${file.name} to OPFS...`, key: 'uploadStatus', duration: 0 });
 
         try {
-            const resultAction = await dispatch(processFileThunk(file));
-            if (processFileThunk.fulfilled.match(resultAction)) {
-                const newProjectName = resultAction.payload;
-                message.success({ content: `Project "${newProjectName}" imported successfully!`, key: 'uploadStatus', duration: 3 });
-                await dispatch(fetchAvailableProjects()); // Refresh project list
-                // Optionally, automatically select the new project
-                // dispatch(setActiveProject(newProjectName));
-                // dispatch(setActiveView('experiments'));
-            } else if (processFileThunk.rejected.match(resultAction)) {
-                message.error({ content: `Failed to import project: ${resultAction.payload || 'Unknown error'}`, key: 'uploadStatus', duration: 5 });
-                console.error("File processing thunk rejected:", resultAction.payload);
-            }
-        } catch (uploadError: any) {
-            message.error({ content: `Upload error: ${uploadError.message || 'An unexpected error occurred.'}`, key: 'uploadStatus', duration: 5 });
-            console.error("Error dispatching processFileThunk:", uploadError);
+            // Import the upload function from bmd-express-data-service
+            const { uploadDuckDbToOpfs } = await import('bmd-express-data-service');
+
+            // Upload the file to OPFS
+            console.log(`[AppHeader] Uploading ${file.name} to OPFS...`);
+            const result = await uploadDuckDbToOpfs(file);
+            console.log(`[AppHeader] Upload result:`, result);
+
+            message.success({
+                content: `Database "${file.name}" uploaded successfully to OPFS!`,
+                key: 'uploadStatus',
+                duration: 3
+            });
+
+            // Refresh project list to show the new database
+            console.log(`[AppHeader] Refreshing project list...`);
+            await dispatch(fetchAvailableProjects());
+
+        } catch (error: any) {
+            message.error({
+                content: `Failed to upload database: ${error.message || 'Unknown error'}`,
+                key: 'uploadStatus',
+                duration: 5
+            });
+            console.error('DuckDB upload error:', error);
         } finally {
             setIsUploading(false);
         }
+
         return false; // Prevent default Upload component behavior
     };
 
@@ -160,19 +211,19 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                     ))}
                 </Select>
                 <Upload
-                    accept=".json"
-                    beforeUpload={handleFileUpload}
+                    accept=".duckdb"
+                    beforeUpload={handleDuckDbUpload}
                     showUploadList={false}
                     disabled={disabled || isLoading || !!error || isUploading}
                 >
-                    <Tooltip title="Import Project JSON File">
+                    <Tooltip title="Import DuckDB Database File">
                         <Button
                             type="primary"
                             icon={<PlusOutlined />}
                             loading={isUploading} // Show loading state on button
                             disabled={disabled || isLoading || !!error} // Keep original disabled conditions
                         >
-                            Import Project
+                            Import Database
                         </Button>
                     </Tooltip>
                 </Upload>

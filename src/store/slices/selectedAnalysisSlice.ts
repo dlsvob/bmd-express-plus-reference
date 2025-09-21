@@ -27,9 +27,9 @@ const selectedAnalysisSlice = createSlice({
       state.selectedDetails = null;
     },
     // --- Action for updating selection from the table ---
-    setSelectedAnalysisRefs(state, action: PayloadAction<React.Key[]>) {
-      // Convert React.Key[] to string[] if necessary, assuming refs are strings
-      state.selectedRefs = (action.payload as string[]) || [];
+    setSelectedAnalysisRefs(state, action: PayloadAction<string[]>) {
+      // Store string array directly
+      state.selectedRefs = action.payload || [];
       // Optionally clear details when selection changes, as currently implemented
       state.selectedDetails = null;
     },

@@ -1,6 +1,6 @@
 import React, { useMemo, useCallback, useState } from 'react';
 // Removed Button, BarChartOutlined
-import { Checkbox, Spin, Alert, Empty, Tooltip, Button, Card } from 'antd';
+import { Checkbox, Spin, Alert, Empty, Tooltip } from 'antd';
 import { useAvailableAnalysesService } from '../../hooks/useAvailableAnalysesService';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { MODEL_TYPES } from '../../constants/modelTypes';
@@ -23,7 +23,6 @@ interface ExperimentListViewProps {
 const ExperimentListView: React.FC<ExperimentListViewProps> = ({
     projectName,
 }) => {
-    console.log('[ExperimentListView] Rendering with projectName:', projectName);
     const dispatch = useAppDispatch();
 
     const {
@@ -114,22 +113,6 @@ const ExperimentListView: React.FC<ExperimentListViewProps> = ({
     return (
         <div className={styles.viewContainer}>
             <div className={styles.flexContainer}>
-                {/* Debug Info Section */}
-                <Card
-                    title="Database Debug Information"
-                    size="small"
-                    style={{ marginBottom: '16px' }}
-                >
-                    <div style={{ fontSize: '12px' }}>
-                        <p><strong>Project:</strong> {projectName}</p>
-                        <p><strong>Loading:</strong> {isLoadingList ? 'Yes' : 'No'}</p>
-                        <p><strong>Analysis Sets Count:</strong> {selectableAnalyses?.length || 0}</p>
-                        <p><strong>Error:</strong> {listError ? String(listError) : 'None'}</p>
-                        <p style={{ color: '#666', fontSize: '11px', marginTop: '8px' }}>
-                            Check browser console for detailed test query results including available modelTypes.
-                        </p>
-                    </div>
-                </Card>
 
                 {/* listArea no longer scrolls or has max-height */}
                 <div className={styles.listArea}>

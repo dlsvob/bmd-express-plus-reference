@@ -4,7 +4,7 @@ import {
 } from '@reduxjs/toolkit';
 
 // Import reducers...
-import navigationReducer from './slices/navigationSlice';
+// REMOVED: navigationReducer - using React Router for navigation
 import projectReducer from './slices/projectSlice';
 import selectedAnalysisReducer from './slices/selectedAnalysisSlice';
 import uiReducer from './slices/uiSlice';
@@ -18,7 +18,7 @@ import { enrichrApi } from './apis/enrichrApi';
 
 // Define the root reducer first
 const rootReducer = combineReducers({
-  navigation: navigationReducer,
+  // REMOVED: navigation - using React Router for navigation
   project: projectReducer,
   selectedAnalysis: selectedAnalysisReducer,
   ui: uiReducer,

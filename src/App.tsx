@@ -1,7 +1,6 @@
 // src/App.tsx
 import React from 'react';
-import { Provider } from 'react-redux';
-import { store } from './store/store';
+import { BrowserRouter } from 'react-router-dom';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import { PyodideProvider } from './contexts/PyodideProvider';
 import AppLayoutController from './components/layout/AppLayoutController';
@@ -13,12 +12,12 @@ const App: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <Provider store={store}>
+      <BrowserRouter>
         <PyodideProvider>
           {/* Render the component that will consume the context */}
           <AppLayoutController />
         </PyodideProvider>
-      </Provider>
+      </BrowserRouter>
     </ErrorBoundary>
   );
 };

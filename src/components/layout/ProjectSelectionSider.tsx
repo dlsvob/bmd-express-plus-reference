@@ -1,9 +1,8 @@
 // src/components/layout/ProjectSelectionSider.tsx
 import React from 'react';
-import { Layout, Select, Button, Space, Typography, Tooltip, Spin } from 'antd';
+import { Layout, Select, Button, Space, Typography, Tooltip, Spin, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { setActiveProject } from '../../store/slices/projectSlice';
 import { selectSelectedProjectName } from '../../store/slices/projectSlice';
 
 const { Sider } = Layout;
@@ -35,7 +34,8 @@ const ProjectSelectionSider: React.FC<ProjectSelectionSiderProps> = ({
     const activeProjectName = useAppSelector(selectSelectedProjectName);
 
     const handleProjectChange = (value: string | null) => {
-        dispatch(setActiveProject(value));
+        console.log('[ProjectSelectionSider] Project selection disabled - IndexedDB system removed');
+        message.error('Project selection needs implementation - IndexedDB system removed');
     };
 
     const handleAddNewProject = () => {

@@ -1,6 +1,7 @@
 // src/components/layout/AppLayoutController.tsx
 import React, { useState, useCallback, useEffect } from 'react';
 import { Layout, Drawer, Menu, Spin, Alert, Typography, Button, Space } from 'antd'; // Added Space
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
     ExperimentOutlined,
     BarChartOutlined, // Icon for UMAP
@@ -10,16 +11,10 @@ import {
 import type { MenuProps } from 'antd';
 import type { MenuInfo } from 'rc-menu/lib/interface';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { fetchAvailableProjects, setActiveProject, initializeDuckDbProject, selectAvailableProjects, selectIsLoadingAvailableProjects, selectAvailableProjectsError, selectSelectedProjectName } from '../../store/slices/projectSlice';
-import {
-    selectCurrentView,
-    setActiveView,
-} from '../../store/slices/navigationSlice';
+import { fetchAvailableProjects, selectAvailableProjects, selectIsLoadingAvailableProjects, selectAvailableProjectsError, selectSelectedProjectName } from '../../store/slices/projectSlice';
 import { selectSelectedAnalysisRefs } from '../../store/slices/selectedAnalysisSlice';
 import PyodideErrorNotifier from '../shared/PyodideErrorNotifier';
-import ExperimentListView from '../views/ExperimentListView';
-import GOUmapAnalysisUnit from '../analysis/GOUmapAnalysisUnit/GOUmapAnalysisUnit';
-import GOClusteringAnalysisUnit from '../analysis/GOClusteringAnalysisUnit/GOClusteringAnalysisUnit';
+import AppRoutes from '../routing/AppRoutes';
 import AppHeader from './AppHeader';
 import { usePyodide } from '../../contexts/PyodideProvider';
 import styles from './AppLayoutController.module.css';
@@ -28,25 +23,25 @@ const { Content, Header } = Layout;
 
 // --- Menu Items Configuration ---
 const menuItems: MenuProps['items'] = [
-    { key: 'experiments', icon: <ExperimentOutlined />, label: 'Experiments' },
+    { key: '/experiments', icon: <ExperimentOutlined />, label: 'Experiments' },
     {
         key: 'analysis',
         label: 'Analysis',
         icon: <BarChartOutlined />, // Generic Analysis Icon
         children: [
-            { key: 'categoryAnalysis', label: 'Category Analysis (UMAP)' }, // Key for UMAP view
-            { key: 'goClustering', label: 'GO Clustering' }, // Key for clustering view
+            { key: '/analysis/umap', label: 'Category Analysis (UMAP)' }, // Route path for UMAP view
+            { key: '/analysis/clustering', label: 'GO Clustering' }, // Route path for clustering view
         ],
     },
-    { key: 'settings', icon: <SettingOutlined />, label: 'Project Settings' },
+    { key: '/settings', icon: <SettingOutlined />, label: 'Project Settings' },
 ];
 
 // --- Internal Component for Main Content Area (Handles view rendering and sticky buttons) ---
 const AppContentInternal: React.FC = () => {
     const { error: pyodideError } = usePyodide();
-    const dispatch = useAppDispatch();
+    const navigate = useNavigate();
+    const location = useLocation();
     const selectedProjectName = useAppSelector(selectSelectedProjectName);
-    const activeView = useAppSelector(selectCurrentView);
     const selectedRefs = useAppSelector(selectSelectedAnalysisRefs);
     const isProjectSelected = !!selectedProjectName;
 
@@ -54,44 +49,24 @@ const AppContentInternal: React.FC = () => {
     const handleRunUmapAnalysis = useCallback(() => {
         if (!selectedRefs || selectedRefs.length === 0) return;
         console.log('[AppContentInternal] Run UMAP Analysis clicked.');
-        dispatch(setActiveView('categoryAnalysis')); // Navigate to UMAP view
-    }, [dispatch, selectedRefs]);
+        navigate('/analysis/umap'); // Navigate to UMAP route
+    }, [navigate, selectedRefs]);
 
     // Handler for Clustering Button
     const handleRunClustering = useCallback(() => {
         if (!selectedRefs || selectedRefs.length === 0) return;
         console.log('[AppContentInternal] Run Clustering clicked.');
-        dispatch(setActiveView('goClustering')); // Navigate to Clustering view
-    }, [dispatch, selectedRefs]);
+        navigate('/analysis/clustering'); // Navigate to Clustering route
+    }, [navigate, selectedRefs]);
 
     // Shared disabled state for both buttons (enabled if > 0 refs selected)
     const isRunAnalysisDisabled = selectedRefs.length === 0;
     // Shared visibility condition (only show in experiments view with a project)
-    const showRunAnalysisButtons = activeView === 'experiments' && isProjectSelected;
+    const showRunAnalysisButtons = location.pathname === '/experiments' && isProjectSelected;
 
-    // Determine which view component to render
-    let viewContent: React.ReactNode;
-    if (isProjectSelected && selectedProjectName) {
-        switch (activeView) {
-            case 'experiments':
-            default:
-                viewContent = <ExperimentListView projectName={selectedProjectName} />;
-                break;
-            case 'categoryAnalysis': // Key matching UMAP view
-                viewContent = <GOUmapAnalysisUnit />;
-                break;
-            case 'goClustering': // Key matching Clustering view
-                viewContent = <GOClusteringAnalysisUnit />;
-                break;
-            case 'settings':
-                viewContent = (
-                    <Alert message="Project Settings View (Not Implemented)" type="info" />
-                );
-                break;
-        }
-    } else if (pyodideError) {
-        // Handle Pyodide error state
-        viewContent = (
+    // Handle Pyodide error state
+    if (pyodideError) {
+        return (
             <Alert
                 message="Pyodide Initialization Failed"
                 description="Core Python features may be unavailable. Please see the error modal for details or try reloading."
@@ -99,26 +74,9 @@ const AppContentInternal: React.FC = () => {
                 showIcon
             />
         );
-    } else if (!isProjectSelected) {
-        // Handle no project selected state
-        viewContent = (
-            <div style={{ textAlign: 'center', marginTop: '50px' }}>
-                <Typography.Title level={3}>BMD Express...Plus!</Typography.Title>
-                <Typography.Paragraph>
-                    Select a project for analysis, or create one.
-                </Typography.Paragraph>
-            </div>
-        );
-    } else {
-        // Default loading state
-        viewContent = (
-            <div style={{ textAlign: 'center', marginTop: '50px' }}>
-                <Spin size="large" />
-            </div>
-        );
     }
 
-    // Render the sticky button container (if applicable) + the current view
+    // Render the sticky button container (if applicable) + the router-based content
     return (
         <>
             {/* Conditionally render the container for BOTH buttons */}
@@ -152,8 +110,8 @@ const AppContentInternal: React.FC = () => {
                     </Space>
                 </div>
             )}
-            {/* Render the selected view content below the buttons */}
-            {viewContent}
+            {/* Render the router-based view content below the buttons */}
+            <AppRoutes />
         </>
     );
 };
@@ -161,21 +119,21 @@ const AppContentInternal: React.FC = () => {
 
 // --- Navigation Menu Component ---
 const NavigationMenu: React.FC<{
-    currentViewKey: string | null;
+    currentPath: string;
     onClick: MenuProps['onClick'];
     disabled: boolean;
-}> = ({ currentViewKey, onClick, disabled }) => {
+}> = ({ currentPath, onClick, disabled }) => {
     return (
         <Menu
             mode="inline"
-            // Open the 'Analysis' submenu if the current view is one of its children
+            // Open the 'Analysis' submenu if the current path is one of its children
             defaultOpenKeys={
-                currentViewKey &&
-                    ['categoryAnalysis', 'goClustering'].includes(currentViewKey)
+                currentPath &&
+                    ['/analysis/umap', '/analysis/clustering'].includes(currentPath)
                     ? ['analysis']
                     : []
             }
-            selectedKeys={currentViewKey ? [currentViewKey] : []}
+            selectedKeys={currentPath ? [currentPath] : []}
             style={{ height: '100%', borderRight: 0 }}
             items={menuItems} // Use the defined menu structure
             onClick={onClick}
@@ -188,6 +146,8 @@ const NavigationMenu: React.FC<{
 const AppLayoutController: React.FC = () => {
     console.log('[AppLayoutController] Rendering...');
     const dispatch = useAppDispatch();
+    const navigate = useNavigate();
+    const location = useLocation();
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     // Hooks for state and data
@@ -196,7 +156,6 @@ const AppLayoutController: React.FC = () => {
     const availableProjects = useAppSelector(selectAvailableProjects);
     const isLoadingAvailableProjects = useAppSelector(selectIsLoadingAvailableProjects);
     const availableProjectsError = useAppSelector(selectAvailableProjectsError);
-    const currentViewKey = useAppSelector(selectCurrentView);
     const isProjectSelected = !!selectedProjectName;
 
     // Drawer callbacks
@@ -207,10 +166,10 @@ const AppLayoutController: React.FC = () => {
     const handleMenuClick: MenuProps['onClick'] = useCallback(
         (e: MenuInfo) => {
             console.log('Drawer menu clicked:', e.key);
-            dispatch(setActiveView(e.key)); // Set the active view based on menu key
+            navigate(e.key); // Navigate to the selected route
             closeDrawer(); // Close the drawer after selection
         },
-        [dispatch, closeDrawer] // Dependencies for useCallback
+        [navigate, closeDrawer] // Dependencies for useCallback
     );
 
     // Fetch available projects on mount
@@ -297,7 +256,7 @@ const AppLayoutController: React.FC = () => {
                 styles={{ body: { padding: 0 } }} // Remove padding for Menu component
             >
                 <NavigationMenu
-                    currentViewKey={currentViewKey} // Highlight the active view
+                    currentPath={location.pathname} // Highlight the active route
                     onClick={handleMenuClick} // Handle menu item clicks
                     disabled={!isProjectSelected} // Disable if no project is loaded
                 />

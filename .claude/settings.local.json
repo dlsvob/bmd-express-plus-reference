@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/svobodadl/Downloads/**)",
+      "Bash(pkill:*)",
+      "Read(//Users/svobodadl/Dev/Projects/BMD-Express-Plus_combined/packages/bmd-express-data-service/**)",
+      "Bash(duckdb:*)",
+      "Bash(for table in bmdResults categoryAnalysisResults categoryAnalysisResultsSets categoryIdentifiers)",
+      "Bash(do echo \"=== $table ===\")",
+      "Bash(echo:*)",
+      "Bash(done)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

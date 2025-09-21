@@ -40,70 +40,114 @@ export const fetchAvailableProjects = createAsyncThunk<ProjectInfo[], void, { re
     }
 );
 
+// --- Helper Functions for DuckDB Connection ---
+
+// Separate connection logic
+async function connectToDuckDb(projectName: string): Promise<void> {
+    if (isDuckDbEnabled()) return;
+
+    const { connectToOpfsDuckDb } = await import('bmd-express-data-service');
+
+    // 10 second timeout instead of 60
+    const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Connection timeout (10s)')), 10000)
+    );
+
+    await Promise.race([
+        connectToOpfsDuckDb(projectName),
+        timeoutPromise
+    ]);
+}
+
+// Separate validation logic
+async function validateConnection(): Promise<void> {
+    const { getDuckDbRpc } = await import('bmd-express-data-service');
+    const rpc = getDuckDbRpc();
+
+    if (!rpc?.exec) {
+        throw new Error('DuckDB RPC not available after connection');
+    }
+
+    // Simple validation query
+    await rpc.exec('SELECT 1');
+}
+
+// Connection with retry logic
+async function connectWithRetry(projectName: string, maxRetries = 3): Promise<void> {
+    console.log(`[projectSlice] 🔗 connectWithRetry starting for ${projectName}`);
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            console.log(`[projectSlice] 🔗 Attempt ${attempt}/${maxRetries} - calling connectToDuckDb`);
+            await connectToDuckDb(projectName);
+            console.log(`[projectSlice] 🔗 Connection successful on attempt ${attempt}`);
+            return; // Success
+        } catch (error) {
+            console.error(`[projectSlice] 🔗 Attempt ${attempt} failed:`, error);
+            if (attempt === maxRetries) {
+                console.error(`[projectSlice] 🔗 All ${maxRetries} attempts failed, throwing error`);
+                throw error;
+            }
+
+            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // 1s, 2s, 4s max
+            console.log(`[projectSlice] Connection attempt ${attempt} failed, retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+}
+
+// Centralized error handling
+function getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+        if (error.message.includes('timeout')) {
+            return 'Database connection timed out. Please check your connection and try again.';
+        }
+        if (error.message.includes('not found')) {
+            return 'Database file not found. Please verify the project exists.';
+        }
+        return error.message;
+    }
+    return 'Unknown database connection error';
+}
+
+// --- Async Thunk for Checking DuckDB Health ---
+export const checkDuckDbHealth = createAsyncThunk<boolean, void>(
+    'project/checkDuckDbHealth',
+    async () => {
+        if (!isDuckDbEnabled()) return false;
+
+        try {
+            const { getDuckDbRpc } = await import('bmd-express-data-service');
+            const rpc = getDuckDbRpc();
+            await rpc.exec('SELECT 1');
+            return true;
+        } catch {
+            return false;
+        }
+    }
+);
+
 // --- Async Thunk for Initializing DuckDB Project ---
-export const initializeDuckDbProject = createAsyncThunk<string, string, { rejectValue: string }>(
+export const initializeDuckDbProject = createAsyncThunk<string, string, {
+    rejectValue: string;
+}>(
     'project/initializeDuckDbProject',
     async (projectName, { rejectWithValue }) => {
+        console.log(`[projectSlice] 🔍 THUNK START: initializeDuckDbProject for ${projectName}`);
+        console.log(`[projectSlice] 🔍 DuckDB service state: isDuckDbEnabled=${isDuckDbEnabled()}`);
+
         try {
-            console.log('[projectSlice] 🚀 STARTING DuckDB initialization for project:', projectName);
+            console.log(`[projectSlice] Initializing DuckDB for project: ${projectName}`);
 
-            // Only initialize if not already enabled
-            if (!isDuckDbEnabled()) {
-                console.log(`[projectSlice] 🦆 DuckDB not enabled, connecting to: ${projectName}`);
-                try {
-                    // Import the DuckDB connection function dynamically (like power-tools app)
-                    const { connectToOpfsDuckDb } = await import('bmd-express-data-service');
-                    // Add a timeout wrapper around the connection
-                    const connectPromise = connectToOpfsDuckDb(projectName);
-                    const timeoutPromise = new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('DuckDB connection timeout after 60 seconds')), 60000)
-                    );
+            await connectWithRetry(projectName);
+            await validateConnection();
 
-                    console.log('[projectSlice] ⏱️ Waiting for DuckDB connection with 60s timeout...');
-                    await Promise.race([connectPromise, timeoutPromise]);
-                    console.log('[projectSlice] ✅ Successfully connected to DuckDB');
-                } catch (connectError) {
-                    console.error('[projectSlice] ❌ Failed to connect to DuckDB:', connectError);
-                    throw connectError;
-                }
-            } else {
-                console.log('[projectSlice] ✅ DuckDB already enabled');
-            }
-
-            // Test the connection
-            console.log('[projectSlice] 🧪 Testing DuckDB connection...');
-            const { getDuckDbRpc } = await import('bmd-express-data-service');
-
-            // Check if DuckDB is now enabled
-            console.log('[projectSlice] 🔍 Checking DuckDB status after connection:', {
-                isDuckDbEnabled: isDuckDbEnabled(),
-                hasRpc: !!getDuckDbRpc()
-            });
-            const rpc = getDuckDbRpc();
-            console.log('[projectSlice] 🔍 RPC client details:', {
-                rpc: !!rpc,
-                exec: !!rpc?.exec,
-                methods: rpc ? Object.keys(rpc) : 'null'
-            });
-
-            if (!rpc?.exec) {
-                throw new Error(`DuckDB RPC client not available after connection. Available methods: ${rpc ? Object.keys(rpc).join(', ') : 'null'}`);
-            }
-
-            const testResult = await rpc.exec('SELECT COUNT(*) as table_count FROM information_schema.tables');
-            console.log('[projectSlice] ✅ DuckDB connection test successful:', testResult);
-
-            // Final status check
-            console.log('[projectSlice] ✅ COMPLETED DuckDB initialization for project:', projectName, {
-                isDuckDbEnabled: isDuckDbEnabled(),
-                hasRpc: !!getDuckDbRpc()
-            });
-
+            console.log(`[projectSlice] Successfully initialized DuckDB for: ${projectName}`);
             return projectName;
-        } catch (error: unknown) {
-            console.error('[projectSlice] ❌ Failed to initialize DuckDB project:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Failed to initialize DuckDB project';
-            return rejectWithValue(errorMessage);
+
+        } catch (error) {
+            console.error('[projectSlice] DuckDB initialization failed:', error);
+            return rejectWithValue(getErrorMessage(error));
         }
     }
 );
@@ -122,15 +166,12 @@ const projectSlice = createSlice({
         setActiveProject(state, action: PayloadAction<string | null>) {
             const newProjectName = action.payload;
             console.log('[projectSlice] Reducer: setActiveProject - Payload:', newProjectName);
-            // Update BOTH selectedProjectName and activeProjectId
-            if (state.selectedProjectName !== newProjectName) {
-                state.selectedProjectName = newProjectName;
-            }
+            // Only update activeProjectId (remove selectedProjectName to break IndexedDB hook connection)
             if (state.activeProjectId !== newProjectName) {
                 state.activeProjectId = newProjectName;
             }
             // Reset DuckDB state when changing projects
-            if (newProjectName !== state.selectedProjectName) {
+            if (newProjectName !== state.activeProjectId) {
                 state.isDuckDbInitializing = false;
                 state.isDuckDbReady = false;
                 state.duckDbInitializationError = null;
@@ -171,16 +212,16 @@ const projectSlice = createSlice({
                 state.isDuckDbInitializing = false;
                 state.isDuckDbReady = false;
                 state.duckDbInitializationError = action.payload ?? 'Unknown error initializing DuckDB project';
-                state.errorAvailable = action.payload ?? 'Unknown error initializing DuckDB project';
+                // REMOVED: Don't duplicate error in errorAvailable
             });
     },
 });
 
 // --- Export Actions ---
-export const { setSelectedProjectName, setActiveProject } = projectSlice.actions;
+export const { setSelectedProjectName } = projectSlice.actions;
 
 // --- Thunks are automatically exported when declared with createAsyncThunk ---
-// fetchAvailableProjects and initializeDuckDbProject are already exported above
+// fetchAvailableProjects, initializeDuckDbProject, and checkDuckDbHealth are already exported above
 
 // --- Export Reducer ---
 export default projectSlice.reducer;
@@ -195,3 +236,15 @@ export const selectActiveProjectId = (state: RootState) => state.project.activeP
 export const selectIsDuckDbInitializing = (state: RootState) => state.project.isDuckDbInitializing;
 export const selectIsDuckDbReady = (state: RootState) => state.project.isDuckDbReady;
 export const selectDuckDbInitializationError = (state: RootState) => state.project.duckDbInitializationError;
+
+// Composite selector to find the active project object by activeProjectId
+export const selectActiveProject = (state: RootState): ProjectInfo | null => {
+    const projects = selectAvailableProjects(state);
+    const activeId = selectActiveProjectId(state);
+
+    if (!activeId || !projects) {
+        return null;
+    }
+
+    return projects.find(p => p.name === activeId) || null;
+};

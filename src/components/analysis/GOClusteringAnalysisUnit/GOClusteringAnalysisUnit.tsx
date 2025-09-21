@@ -15,7 +15,10 @@ import {
 } from '../../../store/slices/analysisUISlice';
 import { selectReferenceDataMap, selectReferenceData } from '../../../store/selectors/referenceDataSelector';
 import { useCategoryAnalysisDataService } from '../../../hooks/useCategoryAnalysisDataService';
+import { MODEL_TYPES } from '../../../constants/modelTypes';
 import { ApiClusteringInputItem } from '../../../utils/clusteringUtils';
+
+const MODEL_TYPE = MODEL_TYPES.GO_ANALYSIS;
 import { usePyodideClustering } from '../../../hooks/usePyodideClustering';
 import { useProcessedClusteringData } from '../../../hooks/useProcessedClusteringData';
 import { useClusteringVisualizationData } from '../../../hooks/useClusteringVisualizationData';
@@ -79,7 +82,7 @@ const GOClusteringAnalysisUnit: React.FC = () => {
   const highlightMode = useAppSelector(selectHighlightMode);
 
   // --- Data Fetching & Processing Hooks ---
-  const { data: rawData, isLoading: isLoadingRaw, error: rawError, isSuccess: rawSuccess } = useCategoryAnalysisDataService(projectName, selectedBmdResultRefs);
+  const { data: rawData, isLoading: isLoadingRaw, error: rawError, isSuccess: rawSuccess } = useCategoryAnalysisDataService(projectName, selectedBmdResultRefs, MODEL_TYPE);
   const bmdRefToExperimentNameMap = useMemo(() => {
     const tempMap = new Map<number, string>(); if (rawSuccess && rawData?.rawBmdResults) { rawData.rawBmdResults.forEach((r) => { if (r && r['@ref'] != null) { const numericRef = Number(r['@ref']); if (!isNaN(numericRef)) { tempMap.set(numericRef, r.name || `BMD Result ${numericRef}`); } } }); } return tempMap;
   }, [rawSuccess, rawData]);

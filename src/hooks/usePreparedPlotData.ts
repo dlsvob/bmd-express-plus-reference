@@ -21,6 +21,7 @@ export interface UsePreparedPlotDataArgs {
   selectedBmdResultRefs: string[];
   referenceDataMap: Map<string, ReferenceUmapItem> | null;
   referenceData: ReferenceUmapItem[] | null;
+  modelType: string;
 }
 
 interface LegendItems {
@@ -81,6 +82,7 @@ export const usePreparedPlotData = ({
   selectedBmdResultRefs,
   referenceDataMap,
   referenceData,
+  modelType,
 }: UsePreparedPlotDataArgs): PreparedPlotHookData => {
   const hookLogPrefix = '[usePreparedPlotData v20 - Unused Fix]'; // Version Bump
 
@@ -101,7 +103,7 @@ export const usePreparedPlotData = ({
     isLoading: isLoadingRaw,
     error: rawError,
     isSuccess: rawSuccess,
-  } = useCategoryAnalysisDataService(projectName, selectedBmdResultRefs);
+  } = useCategoryAnalysisDataService(projectName, selectedBmdResultRefs, modelType);
 
   const canProcess = useMemo(() => {
     return !isLoadingRaw && !rawError && rawSuccess && !!rawData && !!referenceDataMap && selectedBmdResultRefs && selectedBmdResultRefs.length > 0;
