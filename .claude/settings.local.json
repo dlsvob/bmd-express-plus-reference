@@ -9,7 +9,8 @@
       "Bash(do echo \"=== $table ===\")",
       "Bash(echo:*)",
       "Bash(done)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Read(//Users/svobodadl/Dev/Projects/BMD-Express-Plus_combined/node_modules/util/**)"
     ],
     "deny": [],
     "ask": []

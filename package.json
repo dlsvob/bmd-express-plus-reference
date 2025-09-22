@@ -93,7 +93,6 @@
     "react-router-dom": "^6.23.1",
     "shared-types": "*",
     "stream-browserify": "3.0.0",
-    "util": "0.12.5",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
