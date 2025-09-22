@@ -162,8 +162,6 @@ export function useCategoryAnalysisDataService(
 
         const filteredMainResults = mainResult.rows || [];
 
-        console.log('[useCategoryAnalysisDataService] Sample raw data structure:', filteredMainResults[0]);
-
         // Extract unique BMD results for the rawBmdResults array
         // Use the actual field: categoryAnalysisResultsId (which is the analysis set ID)
         const uniqueBmdResults = filteredMainResults.reduce((acc, result) => {
