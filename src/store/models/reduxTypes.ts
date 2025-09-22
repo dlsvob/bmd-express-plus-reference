@@ -23,7 +23,7 @@ export interface ProjectState {
     isLoadingAvailable: boolean;
     errorAvailable: string | null;
     selectedProjectName: string | null;
-    activeProjectId?: string | null;
+    activeProjectId: string | null;
     isDuckDbInitializing: boolean;
     isDuckDbReady: boolean;
     duckDbInitializationError: string | null;

@@ -8,7 +8,8 @@
       "Bash(for table in bmdResults categoryAnalysisResults categoryAnalysisResultsSets categoryIdentifiers)",
       "Bash(do echo \"=== $table ===\")",
       "Bash(echo:*)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": []

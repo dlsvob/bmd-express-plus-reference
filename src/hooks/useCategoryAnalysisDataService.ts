@@ -17,6 +17,7 @@ import {
   selectDuckDbInitializationError,
 } from '../store/slices/projectSlice';
 import { selectReferenceData } from '../store/selectors/referenceDataSelector';
+import { QUERY_WHERE_CLAUSE_UMAP, QUERY_SELECTED_COLUMNS_UMAP } from '../constants/categoryAnalysisFields';
 
 // Hook return type matching what the UMAP component expects
 export interface CategoryAnalysisData {
@@ -55,8 +56,7 @@ export interface UseCategoryAnalysisDataServiceResult {
 
 export function useCategoryAnalysisDataService(
   projectName: string | null,
-  selectedBmdResultRefs: string[],
-  fieldSelections?: string[]
+  selectedBmdResultRefs: string[]
 ): UseCategoryAnalysisDataServiceResult {
   const [data, setData] = useState<CategoryAnalysisData | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
@@ -148,9 +148,11 @@ export function useCategoryAnalysisDataService(
         // Use service method with only the fields we need
 
         const mainResult = await categoryAnalysisQueryService.getSelectedCategoryAnalysisResults({
-          select: fieldSelections,
+          select: QUERY_SELECTED_COLUMNS_UMAP,
           filters: {
-            categoryAnalysisResultsId: selectedAnalysisSetIds
+            categoryAnalysisResultsId: selectedAnalysisSetIds,
+            // Apply standard data quality filters using constants
+            ...QUERY_WHERE_CLAUSE_UMAP
           }
         });
 
@@ -159,6 +161,8 @@ export function useCategoryAnalysisDataService(
         if (cancelled) return;
 
         const filteredMainResults = mainResult.rows || [];
+
+        console.log('[useCategoryAnalysisDataService] Sample raw data structure:', filteredMainResults[0]);
 
         // Extract unique BMD results for the rawBmdResults array
         // Use the actual field: categoryAnalysisResultsId (which is the analysis set ID)
@@ -188,6 +192,7 @@ export function useCategoryAnalysisDataService(
             percentage: result.percentage,
             genesThatPassedAllFilters: result.genesThatPassedAllFilters,
             bmdFifthPercentileTotalGenes: result.bmdFifthPercentileTotalGenes,
+            overallDirection: result.overallDirection,
             categoryId: result.categoryIdentifierId, // Use categoryIdentifierId as categoryId
             categoryTitle: result.categoryIdentifierId, // Use categoryIdentifierId as title
             experimentName: `Analysis Set ${result.categoryAnalysisResultsId}`, // Generate experiment name
@@ -212,6 +217,7 @@ export function useCategoryAnalysisDataService(
           selectedBmdResultRefs: selectedAnalysisSetIds,
           umapClusters: filteredUmapClusters
         };
+
 
         if (!cancelled) {
           setData(transformedData);
@@ -239,7 +245,7 @@ export function useCategoryAnalysisDataService(
     return () => {
       cancelled = true;
     };
-  }, [selectedBmdResultRefs.join(','), isDuckDbInitializing, isDuckDbReady, duckDbInitializationError, fieldSelections?.join(',') || '']);
+  }, [selectedBmdResultRefs.join(','), isDuckDbInitializing, isDuckDbReady, duckDbInitializationError]);
 
   return {
     data,

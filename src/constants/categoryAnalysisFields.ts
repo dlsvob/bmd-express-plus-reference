@@ -128,3 +128,34 @@ export const FIELD_SELECTIONS = {
     CATEGORY_ANALYSIS_FIELDS.BMD_TENTH_PERCENTILE_TOTAL_GENES
   ]
 } as const;
+
+/**
+ * UMAP query configuration constants
+ */
+export const QUERY_SELECTED_COLUMNS_UMAP = [
+  'car.' + CATEGORY_ANALYSIS_FIELDS.ID,  // Qualify with table alias to avoid ambiguity
+  CATEGORY_ANALYSIS_FIELDS.CATEGORY_ANALYSIS_RESULTS_ID,
+  CATEGORY_ANALYSIS_FIELDS.CATEGORY_IDENTIFIER_ID,
+  CATEGORY_ANALYSIS_FIELDS.GENE_ALL_COUNT,
+  CATEGORY_ANALYSIS_FIELDS.PERCENTAGE,
+  CATEGORY_ANALYSIS_FIELDS.GENES_THAT_PASSED_ALL_FILTERS,
+  CATEGORY_ANALYSIS_FIELDS.BMD_FIFTH_PERCENTILE_TOTAL_GENES,
+  CATEGORY_ANALYSIS_FIELDS.OVERALL_DIRECTION
+] as const;
+
+/**
+ * UMAP analysis threshold values - configurable in UI
+ */
+export const MIN_GENE_ALL_COUNT = 40;
+export const MAX_GENE_ALL_COUNT = 500;
+export const MIN_PERCENTAGE = 5;
+export const MIN_GENES_THAT_PASSED_ALL_FILTERS = 3;
+
+/**
+ * UMAP query WHERE clause using parameterized values
+ */
+export const QUERY_WHERE_CLAUSE_UMAP = {
+  geneAllCount: { min: MIN_GENE_ALL_COUNT, max: MAX_GENE_ALL_COUNT },
+  percentage: { '>=': MIN_PERCENTAGE },
+  genesThatPassedAllFilters: { '>=': MIN_GENES_THAT_PASSED_ALL_FILTERS }
+} as const;

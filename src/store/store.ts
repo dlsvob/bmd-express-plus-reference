@@ -42,9 +42,6 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
-        ignoredActions: [
-          // experimentsApi and projectsApi actions removed
-        ],
         warnAfter: 100,
       },
     }).concat(

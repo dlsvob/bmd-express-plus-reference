@@ -89,8 +89,11 @@ export function calculateOverlayStyles(
   const [startRank, endRank] = committedRankWindow;
   const isRankFilterActive = isFinite(startRank) && isFinite(endRank) && startRank <= endRank && startRank >= 1;
 
+  console.log(`${styleLogPrefix} RANK FILTER DEBUG: startRank=${startRank}, endRank=${endRank}, isRankFilterActive=${isRankFilterActive}`);
+
   const styledGroupedData = new Map<string, UmapAnalysisDataPoint[]>();
   let pointsSkippedMissingRef = 0;
+  let pointsProcessed = 0;
   const failedKeysSample = new Set<string>();
   const exactMatchGoIds = new Set((goIdFilterList || []).map((id) => (id ?? '').toUpperCase()));
 
@@ -111,6 +114,7 @@ export function calculateOverlayStyles(
     const styledPoints = basePoints
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
       .map((basePoint, _index) => {
+        pointsProcessed++;
         const goIdSource = basePoint.go_id;
         const lookupKey = typeof goIdSource === 'string' ? goIdSource.trim().toUpperCase() : null;
         const refDataItem = lookupKey ? referenceMap.get(lookupKey) : undefined;
@@ -123,6 +127,11 @@ export function calculateOverlayStyles(
 
         const currentRank = basePoint.rank;
         const isOutsideRankRange = isRankFilterActive && (currentRank == null || currentRank < startRank || currentRank > endRank);
+
+        // Debug rank filtering (only log first 10 points to avoid spam)
+        if (pointsProcessed < 10) {
+          console.log(`${styleLogPrefix} Point ${pointsProcessed}: rank=${currentRank}, isOutsideRankRange=${isOutsideRankRange}, goId=${lookupKey}`);
+        }
         const { colorBy, shapeBy, sizeBy } = stylingOptions;
         const experimentNameForLabel = bmdRefToExperimentNameMap?.get(basePoint.bmdResultRef) || basePoint.bmdResultName || `Analysis ${basePoint.bmdResultRef}`;
         const numericBmdRef = basePoint.bmdResultRef;
@@ -269,6 +278,21 @@ export function calculateOverlayStyles(
   if (pointsSkippedMissingRef > 0) {
     console.warn(`${styleLogPrefix} Skipped ${pointsSkippedMissingRef} points due to missing reference data. Sample failed keys:`, Array.from(failedKeysSample));
   }
+
+  // Count visible vs hidden points
+  let totalVisiblePoints = 0;
+  let totalHiddenPoints = 0;
+  styledGroupedData.forEach(points => {
+    points.forEach(point => {
+      if (point.finalOpacity === 0.0) {
+        totalHiddenPoints++;
+      } else {
+        totalVisiblePoints++;
+      }
+    });
+  });
+
+  console.log(`${styleLogPrefix} RANK FILTER SUMMARY: Processed ${pointsProcessed} points, Visible: ${totalVisiblePoints}, Hidden: ${totalHiddenPoints}`);
 
   return styledGroupedData;
 }
