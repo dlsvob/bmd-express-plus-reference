@@ -11,6 +11,7 @@ export default defineConfig({
   resolve: {
     alias: {
       'stream': 'stream-browserify', // Keep stream polyfill for Plotly
+      'util': 'util', // Explicit util polyfill
     },
   },
   server: {

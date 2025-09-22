@@ -8,11 +8,14 @@ import '@ant-design/v5-patch-for-react-19';
 import './styles/index.css';
 
 const App: React.FC = () => {
-  console.log('[App.tsx] App component rendering...');
-
   return (
     <ErrorBoundary>
-      <BrowserRouter>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true
+        }}
+      >
         <PyodideProvider>
           {/* Render the component that will consume the context */}
           <AppLayoutController />
